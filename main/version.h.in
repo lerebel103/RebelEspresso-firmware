@@ -1,0 +1,18 @@
+#pragma once
+
+#define THING_TYPE "@THING_TYPE@"
+
+#define FIRMWARE_VERSION "@FIRMWARE_VERSION@"
+
+#define HARDWARE_REVISION "@HARDWARE_REVISION@"
+
+/**
+ * Git revision this build came from
+ */
+#cmakedefine GIT_SHORT_HASH "@GIT_SHORT_HASH@"
+
+/**
+ * What build type was this exactly?
+ */
+#cmakedefine BUILD_TYPE "@BUILD_TYPE@"
+

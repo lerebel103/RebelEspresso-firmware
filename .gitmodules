@@ -1,0 +1,18 @@
+[submodule "components/esp-google-iot"]
+	path = components/esp-google-iot
+	url = git@github.com:csobrinho/esp-google-iot.git
+[submodule "components/u8g2"]
+	path = components/u8g2
+	url = git@github.com:olikraus/u8g2.git
+[submodule "components/arduino-esp32"]
+	path = components/arduino-esp32
+	url = git@github.com:lerebel103/arduino-esp32.git
+[submodule "components/esp32-wolfssl"]
+	path = components/esp32-wolfssl
+	url = git@github.com:lerebel103/esp32-wolfssl.git
+[submodule "components/esp32-homekit"]
+	path = components/esp32-homekit
+	url = git@github.com:lerebel103/esp32-homekit.git
+[submodule "components/--force"]
+	path = components/--force
+	url = git@github.com:lerebel103/esp32-wolfssl.git

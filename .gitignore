@@ -1,0 +1,59 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Python files
+*.pyc
+
+# mercurial
+*.hg
+
+# Generated folders
+**/_generated/
+
+# Suspect build folders one may have
+BUILD
+build*
+cmake-build-debug
+cmake-build-release
+
+# Suspect IDE files, we never want this stuff committed as it is developer specific
+.idea
+
+# Not now, it's an arduino project
+.DS_Store
+*.bin
+*.elf
+
+sdkconfig
+sdkconfig.old
+

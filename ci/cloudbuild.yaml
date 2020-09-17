@@ -1,0 +1,56 @@
+steps:
+  # Access our github key
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - kms
+      - decrypt
+      - --ciphertext-file=ci/github-id_rsa.enc
+      - --plaintext-file=/root/.ssh/id_rsa
+      - --location=global
+      - --keyring=my-keyring
+      - --key=github-key
+    volumes:
+      - name: 'ssh'
+        path: /root/.ssh
+
+  # Set up git with key and domain.
+  - name: 'gcr.io/cloud-builders/git'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        ssh-keyscan -t rsa github.com > known_hosts
+        cat <<EOF >/root/.ssh/config
+        Hostname github.com
+        IdentityFile /home/dev/.ssh/id_rsa
+        EOF
+        mv known_hosts /root/.ssh/known_hosts
+    volumes:
+      - name: 'ssh'
+        path: /root/.ssh
+
+  # We are not on a branch per say and this is somewhat of a hack to always go to a branch
+  - name: 'gcr.io/cloud-builders/git'
+    args: [fetch, --depth=1000]
+
+  - name: 'gcr.io/cloud-builders/git'
+    args: [branch, --set-upstream-to=origin/$BRANCH_NAME, $BRANCH_NAME]
+
+  - name: 'gcr.io/cloud-builders/git'
+    args: [pull, --tags]
+
+  # Show tags
+  - name: 'gcr.io/cloud-builders/git'
+    args: [tag]
+
+
+  # Now build project
+  - name: 'gcr.io/$PROJECT_ID/esp/dev-base:latest'
+    volumes:
+      - name: 'ssh'
+        path: /home/dev/.ssh
+    args: ['bash', 'ci/build.sh']
+
+  # Place artifacts on GS
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args: ['-m', 'cp', '-r', 'build/firmware/*/', 'gs://thing-firmware/release']

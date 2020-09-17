@@ -1,0 +1,68 @@
+IF (PROJECT_SOURCE_DIR)
+    CONFIGURE_FILE("${CMAKE_SOURCE_DIR}/main/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/_generated/version.h")
+ENDIF()
+
+file(GLOB_RECURSE HARDWARE_SPECIFIC_SRCS
+        hw/r${HARDWARE_REVISION}/*.h
+        hw/r${HARDWARE_REVISION}/*.c
+        hw/r${HARDWARE_REVISION}/*.cpp
+        )
+
+
+file(GLOB_RECURSE COMPONENT_SRCS
+        events.h
+        state.h
+        state.cpp
+        thing_info.h
+        thing_info.cpp
+        main.cpp
+
+        control/controller.cpp
+        control/controller.h
+        control/actuate.cpp
+        control/actuate.h
+
+        hw/fan.cpp
+        hw/fan.h
+        hw/lid.cpp
+        hw/lid.h
+        hw/oled/display.cpp
+        hw/oled/display.h
+        hw/oled/u8g2_esp32_hal.c
+        hw/oled/u8g2_esp32_hal.h
+        hw/temperature.h
+
+        sys/mqtt.cpp
+        sys/mqtt.h
+        sys/nvram_store.cpp
+        sys/nvram_store.h
+        sys/ota.cpp
+        sys/ota.h
+        sys/sntp.cpp
+        sys/sntp.h
+        sys/wifi_connect.cpp
+        sys/wifi_connect.h
+        sys/homekit.cpp
+        sys/homekit.h
+
+        ${HARDWARE_SPECIFIC_SRCS}
+        )
+
+
+set(COMPONENT_ADD_INCLUDEDIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/"
+        "${CMAKE_CURRENT_SOURCE_DIR}/_generated/"
+        "${CMAKE_CURRENT_SOURCE_DIR}/hw/r${HARDWARE_REVISION}"
+
+        "${CMAKE_SOURCE_DIR}/components/esp-google-iot/iot-device-sdk-embedded-c/include/"
+        "${CMAKE_SOURCE_DIR}/components/u8g2/csrc"
+       )
+
+register_component()
+
+
+add_definitions(
+        -DARDUINO=102
+)
+
+

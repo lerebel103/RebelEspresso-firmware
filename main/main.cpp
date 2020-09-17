@@ -65,9 +65,9 @@ extern "C" void app_main() {
                                     "-----END EC PRIVATE KEY-----"
     );
 
-    mqtt_set_registry_id("DoorOpener");
+    mqtt_set_registry_id("RebelEspresso");
     mqtt_set_location("asia-east1");
-    mqtt_set_project_id("rebel-stoker");
+    mqtt_set_project_id("rebel-espresso");
 
     mqtt_set_ota_cfg_cb(ota_cfg_from_json);
     mqtt_set_controller_cfg_cb(controller_cfg_from_json);

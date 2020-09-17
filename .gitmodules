@@ -8,7 +8,7 @@
 	path = components/arduino-esp32
 	url = git@github.com:lerebel103/arduino-esp32.git
 [submodule "components/esp32-wolfssl"]
-	path = components/esp32-wolfssl
+	path = components/esp-wolfssl
 	url = git@github.com:lerebel103/esp32-wolfssl.git
 [submodule "components/esp32-homekit"]
 	path = components/esp32-homekit

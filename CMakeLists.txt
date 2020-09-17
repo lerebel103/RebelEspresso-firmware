@@ -128,8 +128,8 @@ add_definitions(
         -DNVRAM_STORAGE_PARTITION="${NVRAM_STORAGE_PARTITION}"
 )
 
-# Set hardware revision dependent sdkconfig
-set(SDKCONFIG_DEFAULTS "main/hw/r${HARDWARE_REVISION}/sdkconfig")
+# Set hardware revision dependent files
+file(COPY main/hw/r${HARDWARE_REVISION}/sdkconfig DESTINATION ${CMAKE_SOURCE_DIR}/)
 
 set(PROJECT_NAME rebel-espresso-firmware)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

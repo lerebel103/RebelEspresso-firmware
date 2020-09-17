@@ -13,6 +13,3 @@
 [submodule "components/esp32-homekit"]
 	path = components/esp32-homekit
 	url = git@github.com:lerebel103/esp32-homekit.git
-[submodule "components/--force"]
-	path = components/--force
-	url = git@github.com:lerebel103/esp32-wolfssl.git

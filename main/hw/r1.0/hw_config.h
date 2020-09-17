@@ -2,12 +2,8 @@
 
 #include <driver/adc.h>
 
-#define LIGHT_SLEEP_ENABLE true
+#define GPIO_MISO       GPIO_NUM_12
+#define GPIO_MOSI       GPIO_NUM_13
+#define GPIO_SCK        GPIO_NUM_14
 
-#define SWITCH_OUTPUT_PIN GPIO_NUM_25
-
-// Pin 38
-#define GREEN_LED_INPUT_PIN ADC1_CHANNEL_2
-// Pin 39
-#define RED_LED_INPUT_PIN ADC1_CHANNEL_3
-
+#define GPIO_RTD_CS     GPIO_NUM_15

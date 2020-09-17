@@ -10,6 +10,7 @@ extern "C" {
 
 #include <sys/ota.h>
 #include <esp_event.h>
+#include <Max31865.h>
 
 #include "hw_config.h"
 #include "state.h"
@@ -54,7 +55,6 @@ extern "C" void app_main() {
 
     // Now for witi, ota, mqtt
     wifi_init();
-
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
 
 
@@ -76,6 +76,31 @@ extern "C" void app_main() {
     mqtt_init();
 
     homekit_init();
+
+
+    auto tempSensor = Max31865(GPIO_MISO, GPIO_MOSI, GPIO_SCK, GPIO_RTD_CS);
+    max31865_config_t tempConfig = {};
+    tempConfig.autoConversion = true;
+    tempConfig.vbias = true;
+    tempConfig.filter = Max31865Filter::Hz50;
+    tempConfig.nWires = Max31865NWires::Three;
+    max31865_rtd_config_t rtdConfig = {};
+    rtdConfig.nominal = 100.0f;
+    rtdConfig.ref = 4000.0f;
+    ESP_ERROR_CHECK(tempSensor.begin(tempConfig));
+    ESP_ERROR_CHECK(tempSensor.setRTDThresholds(0x2000, 0x2500));
+
+
+    while (true) {
+        uint16_t rtd;
+        Max31865Error fault = Max31865Error::NoError;
+        tempSensor.getRTD(&rtd, &fault);
+        float temp = Max31865::RTDtoTemperature(rtd, rtdConfig);
+        ESP_LOGI("Temperature", "%.2f C, fault: %d", temp, (int)fault);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+
 
     // Here's our control loop
     controller_enter_loop();

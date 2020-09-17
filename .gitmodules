@@ -13,3 +13,6 @@
 [submodule "components/esp32-homekit"]
 	path = components/esp32-homekit
 	url = git@github.com:lerebel103/esp32-homekit.git
+[submodule "components/ESP32-MAX31865"]
+	path = components/ESP32-MAX31865
+	url = https://github.com/jamieparkinson/ESP32-MAX31865.git

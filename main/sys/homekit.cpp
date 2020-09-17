@@ -6,7 +6,6 @@
 #include <esp_interface.h>
 #include <esp_wifi.h>
 #include <events.h>
-#include <control/actuate.h>
 
 #include "thing_info.h"
 #include "version.h"
@@ -22,7 +21,6 @@ static void* s_acc;
 static bool s_init = false;
 static hap_accessory_callback_t callback;
 
-static bool s_target_needs_reset = true;
 static uint8_t s_current_state_last_sent = 254;
 static uint8_t s_obstruction_last_sent = 254;
 static uint8_t s_target_state_last_sent = 254;
@@ -40,22 +38,7 @@ void* identify_read(void*) {
 
 void *_current_state_read(void *arg) {
     LWIP_UNUSED_ARG(arg);
-
-    Actuate_State_t state = actuate_get_state();
-
-    static uint8_t val = 0;
-    if (state == ACTUATE_STATE_OPENED) {
-        val = 0;
-    } else if (state == ACTUATE_STATE_CLOSED) {
-        val = 1;
-    } else if (state == ACTUATE_STATE_OPENING) {
-        val = 2;
-    } else if (state == ACTUATE_STATE_CLOSING) {
-        val = 3;
-    } else if (state == ACTUATE_STATE_STOPPED) {
-        val = 4;
-    }
-
+    static int val = 0;
     return (void *) &val;
 }
 
@@ -83,36 +66,6 @@ void _target_state_write(void *arg, void *value, int len) {
 
     s_target_state = *(uint8_t*)value;
     ESP_LOGW(TAG, "Got new target state %d", s_target_state);
-
-    Actuate_State_t current = actuate_get_state();
-    if (current != s_target_state) {
-        if (s_target_state == 0 || s_target_state == 2) {
-            // open or opening
-            if (current == ACTUATE_STATE_CLOSING) {
-                // Stop it was closing
-                actuate_blip_switch();
-                vTaskDelay(250 / portTICK_PERIOD_MS);
-                // Now that it is stopped, open
-                actuate_blip_switch();
-            } else {
-                actuate_blip_switch();
-            }
-        } else if (s_target_state == 1 || s_target_state == 3) {
-            // close or closing
-            if (current == ACTUATE_STATE_OPENING) {
-                // Stop it was opening
-                actuate_blip_switch();
-                vTaskDelay(250 / portTICK_PERIOD_MS);
-                // Now that it is stopped, close
-                actuate_blip_switch();
-            } else {
-                actuate_blip_switch();
-            }
-        }
-        // stopped ignored
-    } else {
-        ESP_LOGI(TAG, "Desired state is already reached");
-    }
 }
 
 void _target_state_notify(void *arg, void *ev_handle, bool enable) {
@@ -127,7 +80,7 @@ void _target_state_notify(void *arg, void *ev_handle, bool enable) {
 
 void *_obstruction_read(void *arg) {
     LWIP_UNUSED_ARG(arg);
-    static bool val = (actuate_get_state() == ACTUATE_STATE_OBSTRUCTION);
+    static bool val = 0;
 
     return (void *) &val;
 }
@@ -253,15 +206,6 @@ void homekit_terminate() {
 void homekit_tick(TickType_t tickMS) {
     if (!s_init) {
         return;
-    }
-
-    // Make sure desired state is reset to follow what the steady state of the door is.
-    Actuate_State_t state = actuate_get_state();
-    if (state != ACTUATE_STATE_CLOSED && state != ACTUATE_STATE_OPENED) {
-        s_target_needs_reset = true;
-    } else if ((state == ACTUATE_STATE_CLOSED || state == ACTUATE_STATE_OPENED) && s_target_needs_reset) {
-        s_target_state = *(uint8_t*)_current_state_read(NULL);
-        s_target_needs_reset = false;
     }
 
 

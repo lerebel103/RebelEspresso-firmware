@@ -14,7 +14,6 @@
 #include "controller.h"
 #include "state.h"
 #include "sys/mqtt.h"
-#include "actuate.h"
 
 #define CONTROL_LOOP_PERIOD 1000
 #define IOT_SEND_INTERVAL 5000
@@ -35,8 +34,6 @@ static bool s_ota_needed = true;
 void controller_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     nvram_store_read_u8(KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, g_controller_cfg.enabled);
-
-    actuate_init();
 
     // Causes initial state to be sent
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
@@ -68,7 +65,6 @@ void controller_enter_loop() {
         time_t time_millis = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         wifi_tick(time_millis);
-        actuate_tick(time_millis);
         homekit_tick(time_millis);
 
         // Always trigger display refresh at the back of new temperatures

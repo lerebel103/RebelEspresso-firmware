@@ -5,7 +5,6 @@
 #include <freertos/task.h>
 #include <driver/rtc_io.h>
 #include <thing_info.h>
-#include <control/actuate.h>
 
 #include "control/controller.h"
 
@@ -102,23 +101,6 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
         // Door state
         u8g2_SetFont(&u8g2, u8g2_font_fur14_tr);
-        Actuate_State_t state = actuate_get_state();
-        y = 54;
-        if (state == ACTUATE_STATE_CLOSED) {
-            u8g2_DrawStr(&u8g2, x, y, "Closed");
-        } else if (state == ACTUATE_STATE_CLOSING) {
-            u8g2_DrawStr(&u8g2, x, y, "Closing");
-        } else if (state == ACTUATE_STATE_OPENED) {
-            u8g2_DrawStr(&u8g2, x, y, "Opened");
-        } else if (state == ACTUATE_STATE_OPENING) {
-            u8g2_DrawStr(&u8g2, x, y, "Opening");
-        } else if (state == ACTUATE_STATE_STOPPED) {
-            u8g2_DrawStr(&u8g2, x, y, "Stopped");
-        } else if (state == ACTUATE_STATE_OBSTRUCTION) {
-            u8g2_DrawStr(&u8g2, x, y, "Obstruction");
-        } else {
-            u8g2_DrawStr(&u8g2, x, y, "Error");
-        }
 
         u8g2_SendBuffer(&u8g2);
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);

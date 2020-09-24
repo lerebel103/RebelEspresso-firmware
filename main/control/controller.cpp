@@ -3,6 +3,7 @@
 #include <freertos/event_groups.h>
 
 #include <sys/nvram_store.h>
+#include <cJson.h>
 #include <esp_log.h>
 #include <events.h>
 #include <esp32/pm.h>
@@ -41,16 +42,6 @@ void controller_init(esp_event_loop_handle_t event_loop) {
 
 static void send_iot_events(TickType_t tick) {
     if (tick >= (g_last_iot_send + IOT_SEND_INTERVAL)) {
-        {
-            // Temperature
-            cJSON *item = cJSON_CreateObject();
-            // temperature_to_json(item);
-            const char *payload = cJSON_PrintUnformatted(item);
-            cJSON_Delete(item);
-
-            mqtt_send_temperature(payload);
-            free((void *) payload);
-        }
 
         g_last_iot_send = tick;
     }

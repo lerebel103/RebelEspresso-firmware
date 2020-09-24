@@ -56,11 +56,8 @@ extern "C" void app_main() {
     // Now for witi, ota, mqtt
     wifi_init();
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
-
     mqtt_set_ota_cfg_cb(ota_cfg_from_json);
     //mqtt_set_controller_cfg_cb(controller_cfg_from_json);
-
-
     mqtt_init();
     homekit_init();
 
@@ -91,6 +88,7 @@ extern "C" void app_main() {
 
     // Here's our control loop
     controller_enter_loop();
+
     esp_event_loop_delete(event_loop);
 }
 

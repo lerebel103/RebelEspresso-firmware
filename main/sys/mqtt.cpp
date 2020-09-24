@@ -44,8 +44,8 @@ struct mqtt_connect_init_t {
 #define SUBSCRIBE_TOPIC_CONFIG "/devices/%s/config"
 #define PUBLISH_TOPIC_STATE "/devices/%s/state"
 
-#define PUBLISH_TOPIC_EVENT_TEMPERATURE "/devices/%s/events/temperature"
-#define PUBLISH_TOPIC_EVENT_FAN "/devices/%s/events/fan"
+// #define PUBLISH_TOPIC_EVENT_TEMPERATURE "/devices/%s/events/temperature"
+// #define PUBLISH_TOPIC_EVENT_FAN "/devices/%s/events/fan"
 
 static mqtt_connect_init_t config;
 static uint32_t g_mqtt_error_count = 0;
@@ -269,7 +269,8 @@ void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connecti
         state_print_memory_info();
         iotc_shutdown_connection(in_context_handle);
         state_print_memory_info();
-        ESP_LOGW(TAG, "re-connecting");
+        ESP_LOGW(TAG, "re-connecting conn_timeout: %d, keepalive: %d",
+                conn_data->connection_timeout, conn_data->keepalive_timeout);
         iotc_connect(
                 in_context_handle, conn_data->username, jwt, conn_data->client_id,
                 conn_data->connection_timeout, conn_data->keepalive_timeout,
@@ -305,7 +306,7 @@ static void mqtt_task(void *pvParameters) {
         callback function after the connection request completes, and its
         implementation should handle both successful connections and
         unsuccessful connections as well as disconnections. */
-    const uint16_t connection_timeout = 10;
+    const uint16_t connection_timeout = 0;
     const uint16_t keepalive_timeout = 60;
 
     char jwt[IOTC_JWT_SIZE] = {0};
@@ -358,46 +359,6 @@ bool mqtt_send_status(const char *msg) {
     free(publish_topic);
 
     return true;
-}
-
-bool mqtt_send_temperature(const char *msg) {
-    // Very particular about this, cannot be sent in less than 1 seconds intervals.
-    // If we do, IoT core kills our connection.
-    if(xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
-        char *publish_topic = nullptr;
-        asprintf(&publish_topic, PUBLISH_TOPIC_EVENT_TEMPERATURE, thing_info_id());
-
-        ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_topic);
-
-        iotc_publish(iotc_context, publish_topic, msg,
-                     IOTC_MQTT_QOS_AT_MOST_ONCE,
-                /*callback=*/nullptr, /*user_data=*/nullptr);
-        free(publish_topic);
-
-        return true;
-    } else {
-        return false;
-    }
-}
-
-bool mqtt_send_fan(const char *msg) {
-    // Very particular about this, cannot be sent in less than 1 seconds intervals.
-    // If we do, IoT core kills our connection.
-    if(xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
-        char *publish_topic = nullptr;
-        asprintf(&publish_topic, PUBLISH_TOPIC_EVENT_FAN, thing_info_id());
-
-        ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_topic);
-
-        iotc_publish(iotc_context, publish_topic, msg,
-                     IOTC_MQTT_QOS_AT_MOST_ONCE,
-                /*callback=*/nullptr, /*user_data=*/nullptr);
-        free(publish_topic);
-
-        return true;
-    } else {
-        return false;
-    }
 }
 
 

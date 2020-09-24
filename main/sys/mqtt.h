@@ -25,3 +25,4 @@ TickType_t mqtt_last_connect_attempt();
 
 
 void mqtt_set_ota_cfg_cb(void (*cb)(const cJSON*));
+void mqtt_set_controller_cfg_cb(void (*cb)(const cJSON *));

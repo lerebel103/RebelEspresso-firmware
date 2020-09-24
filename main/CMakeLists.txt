@@ -22,15 +22,12 @@ file(GLOB_RECURSE COMPONENT_SRCS
         control/actuate.cpp
         control/actuate.h
 
-        hw/fan.cpp
-        hw/fan.h
-        hw/lid.cpp
-        hw/lid.h
+        hw/rtds.cpp
+        hw/rtds.h
         hw/oled/display.cpp
         hw/oled/display.h
         hw/oled/u8g2_esp32_hal.c
         hw/oled/u8g2_esp32_hal.h
-        hw/temperature.h
 
         sys/mqtt.cpp
         sys/mqtt.h

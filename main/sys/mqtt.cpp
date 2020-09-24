@@ -54,8 +54,6 @@ static TickType_t s_last_connect_attempt = 0;
 char *subscribe_topic_command, *subscribe_topic_config;
 
 static void (*g_ota_cfg_cb)(const cJSON *) = nullptr;
-static void (*g_temperature_cfg_cb)(const cJSON *) = nullptr;
-static void (*g_fan_cfg_cb)(const cJSON *) = nullptr;
 static void (*g_controller_cfg_cb)(const cJSON *) = nullptr;
 
 void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connection_data_t *conn_data);
@@ -141,14 +139,6 @@ static void config_cb(
             if (strcmp(last_md5, md5) == 0) {
                 ESP_LOGI(TAG, "No config update, MD5 is identical to last processed");
             } else {
-                sub_system = cJSON_GetObjectItem(root, "temperature");
-                if (cJSON_IsObject(sub_system) && g_temperature_cfg_cb) {
-                    g_temperature_cfg_cb(sub_system);
-                }
-                sub_system = cJSON_GetObjectItem(root, "fan");
-                if (cJSON_IsObject(sub_system) && g_fan_cfg_cb) {
-                    g_fan_cfg_cb(sub_system);
-                }
                 sub_system = cJSON_GetObjectItem(root, "controller");
                 if (cJSON_IsObject(sub_system) && g_controller_cfg_cb) {
                     g_controller_cfg_cb(sub_system);
@@ -392,14 +382,6 @@ void mqtt_set_client_private_key(const char *val) {
 
 void mqtt_set_ota_cfg_cb(void (*cb)(const cJSON *)) {
     g_ota_cfg_cb = cb;
-}
-
-void mqtt_set_temperature_cfg_cb(void (*cb)(const cJSON *)) {
-    g_temperature_cfg_cb = cb;
-}
-
-void mqtt_set_fan_cfg_cb(void (*cb)(const cJSON*)) {
-    g_fan_cfg_cb = cb;
 }
 
 void mqtt_set_controller_cfg_cb(void (*cb)(const cJSON *)) {

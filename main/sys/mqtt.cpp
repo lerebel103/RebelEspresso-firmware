@@ -6,14 +6,15 @@
 #include <freertos/task.h>
 
 #include <cstring>
-#include <iotc_types.h>
-#include <iotc.h>
-#include <iotc_jwt.h>
-#include <iotc_tuple.h>
 #include <cJSON.h>
 
 #include <esp_log.h>
 #include <esp32/rom/md5_hash.h>
+#include <iotc_types.h>
+#include <iotc_connection_data.h>
+#include <iotc_tuple.h>
+#include <iotc_jwt.h>
+#include <iotc.h>
 
 #include "nvram_store.h"
 #include "thing_info.h"

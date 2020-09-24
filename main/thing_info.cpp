@@ -1,8 +1,8 @@
 #include "thing_info.h"
 #include <lwipopts.h>
-#include <str.h>
 
 #include <esp_log.h>
+#include <memory.h>
 
 #include "sys/nvram_store.h"
 

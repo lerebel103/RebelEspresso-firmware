@@ -54,9 +54,19 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/_generated/"
         "${CMAKE_CURRENT_SOURCE_DIR}/hw/r${HARDWARE_REVISION}"
 
-        "${CMAKE_SOURCE_DIR}/components/esp-google-iot/iot-device-sdk-embedded-c/include/"
         "${CMAKE_SOURCE_DIR}/components/u8g2/csrc"
        )
+
+set(COMPONENT_REQUIRES
+        json
+        nvs_flash
+
+        app_update
+        esp-tls
+        esp-google-iot
+        esp32-homekit
+        ESP32-MAX31865
+        )
 
 register_component()
 

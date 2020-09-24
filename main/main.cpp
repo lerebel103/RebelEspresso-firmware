@@ -57,28 +57,15 @@ extern "C" void app_main() {
     wifi_init();
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
 
-
-    mqtt_set_client_private_key(    "-----BEGIN EC PRIVATE KEY-----\n"
-                                    "MHcCAQEEIDvKD7cTp5i6OeJhXvw/PxQFWs0rq5wAt3hTOUScpJr1oAoGCCqGSM49\n"
-                                    "AwEHoUQDQgAE3a5tg30Yse9WDVIzNYI5p9AXB9ipSBMLg1/yv6fweoNikB+/mbtg\n"
-                                    "55cJUWmK2ZbxLvlwh19Exe4DVZNfZVL6og==\n"
-                                    "-----END EC PRIVATE KEY-----"
-    );
-
-    mqtt_set_registry_id("RebelEspresso");
-    mqtt_set_location("asia-east1");
-    mqtt_set_project_id("rebel-espresso");
-
     mqtt_set_ota_cfg_cb(ota_cfg_from_json);
-    mqtt_set_controller_cfg_cb(controller_cfg_from_json);
+    //mqtt_set_controller_cfg_cb(controller_cfg_from_json);
 
 
     mqtt_init();
-
     homekit_init();
 
 
-    auto tempSensor = Max31865(GPIO_MISO, GPIO_MOSI, GPIO_SCK, GPIO_RTD_CS);
+/*    auto tempSensor = Max31865(GPIO_MISO, GPIO_MOSI, GPIO_SCK, GPIO_RTD_CS);
     max31865_config_t tempConfig = {};
     tempConfig.autoConversion = true;
     tempConfig.vbias = true;
@@ -99,7 +86,7 @@ extern "C" void app_main() {
         ESP_LOGI("Temperature", "%.2f C, fault: %d", temp, (int)fault);
         vTaskDelay(pdMS_TO_TICKS(500));
     }
-
+*/
 
 
     // Here's our control loop

@@ -1,6 +1,3 @@
-[submodule "components/esp-google-iot"]
-	path = components/esp-google-iot
-	url = git@github.com:csobrinho/esp-google-iot.git
 [submodule "components/u8g2"]
 	path = components/u8g2
 	url = git@github.com:olikraus/u8g2.git
@@ -15,4 +12,7 @@
 	url = git@github.com:lerebel103/esp32-homekit.git
 [submodule "components/ESP32-MAX31865"]
 	path = components/ESP32-MAX31865
-	url = https://github.com/jamieparkinson/ESP32-MAX31865.git
+	url = git@github.com:lerebel103/ESP32-MAX31865.git
+[submodule "components/esp-google-iot"]
+	path = components/esp-google-iot
+	url = git@github.com:espressif/esp-google-iot.git

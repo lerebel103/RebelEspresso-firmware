@@ -2,7 +2,6 @@
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 
-#include <cJSON.h>
 #include <sys/nvram_store.h>
 #include <esp_log.h>
 #include <events.h>

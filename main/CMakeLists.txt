@@ -19,6 +19,8 @@ file(GLOB_RECURSE COMPONENT_SRCS
 
         control/controller.cpp
         control/controller.h
+        control/process_loop.cpp
+        control/process_loop.h
         control/actuate.cpp
         control/actuate.h
 

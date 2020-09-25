@@ -15,32 +15,51 @@ static void _read_temp(struct rtd_data_t *data) {
     s_tempSensor.clearFault();
     s_tempSensor.getRTD(&rtd, &data->fault);
 
-    //s_tempSensor.getRTD(&rtd, &data->fault);
-    //data->rtd_val = rtd; //(rtd * s_rtdConfig.ref) / (1U << 15U);
+    s_tempSensor.getRTD(&rtd, &data->fault);
+    auto R = (rtd * s_rtdConfig.ref) / (1U << 15U);
+
+    data->temperature = R;  // Need to convert to temp
 }
 
-void rtds_read_1(const rtds_cfg_t *cfg, struct rtd_data_t *data) {
+void rtds_read_1(struct rtd_data_t *data) {
+    gpio_set_level(GPIO_RTD_A0, 0);
+    gpio_set_level(GPIO_RTD_A1, 0);
     _read_temp(data);
 }
 
-void rtds_read_2(const rtds_cfg_t *cfg, struct rtd_data_t *data) {
+void rtds_read_2(struct rtd_data_t *data) {
+    gpio_set_level(GPIO_RTD_A0, 0);
+    gpio_set_level(GPIO_RTD_A1, 1);
     _read_temp(data);
 }
 
-void rtds_read_3(const rtds_cfg_t *cfg, struct rtd_data_t *data) {
+void rtds_read_3(struct rtd_data_t *data) {
+    gpio_set_level(GPIO_RTD_A0, 1);
+    gpio_set_level(GPIO_RTD_A1, 0);
     _read_temp(data);
 }
 
-void rtds_read_4(const rtds_cfg_t *cfg, struct rtd_data_t *data) {
+void rtds_read_4(struct rtd_data_t *data) {
+    gpio_set_level(GPIO_RTD_A0, 1);
+    gpio_set_level(GPIO_RTD_A1, 1);
     _read_temp(data);
 }
 
 int rtds_init(const rtds_cfg_t *cfg) {
-    // Turn off logging, it will break ISR handling otherwise
-    esp_log_level_set("Max31865", ESP_LOG_ERROR);
+    // Initialise multiplexer
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = ((1ULL << GPIO_RTD_A0) | (1ULL << GPIO_RTD_A1));
 
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+
+    // Now for the RTC IC
     max31865_config_t tempConfig = {};
     tempConfig.autoConversion = false;
+    tempConfig.faultDetection = Max31865FaultDetection::AutoDelay;
     tempConfig.vbias = true;
     tempConfig.filter = Max31865Filter::Hz50;
     tempConfig.nWires = Max31865NWires::Two;
@@ -49,7 +68,11 @@ int rtds_init(const rtds_cfg_t *cfg) {
     s_rtdConfig.ref = 4020.0f;
 
     ESP_ERROR_CHECK(s_tempSensor.begin(tempConfig));
-    ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(0x2000, 0x2500));
+
+    // Based on upper value of 1K at around -10C and +200C
+    auto min_rtd = (1U << 15U) * 500 / s_rtdConfig.ref;
+    auto max_rtd =(1U << 15U) * 2000 / s_rtdConfig.ref;
+    ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(min_rtd, max_rtd));
 
     max31865_config_t read_cfg;
     s_tempSensor.getConfig(&read_cfg);

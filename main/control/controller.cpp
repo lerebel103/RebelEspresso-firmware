@@ -18,11 +18,8 @@
 #include "controller.h"
 #include "state.h"
 #include "sys/mqtt.h"
+#include "process_loop.h"
 
-#define TIMER_DIVIDER         16  //  Hardware timer clock divider
-#define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
-
-#define TIMER_INTERVAL0_SEC   ( 1.0 )
 
 #define CONTROL_LOOP_PERIOD 1000
 #define IOT_SEND_INTERVAL 5000
@@ -40,56 +37,15 @@ static esp_event_loop_handle_t s_event_loop;
 static TickType_t s_last_status_update_tick = 0;
 static bool s_ota_needed = true;
 
-void IRAM_ATTR _process_loop_isr(void *para) {
-    // Re-enable interrupt, safe to do so
-    TIMERG0.int_clr_timers.t0 = 1;
-    TIMERG0.hw_timer[0].config.alarm_en = TIMER_ALARM_EN;
 
-    // Ok read all sensors
-    rtd_data_t data;
-    rtds_read_1(&s_rtds_cfg, &data);
-}
 
-static void _init_hw_timer() {
-    ESP_LOGI(TAG, "Installing ISR service");
-    gpio_install_isr_service(
-            ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_LEVEL3);
-
-    static timer_idx_t timer_idx = TIMER_0;
-
-    /* Select and initialize basic parameters of the timer */
-    timer_config_t config = {
-            .alarm_en = TIMER_ALARM_EN,
-            .counter_en = TIMER_START,
-            .intr_type = TIMER_INTR_LEVEL,
-            .counter_dir = TIMER_COUNT_UP,
-            .auto_reload = TIMER_AUTORELOAD_EN,
-            .divider = TIMER_DIVIDER,
-    }; // default clock source is APB
-
-    ESP_LOGI(TAG, "Configuring timer");
-
-    ESP_ERROR_CHECK(timer_init(TIMER_GROUP_0, timer_idx, &config));
-
-    /* Timer's counter will initially start from value below.
-       Also, if auto_reload is set, this value will be automatically reload on alarm */
-    ESP_ERROR_CHECK(timer_set_counter_value(TIMER_GROUP_0, timer_idx, 0x00000000ULL));
-
-    /* Configure the alarm value and the interrupt on alarm. */
-    ESP_ERROR_CHECK(timer_set_alarm_value(TIMER_GROUP_0, timer_idx, (TIMER_INTERVAL0_SEC) * TIMER_SCALE));
-    ESP_ERROR_CHECK(timer_isr_register(TIMER_GROUP_0, timer_idx, _process_loop_isr,
-                                       nullptr, ESP_INTR_FLAG_LEVEL3, NULL));
-    ESP_ERROR_CHECK(timer_enable_intr(TIMER_GROUP_0, timer_idx));
-    ESP_ERROR_CHECK(timer_start(TIMER_GROUP_0, timer_idx));
-}
 
 void controller_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     nvram_store_read_u8(KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, g_controller_cfg.enabled);
 
-    _init_hw_timer();
-
     rtds_init(&s_rtds_cfg);
+    process_loop_init();
 
     // Causes initial state to be sent
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
@@ -139,8 +95,6 @@ void controller_enter_loop() {
             s_ota_needed = true;
         }
 
-
-        state_print_memory_info();
 
         // Approximately every second...
         time_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;

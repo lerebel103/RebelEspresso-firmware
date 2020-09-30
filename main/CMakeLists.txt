@@ -21,6 +21,8 @@ file(GLOB_RECURSE COMPONENT_SRCS
         control/controller.h
         control/process_loop.cpp
         control/process_loop.h
+        control/vtb_pid.h
+        control/vtb_pid.cpp
         control/actuate.cpp
         control/actuate.h
 

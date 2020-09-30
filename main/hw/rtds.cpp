@@ -1,49 +1,68 @@
 #include <cstdint>
+
+#include <FreeRTOS.h>
+#include <freertos/task.h>
 #include <hw/r1.0/hw_config.h>
 #include <esp_log.h>
 #include "rtds.h"
 
 #define TAG "Temperature"
 
+// This delay is required just after we've switched RTD port so VBias stabilises
+#define MULTIPLEX_SWITCH_DELAY_MS 10
+
 // Talks to the MAX IC for RTD sensing
 static Max31865 s_tempSensor(GPIO_MISO, GPIO_MOSI, GPIO_SCK, GPIO_RTD_CS);
 static max31865_rtd_config_t s_rtdConfig = {};
 
+/**
+ * Contains our last known reading
+ */
+static rtd_data_t _rtd_array[RTD_MAX_COUNT];
 
 static void _read_temp(struct rtd_data_t *data) {
-    uint16_t rtd;
+    static uint16_t rtd;
     s_tempSensor.clearFault();
     s_tempSensor.getRTD(&rtd, &data->fault);
-
-    s_tempSensor.getRTD(&rtd, &data->fault);
-    auto R = (rtd * s_rtdConfig.ref) / (1U << 15U);
-
-    data->temperature = R;  // Need to convert to temp
+    if (data->fault == Max31865Error::NoError) {
+        data->temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
+    }
 }
 
-void rtds_read_1(struct rtd_data_t *data) {
+void rtds_update() {
+    uint8_t idx = 0;
+
     gpio_set_level(GPIO_RTD_A0, 0);
     gpio_set_level(GPIO_RTD_A1, 0);
-    _read_temp(data);
-}
+    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
+    _read_temp(&_rtd_array[idx++]);
 
-void rtds_read_2(struct rtd_data_t *data) {
     gpio_set_level(GPIO_RTD_A0, 0);
     gpio_set_level(GPIO_RTD_A1, 1);
-    _read_temp(data);
-}
+    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
+    _read_temp(&_rtd_array[idx++]);
 
-void rtds_read_3(struct rtd_data_t *data) {
     gpio_set_level(GPIO_RTD_A0, 1);
     gpio_set_level(GPIO_RTD_A1, 0);
-    _read_temp(data);
-}
+    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
+    _read_temp(&_rtd_array[idx++]);
 
-void rtds_read_4(struct rtd_data_t *data) {
     gpio_set_level(GPIO_RTD_A0, 1);
     gpio_set_level(GPIO_RTD_A1, 1);
-    _read_temp(data);
+    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
+    _read_temp(&_rtd_array[idx++]);
 }
+
+esp_err_t rtds_get(rtd_data_t* data, uint8_t idx) {
+    if (idx >= RTD_MAX_COUNT) {
+        ESP_LOGE(TAG, "RTD index is out of range");
+        return ESP_FAIL;
+    } else {
+        *data = _rtd_array[idx];
+        return ESP_OK;
+    }
+}
+
 
 int rtds_init(const rtds_cfg_t *cfg) {
     // Initialise multiplexer

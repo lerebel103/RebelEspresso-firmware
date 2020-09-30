@@ -13,11 +13,16 @@ struct rtd_data_t {
 
 int rtds_init(const rtds_cfg_t* cfg);
 
-void rtds_read_1(struct rtd_data_t* data);
+/**
+ * Causes a new read of all RTDS and caches them.
+ *
+ * These can be read leater via #rtds_get()
+ */
+void rtds_update();
 
-void rtds_read_2(struct rtd_data_t* data);
-
-void rtds_read_3(struct rtd_data_t* data);
-
-void rtds_read_4(struct rtd_data_t* data);
-
+/**
+ * Retrieves a specific RTD value and state
+ * @param data
+ * @param idx
+ */
+esp_err_t rtds_get(rtd_data_t* data, uint8_t idx);

@@ -54,6 +54,7 @@ cmake-build-release
 *.bin
 *.elf
 
+venv
 sdkconfig
 sdkconfig.old
 

@@ -8,8 +8,9 @@
 
 #define TAG "Temperature"
 
-// This delay is required just after we've switched RTD port so VBias stabilises
-#define MULTIPLEX_SWITCH_DELAY_MS 10
+// The analogue switch at the front of the max31965 introduces
+// a small resistance, as per data sheet, this is as a correction offset.
+#define STATIC_R_OFFSET (0.6)
 
 // Talks to the MAX IC for RTD sensing
 static Max31865 s_tempSensor(GPIO_MISO, GPIO_MOSI, GPIO_SCK, GPIO_RTD_CS);
@@ -20,37 +21,34 @@ static max31865_rtd_config_t s_rtdConfig = {};
  */
 static rtd_data_t _rtd_array[RTD_MAX_COUNT];
 
-static void _read_temp(struct rtd_data_t *data) {
-    static uint16_t rtd;
+static void _read_temp(rtd_update_cb_t cb, int idx) {
+    uint16_t rtd;
     s_tempSensor.clearFault();
-    s_tempSensor.getRTD(&rtd, &data->fault);
-    if (data->fault == Max31865Error::NoError) {
-        data->temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
+    s_tempSensor.getRTD(&rtd, &_rtd_array[idx].fault);
+
+    // Calculae new value if we can, otherwise leave the old one there.
+    if (_rtd_array[idx].fault == Max31865Error::NoError) {
+        _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
     }
+
+    // Invoke CB now
+    cb(esp_timer_get_time(), _rtd_array[idx], idx);
 }
 
-void rtds_update() {
-    uint8_t idx = 0;
-
-    gpio_set_level(GPIO_RTD_A0, 0);
+void rtds_update(rtd_update_cb_t cb) {
+    // Select a port a time and read temp from it
     gpio_set_level(GPIO_RTD_A1, 0);
-    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
-    _read_temp(&_rtd_array[idx++]);
-
     gpio_set_level(GPIO_RTD_A0, 0);
-    gpio_set_level(GPIO_RTD_A1, 1);
-    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
-    _read_temp(&_rtd_array[idx++]);
+    _read_temp(cb, RTD_BOILER_IDX);
 
     gpio_set_level(GPIO_RTD_A0, 1);
-    gpio_set_level(GPIO_RTD_A1, 0);
-    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
-    _read_temp(&_rtd_array[idx++]);
+    _read_temp(cb, RTD_BREW_HEAD_IDX);
 
-    gpio_set_level(GPIO_RTD_A0, 1);
     gpio_set_level(GPIO_RTD_A1, 1);
-    vTaskDelay(pdMS_TO_TICKS(MULTIPLEX_SWITCH_DELAY_MS));
-    _read_temp(&_rtd_array[idx++]);
+    _read_temp(cb, RTD_TEC_COLD_IDX);
+
+    gpio_set_level(GPIO_RTD_A0, 0);
+    _read_temp(cb, RTD_TEC_HOT_IDX);
 }
 
 esp_err_t rtds_get(rtd_data_t* data, uint8_t idx) {
@@ -62,7 +60,6 @@ esp_err_t rtds_get(rtd_data_t* data, uint8_t idx) {
         return ESP_OK;
     }
 }
-
 
 int rtds_init(const rtds_cfg_t *cfg) {
     // Initialise multiplexer
@@ -83,8 +80,9 @@ int rtds_init(const rtds_cfg_t *cfg) {
     tempConfig.filter = Max31865Filter::Hz50;
     tempConfig.nWires = Max31865NWires::Two;
 
-    s_rtdConfig.nominal = 1000.0f;
-    s_rtdConfig.ref = 4020.0f;
+    s_rtdConfig.nominal = RTD_R_NOMINAL;
+    s_rtdConfig.ref = RTD_R_REF;
+    s_rtdConfig.offsetOhms = STATIC_R_OFFSET;
 
     ESP_ERROR_CHECK(s_tempSensor.begin(tempConfig));
 
@@ -102,6 +100,8 @@ int rtds_init(const rtds_cfg_t *cfg) {
         return -1;
     } else {
         ESP_LOGI(TAG, "RTD sensor initialised.");
+        // Turn off logs from max RTD IC
+        esp_log_level_set("Max31865", ESP_LOG_NONE);
         return 0;
     }
 }

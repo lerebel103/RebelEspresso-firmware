@@ -2,15 +2,15 @@
 #include <hw/rtds.h>
 #include <esp_log.h>
 #include <hw/r1.0/hw_config.h>
-#include "vtb_pid.h"
+#include "boiler.h"
 
-#define TAG "vtb"
+#define TAG "Boiler"
 
-struct vtb_pid_cfg_t {
+struct boiler_cfg_t {
     uint8_t mains_hz = 50;
 };
 
-static vtb_pid_cfg_t s_cfg;
+static boiler_cfg_t s_cfg;
 
 // Mapping of duty by index to [n, T] where n is the number of
 // power cycles (1 sinusoid) and T the total number of cycles.
@@ -134,18 +134,16 @@ static void _duty_to_time_base(uint8_t duty, uint16_t &period_ms, uint16_t &puls
     pulse_ms = 1000 * s_duty_map[duty][1] / s_cfg.mains_hz;
 }
 
-void vtb_pid_tick(int64_t time_us) {
-
-    // Grab boiler state and temp
-    rtd_data_t boiler;
-    rtds_get(&boiler, RTD_BOILER_IDX);
-
-    if (boiler.fault == Max31865Error::NoError) {
+void boiler_tick(uint64_t time_us, const rtd_data_t& data) {
+    if (data.fault == Max31865Error::NoError) {
         // Good to go
-    }
+        ESP_LOGI(TAG, "Boiler temp=%f", data.temperature);
 
+    } else {
+        ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
+    }
 }
 
-void vtb_pid_init() {
+void boiler_init() {
 
 }

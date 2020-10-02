@@ -11,14 +11,16 @@ struct rtd_data_t {
     Max31865Error fault;
 };
 
+typedef void (*rtd_update_cb_t)(uint64_t time_us, const rtd_data_t& data, uint8_t rtd_idx);
+
 int rtds_init(const rtds_cfg_t* cfg);
 
 /**
- * Causes a new read of all RTDS and caches them.
+ * Causes a new read of all RTDS, invokes callbacks and caches values.
  *
  * These can be read leater via #rtds_get()
  */
-void rtds_update();
+void rtds_update(rtd_update_cb_t cb);
 
 /**
  * Retrieves a specific RTD value and state

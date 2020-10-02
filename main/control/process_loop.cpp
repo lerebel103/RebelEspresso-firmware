@@ -1,5 +1,6 @@
 #include "process_loop.h"
-#include "vtb_pid.h"
+#include "boiler.h"
+#include "brew_head.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -48,25 +49,31 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
     }
 }
 
-static void _tick(uint64_t time_us) {
+/**
+ * Realtime handler for new temps
+ */
+static void _handle_new_temp(uint64_t time_us, const rtd_data_t& data, uint8_t idx) {
+    switch (idx) {
+        case RTD_BOILER_IDX:
+            boiler_tick(time_us, data);
+            break;
+        case RTD_BREW_HEAD_IDX:
+            brew_head_tick(time_us, data);
+            break;
+        case RTD_TEC_HOT_IDX:
+            brew_head_tec_hot_updated(time_us, data);
+            break;
+        case RTD_TEC_COLD_IDX:
+            brew_head_tec_cold_updated(time_us, data);
+            break;
+    }
+}
+
+static void _tick() {
     ESP_LOGI(TAG, "Process, heap: %d, min: %d", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
 
     // Get latest temperatures
-    rtds_update();
-
-    rtd_data_t data;
-
-    rtds_get(&data, RTD_BOILER_IDX);
-    ESP_LOGI(TAG, "Boiler: %f", data.temperature);
-    rtds_get(&data, RTD_BREW_HEAD_IDX);
-    ESP_LOGI(TAG, "BrewHead: %f", data.temperature);
-    rtds_get(&data, RTD_TEC_HOT_IDX);
-    ESP_LOGI(TAG, "TEC hot side: %f", data.temperature);
-    rtds_get(&data, RTD_TEC_COLD_IDX);
-    ESP_LOGI(TAG, "TEC cold side: %f", data.temperature);
-
-    // tick pids
-    vtb_pid_tick(time_us);
+    rtds_update(_handle_new_temp);
 }
 
 static void _process_task(void *) {
@@ -78,7 +85,7 @@ static void _process_task(void *) {
     do {
         if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
             // Do it
-            _tick(esp_timer_get_time());
+            _tick();
 
             // Done, reset ISR to go again and maintain watchdog timer
             esp_task_wdt_reset();
@@ -135,6 +142,6 @@ void process_loop_init() {
 
     // Cool now create a task that will run our process loop.
     _go = true;
-    xTaskCreate(_process_task, "process", 2 * 1024, NULL, 7, &_task_handle);
+    xTaskCreate(_process_task, "process", 3 * 1024, NULL, 7, &_task_handle);
 }
 

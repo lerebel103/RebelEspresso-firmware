@@ -21,8 +21,10 @@ file(GLOB_RECURSE COMPONENT_SRCS
         control/controller.h
         control/process_loop.cpp
         control/process_loop.h
-        control/vtb_pid.h
-        control/vtb_pid.cpp
+        control/boiler.h
+        control/boiler.cpp
+        control/brew_head.cpp
+        control/brew_head.h
         control/actuate.cpp
         control/actuate.h
 

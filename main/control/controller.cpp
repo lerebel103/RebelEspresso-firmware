@@ -19,6 +19,8 @@
 #include "state.h"
 #include "sys/mqtt.h"
 #include "process_loop.h"
+#include "boiler.h"
+#include "brew_head.h"
 
 
 #define CONTROL_LOOP_PERIOD 1000
@@ -44,6 +46,8 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     nvram_store_read_u8(KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, g_controller_cfg.enabled);
 
+    boiler_init();
+    brew_head_init();
     rtds_init(&s_rtds_cfg);
     process_loop_init();
 

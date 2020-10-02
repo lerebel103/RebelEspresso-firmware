@@ -12,6 +12,8 @@ struct boiler_cfg_t {
 
 static boiler_cfg_t s_cfg;
 
+static uint64_t s_last_time_us = 0;
+
 // Mapping of duty by index to [n, T] where n is the number of
 // power cycles (1 sinusoid) and T the total number of cycles.
 // Therefore duty = n / T
@@ -134,11 +136,13 @@ static void _duty_to_time_base(uint8_t duty, uint16_t &period_ms, uint16_t &puls
     pulse_ms = 1000 * s_duty_map[duty][1] / s_cfg.mains_hz;
 }
 
-void boiler_tick(uint64_t time_us, const rtd_data_t& data) {
+void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
     if (data.fault == Max31865Error::NoError) {
         // Good to go
-        ESP_LOGI(TAG, "Boiler temp=%f", data.temperature);
+        uint64_t deltaT = time_us - s_last_time_us;
+        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%lld", data.temperature, deltaT);
 
+        s_last_time_us = time_us;
     } else {
         ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
     }

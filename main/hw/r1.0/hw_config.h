@@ -19,3 +19,9 @@
 #define RTD_BREW_HEAD_IDX   1
 #define RTD_TEC_HOT_IDX     2
 #define RTD_TEC_COLD_IDX    3
+
+// outputs
+#define GPIO_TRIG1_SSR      GPIO_NUM_21
+#define GPIO_TRIG2_REL1     GPIO_NUM_25
+#define GPIO_TRIG2_REL2     GPIO_NUM_26
+#define GPIO_TRIG2_REL3     GPIO_NUM_27

@@ -27,6 +27,9 @@ file(GLOB_RECURSE COMPONENT_SRCS
         control/brew_head.h
         control/actuate.cpp
         control/actuate.h
+        control/rmt_duty_map.h
+        control/rmt_duty_map_50hz.c
+        control/rmt_duty_map_60hz.c
 
         hw/rtds.cpp
         hw/rtds.h

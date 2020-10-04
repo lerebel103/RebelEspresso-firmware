@@ -27,7 +27,7 @@ static uint64_t s_last_time_us = 0;
  * @param duty integral [0-100]
  */
 static void _set_duty(uint8_t duty) {
-    ESP_LOGW(TAG, "Setting new duty %d", duty);
+    ESP_LOGD(TAG, "Setting new duty %d", duty);
 
     const struct rmt_pulse_t * pulses = rmt_duty_get_pulses(duty, s_cfg.mains_hz);
     ESP_ERROR_CHECK(rmt_fill_tx_items(RMT_TX_CHANNEL, pulses->items, pulses->num_items, false));
@@ -36,13 +36,13 @@ static void _set_duty(uint8_t duty) {
 /*
  * Initialize the RMT Tx channel
  */
-static void _rmt_tx_init()
-{
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(GPIO_TRIG2_REL2, RMT_TX_CHANNEL);
+static void _rmt_tx_init() {
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(GPIO_TRIG1_SSR, RMT_TX_CHANNEL);
 
     // Disable carrier and enable loop back so we can generate pulses
     config.tx_config.carrier_en = false;
-    config.tx_config.loop_en = true;
+    config.tx_config.loop_en = false;
+    config.tx_config.idle_output_en = true;
 
     // set the maximum clock divider to be able to output
     // RMT pulses in range of about one hundred milliseconds
@@ -50,10 +50,11 @@ static void _rmt_tx_init()
 
     ESP_ERROR_CHECK(rmt_config(&config));
     ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
-}
 
-static uint8_t count = 0;
-static uint8_t last_duty;
+    // Set zero duty and enable loop so we continuously tx the last duty pulses
+    _set_duty(0);
+    rmt_set_tx_loop_mode(config.channel, true);
+}
 
 
 void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
@@ -61,20 +62,6 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
         // Good to go
         uint64_t deltaT = time_us - s_last_time_us;
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%lld", data.temperature, deltaT);
-
-        if (count % 1 == 0) {
-            last_duty += 1;
-            if (last_duty > 100) {
-                last_duty = 0;
-            }
-
-            last_duty += 1;
-
-            _set_duty(last_duty);
-        }
-
-
-        count ++;
 
 
         s_last_time_us = time_us;
@@ -87,7 +74,5 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
 void boiler_init() {
     _rmt_tx_init();
 
-    // Set zero duty
-    _set_duty(0);
-    
+
 }

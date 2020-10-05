@@ -1,6 +1,16 @@
 # The following lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.9)
+
+
+IF (NOT TEST_COMPONENTS)
+    set(TEST_COMPONENTS rebel-espresso
+            CACHE INTERNAL "Choose test components to build"
+            FORCE)
+ENDIF ()
+MESSAGE(STATUS "Building test components ${TEST_COMPONENTS}")
+
+set(EXTRA_COMPONENT_DIRS "${CMAKE_SOURCE_DIR}/../components")
 
 # If the environment does not specify a build type, set to Debug
 IF (NOT CMAKE_BUILD_TYPE)
@@ -16,15 +26,51 @@ IF (NOT HARDWARE_REVISION)
             CACHE INTERNAL "Set hardware revision to build for."
             FORCE)
 ENDIF ()
-# If the environment does not specify a hardware revision to build for...
+
+# If the environment does not specify a hardware type to build for...
 IF (NOT THING_TYPE)
-    set(THING_TYPE "rebel-espresso"
+    set(THING_TYPE "RebelEspresso"
             CACHE INTERNAL "Set hardware thing type to build for."
             FORCE)
 ENDIF ()
 MESSAGE(STATUS "Building for Thing Type ${THING_TYPE} r${HARDWARE_REVISION}.")
 
-# Git
+IF (NOT NVRAM_STORAGE_PARTITION)
+    SET(NVRAM_STORAGE_PARTITION "storage" CACHE INTERNAL "NVS partition name"  FORCE)
+ENDIF()
+
+SET(WOLFSSL_DEFINITIONS " \
+    -DWOLFSSL_ESPIDF \
+    -DWOLFSSL_ESPWROOM32 \
+    -DWC_NO_HARDEN \
+    -DWOLFCRYPT_HAVE_SRP \
+    -DWOLFSSL_BASE64_ENCODE \
+    -DWOLFSSL_TLS13 \
+    -DWOLFSSL_SHA512 \
+    -DNO_OLD_TLS \
+    -DHAVE_ECC \
+    -DHAVE_HKDF \
+    -DHAVE_CHACHA \
+    -DHAVE_POLY1305 \
+    -DHAVE_ED25519 \
+    -DHAVE_CURVE25519 \
+    -DHAVE_SUPPORTED_CURVES \
+    -DHAVE_ONE_TIME_AUTH \
+    -DHAVE_TLS_EXTENSIONS \
+    -DNO_SESSION_CACHE \
+    -DRSA_LOW_MEM \
+    -DGCM_SMALL \
+    -DWC_RSA_PSS \
+    " CACHE INTERNAL "" FORCE)
+
+add_definitions(
+        ${WOLFSSL_DEFINITIONS}
+        -DNVRAM_STORAGE_PARTITION="${NVRAM_STORAGE_PARTITION}"
+)
+
+# ---------------------------------------------------------------------------------------------
+# GIT
+# ---------------------------------------------------------------------------------------------
 find_package(Git REQUIRED)
 if (GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
     # Update submodules as needed
@@ -90,54 +136,14 @@ SET(PROJECT_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_
 SET(FIRMWARE_VERSION ${PROJECT_VERSION} CACHE INTERNAL "" FORCE)
 MESSAGE(STATUS "Firmware version is ${PROJECT_VERSION}")
 
+
 SET(BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE INTERNAL "" FORCE)
 
 
-IF (NOT NVRAM_STORAGE_PARTITION)
-    SET(NVRAM_STORAGE_PARTITION "storage" CACHE INTERNAL "NVS partition name"  FORCE)
-ENDIF()
-
-SET(WOLFSSL_DEFINITIONS " \
-    -DWOLFSSL_ESPIDF \
-    -DWOLFSSL_ESPWROOM32 \
-    -DWC_NO_HARDEN \
-    -DWOLFCRYPT_HAVE_SRP \
-    -DWOLFSSL_BASE64_ENCODE \
-    -DWOLFSSL_TLS13 \
-    -DWOLFSSL_SHA512 \
-    -DNO_OLD_TLS \
-    -DHAVE_ECC \
-    -DHAVE_HKDF \
-    -DHAVE_CHACHA \
-    -DHAVE_POLY1305 \
-    -DHAVE_ED25519 \
-    -DHAVE_CURVE25519 \
-    -DHAVE_SUPPORTED_CURVES \
-    -DHAVE_ONE_TIME_AUTH \
-    -DHAVE_TLS_EXTENSIONS \
-    -DNO_SESSION_CACHE \
-    -DRSA_LOW_MEM \
-    -DGCM_SMALL \
-    -DWC_RSA_PSS \
-    "
-    CACHE INTERNAL "" FORCE)
-
-
-add_definitions(
-        ${WOLFSSL_DEFINITIONS}
-        -DNVRAM_STORAGE_PARTITION="${NVRAM_STORAGE_PARTITION}"
-)
-
-# Set hardware revision dependent files
-file(COPY components/rebel-espresso/src/hw/r${HARDWARE_REVISION}/sdkconfig DESTINATION ${CMAKE_SOURCE_DIR}/)
-
-set(PROJECT_NAME rebel-espresso-firmware)
+# Rename target binary file with correct versioning info in its file name
+set(PROJECT_NAME rebel-espresso-tests)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
-
-# Rename target binary file with correct versioning
-set(FIRMWARE_TARGET_DIR ${CMAKE_BINARY_DIR}/firmware/${THING_TYPE}/r${HARDWARE_REVISION}/v${FIRMWARE_VERSION})
-file(MAKE_DIRECTORY ${FIRMWARE_TARGET_DIR})
 
 SET(CMAKE_CXX_STANDARD -std=c++14)
 SET(CMAKE_C_STANDARD -std=c11)
@@ -157,16 +163,13 @@ ENDIF ()
 MESSAGE(STATUS "Using CFLAGS ${CMAKE_C_FLAGS}")
 MESSAGE(STATUS "Using CXXFLAGS ${CMAKE_CXX_FLAGS}")
 
+
 # Rename target binary file with Hardware Revision, Firmware version and build type.
-SET(FINAL_FILE "${PROJECT_NAME}-r${HARDWARE_REVISION}-v${FIRMWARE_VERSION}-${GIT_SHORT_HASH}-${CMAKE_BUILD_TYPE}.bin")
+SET(FINAL_FILE "${PROJECT_NAME}-${HARDWARE_REVISION}-${FIRMWARE_VERSION}-${CMAKE_BUILD_TYPE}.bin")
 add_custom_command(OUTPUT
         ${CMAKE_BINARY_DIR}/${FINAL_FILE}
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.bin" "${CMAKE_BINARY_DIR}/${FINAL_FILE}"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.bin" "${FIRMWARE_TARGET_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/ota*.bin" "${FIRMWARE_TARGET_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/partition_table/*.bin" "${FIRMWARE_TARGET_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/bootloader/*.bin" "${FIRMWARE_TARGET_DIR}"
-        DEPENDS app bootloader 
+        DEPENDS app
         )
 
 # Create target which consume the command via DEPENDS.

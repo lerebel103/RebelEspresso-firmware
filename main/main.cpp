@@ -53,7 +53,7 @@ extern "C" void app_main() {
     controller_init(event_loop);
     //display_init();
 
-    // Now for witi, ota, mqtt
+    // Now for wifi, ota, mqtt
     wifi_init();
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
     mqtt_set_ota_cfg_cb(ota_cfg_from_json);

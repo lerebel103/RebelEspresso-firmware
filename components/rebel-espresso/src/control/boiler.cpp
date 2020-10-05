@@ -3,6 +3,7 @@
 #include <esp_log.h>
 #include <hw/r1.0/hw_config.h>
 #include <driver/rmt.h>
+#include <cmath>
 #include "boiler.h"
 #include "rmt_duty_map.h"
 #include "window.h"
@@ -16,7 +17,6 @@
 
 struct boiler_cfg_t {
     uint8_t mains_hz = MAINS_50HZ;
-    uint16_t pid_window_ms = 15e3;
     pid_setpoint_t setpoint = {};
     pid_cfg_t pid;
 };
@@ -50,7 +50,6 @@ static void _power_off_ssr() {
     rmt_tx_stop(RMT_TX_CHANNEL);
     gpio_set_level(OUTPUT_PIN, 0);
 }
-
 
 /*
  * Initialize the RMT Tx channel
@@ -95,15 +94,16 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
         // Accumulate
-        window_accumulate(&s_data_window, time_us, &data, &s_cfg.setpoint, s_cfg.pid_window_ms);
+        window_accumulate(&s_data_window, time_us, &data, &s_cfg.setpoint, s_cfg.pid.I_reset_s * 1e3);
 
-        window_data_t wdata = {};
+        // Get window statistics
+        static window_data_t wdata = {};
         window_data(&s_data_window, &wdata);
 
         // delta from set-point, e.g. our error
         double error = s_cfg.setpoint.temp_max - data.temperature;
 
-        // Safety. If we are 10 degrees over set temperature, cut off fan
+        // Safety. If we are 10 degrees over set temperature, cut off
         if (-error > OVERT_TEMP_THRESHOLD) {
             _power_off_ssr();
         } else {
@@ -114,8 +114,17 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
                 derivative = (error - g_last_pid_err) / deltaT;
             }
 
-            // Here it is PID equation
-            double duty = (s_cfg.pid.P * error) + (s_cfg.pid.I * wdata.error_integral) + (s_cfg.pid.D * derivative);
+            // Calculate duty, start with P and D
+            double duty = (s_cfg.pid.P * error) + (s_cfg.pid.D * derivative);
+
+            // Integral is added if we are below our delta error temp
+            if (fabs(error) < s_cfg.pid.I_reset_temp) {
+                duty += (s_cfg.pid.I * wdata.error_integral);
+            } else {
+                // Keep on resetting window in this case
+                window_reset(&s_data_window);
+            }
+
             if (duty < 0) {
                 duty = 0;
             } else if (duty > 100) {
@@ -160,4 +169,3 @@ void boiler_init() {
     boiler_enable(true);
 
 }
-

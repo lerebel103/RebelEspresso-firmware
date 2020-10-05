@@ -23,11 +23,15 @@ static rtd_data_t _rtd_array[RTD_MAX_COUNT];
 
 static void _read_temp(rtd_update_cb_t cb, int idx) {
     uint16_t rtd;
+
+    vTaskDelay(pdMS_TO_TICKS(10));
     s_tempSensor.clearFault();
+    vTaskDelay(pdMS_TO_TICKS(10));
+
     s_tempSensor.getRTD(&rtd, &_rtd_array[idx].fault);
 
-    // Calculae new value if we can, otherwise leave the old one there.
-    if (_rtd_array[idx].fault == Max31865Error::NoError) {
+    // Calculate new value if we can, otherwise leave the old one there.
+    if (_rtd_array[idx].fault == Max31865Error::NoError && idx == RTD_BOILER_IDX) {
         _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
     }
 

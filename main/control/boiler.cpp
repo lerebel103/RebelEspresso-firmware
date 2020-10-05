@@ -90,7 +90,7 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
     }
 
     double deltaT = (double)(time_us - s_last_time_us) / 1e6;
-    if (data.fault == Max31865Error::NoError && deltaT < 5) {
+    if (data.fault == Max31865Error::NoError && (deltaT < 5 || s_last_time_us == 0)) {
         // Good to go
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
@@ -125,8 +125,9 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
             _set_duty(duty);
 
             g_last_pid_err = error;
-            s_last_time_us = time_us;
         }
+
+        s_last_time_us = time_us;
     } else {
         ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
         _power_off_ssr();

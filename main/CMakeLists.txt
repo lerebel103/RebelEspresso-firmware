@@ -30,6 +30,9 @@ file(GLOB_RECURSE COMPONENT_SRCS
         control/rmt_duty_map.h
         control/rmt_duty_map_50hz.c
         control/rmt_duty_map_60hz.c
+        control/window.cpp
+        control/window.h
+        control/pid.h
 
         hw/rtds.cpp
         hw/rtds.h

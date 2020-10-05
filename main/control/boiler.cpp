@@ -5,23 +5,32 @@
 #include <driver/rmt.h>
 #include "boiler.h"
 #include "rmt_duty_map.h"
+#include "window.h"
 
 #define TAG "Boiler"
 
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 #define RMT_CLK_DIV 160
+#define OUTPUT_PIN GPIO_TRIG2_REL2
+#define OVERT_TEMP_THRESHOLD 10
 
 struct boiler_cfg_t {
     uint8_t mains_hz = MAINS_50HZ;
+    uint16_t pid_window_ms = 15e3;
+    pid_setpoint_t setpoint = {};
+    pid_cfg_t pid;
 };
 
 
+static bool s_enabled = false;
 static boiler_cfg_t s_cfg;
+static window_handle_t s_data_window;
+static double g_last_pid_err = 0;
 
 static uint64_t s_last_time_us = 0;
 
 
-/**
+/*
  * Apply new duty to SSR
  *
  * @param duty integral [0-100]
@@ -34,10 +43,20 @@ static void _set_duty(uint8_t duty) {
 }
 
 /*
+ * Turns power off immediately to ssr
+ */
+static void _power_off_ssr() {
+    // Turn off RMT and force pin to zero as safety
+    rmt_tx_stop(RMT_TX_CHANNEL);
+    gpio_set_level(OUTPUT_PIN, 0);
+}
+
+
+/*
  * Initialize the RMT Tx channel
  */
 static void _rmt_tx_init() {
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(GPIO_TRIG1_SSR, RMT_TX_CHANNEL);
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(OUTPUT_PIN, RMT_TX_CHANNEL);
 
     // Disable carrier and enable loop back so we can generate pulses
     config.tx_config.carrier_en = false;
@@ -56,23 +75,88 @@ static void _rmt_tx_init() {
     rmt_set_tx_loop_mode(config.channel, true);
 }
 
+static void _pid_reset() {
+    ESP_LOGI(TAG, "Resetting...");
+    s_last_time_us = 0;
+    g_last_pid_err = 0;
+    window_reset(&s_data_window);
+    ESP_LOGI(TAG, "Reset done.");
+}
+
 
 void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
-    if (data.fault == Max31865Error::NoError) {
+    if (!s_enabled) {
+        return;
+    }
+
+    double deltaT = (double)(time_us - s_last_time_us) / 1e6;
+    if (data.fault == Max31865Error::NoError && deltaT < 5) {
         // Good to go
-        uint64_t deltaT = time_us - s_last_time_us;
-        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%lld", data.temperature, deltaT);
+        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
+        // Accumulate
+        window_accumulate(&s_data_window, time_us, &data, &s_cfg.setpoint, s_cfg.pid_window_ms);
 
-        s_last_time_us = time_us;
+        window_data_t wdata = {};
+        window_data(&s_data_window, &wdata);
+
+        // delta from set-point, e.g. our error
+        double error = s_cfg.setpoint.temp_max - data.temperature;
+
+        // Safety. If we are 10 degrees over set temperature, cut off fan
+        if (-error > OVERT_TEMP_THRESHOLD) {
+            _power_off_ssr();
+        } else {
+            // Then we can proceed
+            // Derivative part
+            double derivative = 0;
+            if (deltaT != 0) {
+                derivative = (error - g_last_pid_err) / deltaT;
+            }
+
+            // Here it is PID equation
+            double duty = (s_cfg.pid.P * error) + (s_cfg.pid.I * wdata.error_integral) + (s_cfg.pid.D * derivative);
+            if (duty < 0) {
+                duty = 0;
+            } else if (duty > 100) {
+                duty = 100;
+            }
+            ESP_LOGI(TAG, "Calculated PID duty %f", duty);
+            _set_duty(duty);
+
+            g_last_pid_err = error;
+            s_last_time_us = time_us;
+        }
     } else {
         ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
+        _power_off_ssr();
+        _pid_reset();
+    }
+}
+
+void boiler_enable(bool enable) {
+    if (enable != s_enabled) {
+        if (enable) {
+            ESP_LOGI(TAG, "Enabled.");
+            _pid_reset();
+
+            // We don't need to set anything to re-enable RMT, the next tx will
+            // re-start it in a loop
+        } else {
+            _power_off_ssr();
+            ESP_LOGI(TAG, "Disabled");
+        }
+        s_enabled = enable;
     }
 }
 
 
 void boiler_init() {
-    _rmt_tx_init();
+    s_cfg.setpoint.temp_max = 120;
 
+    window_init(&s_data_window);
+    _rmt_tx_init();
+    boiler_enable(true);
 
 }
+

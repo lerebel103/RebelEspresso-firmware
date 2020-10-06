@@ -1,7 +1,5 @@
-#include <cstdint>
 #include <hw/rtds.h>
 #include <esp_log.h>
-#include <hw/r1.0/hw_config.h>
 #include <driver/rmt.h>
 #include <cmath>
 #include "boiler.h"
@@ -10,10 +8,10 @@
 
 #define TAG "Boiler"
 
-#define RMT_TX_CHANNEL RMT_CHANNEL_0
 #define RMT_CLK_DIV 160
-#define OUTPUT_PIN GPIO_TRIG2_REL2
 #define OVERT_TEMP_THRESHOLD 10
+#define RMT_TX_CHANNEL RMT_CHANNEL_0
+
 
 struct boiler_cfg_t {
     uint8_t mains_hz = MAINS_50HZ;
@@ -28,34 +26,42 @@ static window_handle_t s_data_window;
 static double g_last_pid_err = 0;
 
 static uint64_t s_last_time_us = 0;
-
+static uint64_t s_last_duty = 0;
 
 /*
  * Apply new duty to SSR
  *
  * @param duty integral [0-100]
  */
-static void _set_duty(uint8_t duty) {
-    ESP_LOGD(TAG, "Setting new duty %d", duty);
-
+extern "C" void boiler_set_duty(int duty) {
     const struct rmt_pulse_t * pulses = rmt_duty_get_pulses(duty, s_cfg.mains_hz);
     ESP_ERROR_CHECK(rmt_fill_tx_items(RMT_TX_CHANNEL, pulses->items, pulses->num_items, false));
+    s_last_duty = duty;
 }
+
+/**
+ * Used for testing
+ */
+extern "C" uint8_t boiler_get_duty() {
+    return s_last_duty;
+}
+
 
 /*
  * Turns power off immediately to ssr
  */
 static void _power_off_ssr() {
     // Turn off RMT and force pin to zero as safety
+    boiler_set_duty(0);
     rmt_tx_stop(RMT_TX_CHANNEL);
-    gpio_set_level(OUTPUT_PIN, 0);
+    gpio_set_level(BOILER_SSR_PIN, 0);
 }
 
 /*
  * Initialize the RMT Tx channel
  */
 static void _rmt_tx_init() {
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(OUTPUT_PIN, RMT_TX_CHANNEL);
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(BOILER_SSR_PIN, RMT_TX_CHANNEL);
 
     // Disable carrier and enable loop back so we can generate pulses
     config.tx_config.carrier_en = false;
@@ -70,7 +76,7 @@ static void _rmt_tx_init() {
     ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
 
     // Set zero duty and enable loop so we continuously tx the last duty pulses
-    _set_duty(0);
+    boiler_set_duty(0);
     rmt_set_tx_loop_mode(config.channel, true);
 }
 
@@ -125,14 +131,8 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
                 window_reset(&s_data_window);
             }
 
-            if (duty < 0) {
-                duty = 0;
-            } else if (duty > 100) {
-                duty = 100;
-            }
             ESP_LOGI(TAG, "Calculated PID duty %f", duty);
-            _set_duty(duty);
-
+            boiler_set_duty(duty);
             g_last_pid_err = error;
         }
 
@@ -160,12 +160,18 @@ void boiler_enable(bool enable) {
     }
 }
 
+bool boiler_is_enabled() {
+    return s_enabled;
+}
+
 
 void boiler_init() {
     s_cfg.setpoint.temp_max = 120;
-
     window_init(&s_data_window);
     _rmt_tx_init();
-    boiler_enable(true);
+}
 
+void boiler_delete() {
+    rmt_driver_uninstall(RMT_TX_CHANNEL);
+    window_reset(&s_data_window);
 }

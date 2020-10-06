@@ -29,9 +29,11 @@ extern const struct rmt_pulse_t rmt_cycle_duty_map_60hz[101];
  * @param duty integral value in range of [0, 100]
  * @return corresponding Pulses to achieve the desired duty.
  */
-inline const struct rmt_pulse_t* rmt_duty_get_pulses(uint8_t duty, uint8_t mains_hz) {
+inline const struct rmt_pulse_t* rmt_duty_get_pulses(int duty, uint8_t mains_hz) {
     if (duty > 100) {
         duty = 100;
+    } else if (duty < 0) {
+        duty = 0;
     }
 
     if (mains_hz == MAINS_50HZ) {

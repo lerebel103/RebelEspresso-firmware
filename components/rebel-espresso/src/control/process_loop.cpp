@@ -1,6 +1,6 @@
 #include "process_loop.h"
-#include "boiler.h"
-#include "brew_head.h"
+#include "boiler_temp.h"
+#include "brew_temp.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -55,16 +55,16 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
 static void _handle_new_temp(uint64_t time_us, const rtd_data_t& data, uint8_t idx) {
     switch (idx) {
         case RTD_BOILER_IDX:
-            boiler_tick(time_us, data);
+            boiler_temp_tick(time_us, data);
             break;
         case RTD_BREW_HEAD_IDX:
-            brew_head_tick(time_us, data);
+            brew_temp_tick(time_us, data);
             break;
         case RTD_TEC_HOT_IDX:
-            brew_head_tec_hot_updated(time_us, data);
+            brew_temp_tec_hot_updated(time_us, data);
             break;
         case RTD_TEC_COLD_IDX:
-            brew_head_tec_cold_updated(time_us, data);
+            brew_temp_tec_cold_updated(time_us, data);
             break;
     }
 }

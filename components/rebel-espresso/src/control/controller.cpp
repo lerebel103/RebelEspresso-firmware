@@ -19,8 +19,10 @@
 #include "state.h"
 #include "sys/mqtt.h"
 #include "process_loop.h"
-#include "boiler.h"
-#include "brew_head.h"
+#include "boiler_refill.h"
+#include "boiler_temp.h"
+#include "brew_temp.h"
+#include "pump.h"
 
 
 #define CONTROL_LOOP_PERIOD 1000
@@ -40,14 +42,20 @@ static TickType_t s_last_status_update_tick = 0;
 static bool s_ota_needed = true;
 
 
+#define ESP_INTR_FLAG_DEFAULT 0
 
 
 void controller_init(esp_event_loop_handle_t event_loop) {
+    //install gpio isr service
+    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+
     s_event_loop = event_loop;
     nvram_store_read_u8(KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, g_controller_cfg.enabled);
 
-    boiler_init();
-    brew_head_init();
+    boiler_refill_init();
+    boiler_temp_init();
+    pump_init();
+    brew_temp_init();
     rtds_init(&s_rtds_cfg);
     process_loop_init();
 

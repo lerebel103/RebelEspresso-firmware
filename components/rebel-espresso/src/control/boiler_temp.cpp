@@ -2,7 +2,7 @@
 #include <esp_log.h>
 #include <driver/rmt.h>
 #include <cmath>
-#include "boiler.h"
+#include "boiler_temp.h"
 #include "rmt_duty_map.h"
 #include "window.h"
 
@@ -13,7 +13,7 @@
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 
 
-struct boiler_cfg_t {
+struct boiler_temp_cfg_t {
     uint8_t mains_hz = MAINS_50HZ;
     pid_setpoint_t setpoint = {};
     pid_cfg_t pid;
@@ -21,7 +21,7 @@ struct boiler_cfg_t {
 
 
 static bool s_enabled = false;
-static boiler_cfg_t s_cfg;
+static boiler_temp_cfg_t s_cfg;
 static window_handle_t s_data_window;
 static double g_last_pid_err = 0;
 
@@ -33,7 +33,7 @@ static uint64_t s_last_duty = 0;
  *
  * @param duty integral [0-100]
  */
-extern "C" void boiler_set_duty(int duty) {
+extern "C" void boiler_temp_set_duty(int duty) {
     const struct rmt_pulse_t * pulses = rmt_duty_get_pulses(duty, s_cfg.mains_hz);
     ESP_ERROR_CHECK(rmt_fill_tx_items(RMT_TX_CHANNEL, pulses->items, pulses->num_items, false));
     s_last_duty = duty;
@@ -42,7 +42,7 @@ extern "C" void boiler_set_duty(int duty) {
 /**
  * Used for testing
  */
-extern "C" uint8_t boiler_get_duty() {
+extern "C" uint8_t boiler_temp_get_duty() {
     return s_last_duty;
 }
 
@@ -52,7 +52,7 @@ extern "C" uint8_t boiler_get_duty() {
  */
 static void _power_off_ssr() {
     // Turn off RMT and force pin to zero as safety
-    boiler_set_duty(0);
+    boiler_temp_set_duty(0);
     rmt_tx_stop(RMT_TX_CHANNEL);
     gpio_set_level(BOILER_SSR_PIN, 0);
 }
@@ -76,7 +76,7 @@ static void _rmt_tx_init() {
     ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
 
     // Set zero duty and enable loop so we continuously tx the last duty pulses
-    boiler_set_duty(0);
+    boiler_temp_set_duty(0);
     rmt_set_tx_loop_mode(config.channel, true);
 }
 
@@ -89,7 +89,7 @@ static void _pid_reset() {
 }
 
 
-void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
+void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
     if (!s_enabled) {
         return;
     }
@@ -132,7 +132,7 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
             }
 
             ESP_LOGI(TAG, "Calculated PID duty %f", duty);
-            boiler_set_duty(duty);
+            boiler_temp_set_duty(duty);
             g_last_pid_err = error;
         }
 
@@ -144,7 +144,7 @@ void boiler_tick(uint64_t time_us, const rtd_data_t &data) {
     }
 }
 
-void boiler_enable(bool enable) {
+void boiler_temp_enable(bool enable) {
     if (enable != s_enabled) {
         if (enable) {
             ESP_LOGI(TAG, "Enabled.");
@@ -160,18 +160,19 @@ void boiler_enable(bool enable) {
     }
 }
 
-bool boiler_is_enabled() {
+bool boiler_temp_is_enabled() {
     return s_enabled;
 }
 
 
-void boiler_init() {
+void boiler_temp_init() {
     s_cfg.setpoint.temp_max = 120;
     window_init(&s_data_window);
     _rmt_tx_init();
+    boiler_temp_enable(true);
 }
 
-void boiler_delete() {
+void boiler_temp_delete() {
     rmt_driver_uninstall(RMT_TX_CHANNEL);
     window_reset(&s_data_window);
 }

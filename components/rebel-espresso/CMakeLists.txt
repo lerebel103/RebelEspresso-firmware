@@ -26,6 +26,7 @@ set(COMPONENT_REQUIRES
         app_update
         esp-tls
         esp-google-iot
+        esp_adc_cal
         esp32-homekit
         ESP32-MAX31865
         u8g2

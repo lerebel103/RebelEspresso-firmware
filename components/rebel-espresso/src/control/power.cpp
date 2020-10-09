@@ -5,10 +5,13 @@
 #include <hw_config.h>
 #include <esp_event.h>
 #include <esp_log.h>
+#include <esp32/pm.h>
+#include <esp_pm.h>
 
 const static char* TAG = "power";
 
 static esp_event_loop_handle_t s_event_loop;
+static bool s_is_low_power = false;
 
 static void IRAM_ATTR _standby () {
     if ((xEventGroupGetBitsFromISR(status_event_group) & POWER_ON_BIT)) {
@@ -16,6 +19,7 @@ static void IRAM_ATTR _standby () {
         ESP_ERROR_CHECK(esp_event_isr_post_to(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, nullptr));
     }
 }
+
 
 static void _active() {
     if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
@@ -43,9 +47,33 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 
     // maintain pump state with switch
     if(gpio_get_level(GPIO_SW3) == 0) {
+        if (s_is_low_power) {
+            esp_pm_config_esp32_t pm_config = {
+                    .max_freq_mhz = 240,
+                    .min_freq_mhz = 240,
+                    .light_sleep_enable = false
+            };
+
+            // Adjust Dynamic Frequency Scaling range and enter light sleep
+            ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
+            s_is_low_power = false;
+        }
+
         _active();
     } else {
         _standby();
+
+        if (!s_is_low_power) {
+            esp_pm_config_esp32_t pm_config = {
+                    .max_freq_mhz = 160,
+                    .min_freq_mhz = 160,
+                    .light_sleep_enable = true
+            };
+
+            // Adjust Dynamic Frequency Scaling range and enter light sleep
+            ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
+            s_is_low_power = true;
+        }
     }
 }
 
@@ -83,7 +111,5 @@ void power_init(esp_event_loop_handle_t event_loop) {
     // We want tick events
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
                                                     _tick, s_event_loop));
-
-
 
 }

@@ -1,6 +1,7 @@
 #include "process_loop.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
+#include "pump.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -15,6 +16,8 @@
 #include <sys/time.h>
 #include <hw/rtds.h>
 #include <hw/r1.0/hw_config.h>
+#include <esp_event.h>
+#include "events.h"
 
 #define TAG "process"
 #define TIMER_DIVIDER         16  //  Hardware timer clock divider
@@ -24,9 +27,11 @@
 
 static timer_idx_t s_timer_idx = TIMER_0;
 static timer_group_t s_timer_group = TIMER_GROUP_0;
-static TaskHandle_t _task_handle = nullptr;
+static TaskHandle_t _process_task_handle = nullptr;
+static TaskHandle_t _tick_task_handle = nullptr;
 static bool _go = false;
 static SemaphoreHandle_t s_semaphore = NULL;
+static esp_event_loop_handle_t s_event_loop;
 
 /**
  * Timer interrupt handler that drives our process loop
@@ -52,7 +57,7 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
 /**
  * Realtime handler for new temps
  */
-static void _handle_new_temp(uint64_t time_us, const rtd_data_t& data, uint8_t idx) {
+static void _handle_new_temp(uint64_t time_us, const rtd_data_t &data, uint8_t idx) {
     switch (idx) {
         case RTD_BOILER_IDX:
             boiler_temp_tick(time_us, data);
@@ -78,9 +83,6 @@ static void _tick() {
 
 static void _process_task(void *) {
     ESP_LOGI(TAG, "Process loop starting");
-    // We want a strict watchdog timer on this one
-    esp_task_wdt_init(ceil(TIMER_INTERVAL0_SEC * 1.5), true);
-    esp_task_wdt_add(nullptr);
 
     do {
         if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
@@ -95,25 +97,42 @@ static void _process_task(void *) {
     ESP_LOGI(TAG, "Process loop ended");
 
     // Kill resources
-    _task_handle = nullptr;
+    _process_task_handle = nullptr;
     vTaskDelete(nullptr);
 }
 
+void _machine_tick(void *) {
+    while (_go) {
+        // Tick keeps going regardless of power state.
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
 
-void process_loop_suspend() {
-
+    _tick_task_handle = nullptr;
+    vTaskDelete(nullptr);
 }
 
-void process_loop_resume() {
+static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    if (id == POWER_STANDBY) {
+        ESP_LOGI(TAG, "Stopping process loop");
 
+        esp_task_wdt_delete(_process_task_handle);
+        ESP_ERROR_CHECK(timer_pause(s_timer_group, s_timer_idx));
+        vTaskSuspend(_process_task_handle);
+    } else if (id == POWER_ACTIVE) {
+        ESP_LOGI(TAG, "Activating process loop");
+
+        // We want a strict watchdog timer on this one
+        vTaskResume(_process_task_handle);
+        ESP_ERROR_CHECK(timer_start(s_timer_group, s_timer_idx));
+        ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
+    }
 }
 
 
-void process_loop_init() {
+void process_loop_init(esp_event_loop_handle_t event_loop) {
+    s_event_loop = event_loop;
     s_semaphore = xSemaphoreCreateBinary();
-
-    gpio_install_isr_service(
-            ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_LEVEL3);
 
     /* Select and initialize basic parameters of the timer */
     timer_config_t config = {
@@ -138,10 +157,24 @@ void process_loop_init() {
     ESP_ERROR_CHECK(timer_isr_register(s_timer_group, s_timer_idx, _process_loop_isr,
                                        nullptr, ESP_INTR_FLAG_LEVEL3, NULL));
     ESP_ERROR_CHECK(timer_enable_intr(s_timer_group, s_timer_idx));
-    ESP_ERROR_CHECK(timer_start(s_timer_group, s_timer_idx));
+    ESP_ERROR_CHECK(timer_pause(s_timer_group, s_timer_idx));
+
 
     // Cool now create a task that will run our process loop.
+
     _go = true;
-    xTaskCreate(_process_task, "process", 3 * 1024, NULL, 7, &_task_handle);
+    ESP_ERROR_CHECK( esp_task_wdt_init(ceil(TIMER_INTERVAL0_SEC * 1.5), true));
+    xTaskCreate(_process_task, "process", 3 * 1024, NULL, 7, &_process_task_handle);
+    vTaskSuspend(_process_task_handle);
+
+    // We also start a secondary tick loop, which for a machine wide tick that is not realtime based
+    xTaskCreate(_machine_tick, "machine_tick", configMINIMAL_STACK_SIZE + 1024, nullptr, 5, &_tick_task_handle);
+
+    // Get our power events in place so we can run the process loop as needed
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, s_event_loop));
+
 }
 

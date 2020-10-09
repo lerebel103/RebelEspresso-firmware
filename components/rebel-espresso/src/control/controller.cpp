@@ -23,6 +23,7 @@
 #include "boiler_temp.h"
 #include "brew_temp.h"
 #include "pump.h"
+#include "power.h"
 
 
 #define CONTROL_LOOP_PERIOD 1000
@@ -41,8 +42,11 @@ static esp_event_loop_handle_t s_event_loop;
 static TickType_t s_last_status_update_tick = 0;
 static bool s_ota_needed = true;
 
+/* Event source task related definitions */
+ESP_EVENT_DEFINE_BASE(MACHINE_EVENTS);
 
-#define ESP_INTR_FLAG_DEFAULT 0
+#define ESP_INTR_FLAG_DEFAULT \
+    (ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 |ESP_INTR_FLAG_LEVEL3)
 
 
 void controller_init(esp_event_loop_handle_t event_loop) {
@@ -52,12 +56,13 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     nvram_store_read_u8(KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, g_controller_cfg.enabled);
 
-    boiler_refill_init();
-    boiler_temp_init();
-    pump_init();
-    brew_temp_init();
+    boiler_refill_init(event_loop);
+    boiler_temp_init(event_loop);
+    pump_init(event_loop);
+    brew_temp_init(event_loop);
     rtds_init(&s_rtds_cfg);
-    process_loop_init();
+    process_loop_init(event_loop);
+    power_init(event_loop);
 
     // Causes initial state to be sent
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);

@@ -2,6 +2,8 @@
 #include <esp_log.h>
 #include <driver/rmt.h>
 #include <cmath>
+#include <src/events.h>
+#include <esp_event.h>
 #include "boiler_temp.h"
 #include "rmt_duty_map.h"
 #include "window.h"
@@ -19,8 +21,7 @@ struct boiler_temp_cfg_t {
     pid_cfg_t pid;
 };
 
-
-static bool s_enabled = false;
+static esp_event_loop_handle_t s_event_loop;
 static boiler_temp_cfg_t s_cfg;
 static window_handle_t s_data_window;
 static double g_last_pid_err = 0;
@@ -88,9 +89,27 @@ static void _pid_reset() {
     ESP_LOGI(TAG, "Reset done.");
 }
 
+static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    if (id == POWER_STANDBY) {
+        ESP_LOGI(TAG, "Powering down Boiler SSR");
+        _power_off_ssr();
+    } else if (id == POWER_ACTIVE) {
+        ESP_LOGI(TAG, "Resuming Boiler SSR");
+        _pid_reset();
+    }
+}
+
 
 void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
-    if (!s_enabled) {
+    if (!(xEventGroupGetBits(status_event_group) &  POWER_ON_BIT)) {
+        ESP_LOGW(TAG, "In standby, not running.");
+        _power_off_ssr();
+        return;
+    }
+
+    if (!(xEventGroupGetBits(status_event_group) &  BOILER_LEVEL_OK_BIT)) {
+        ESP_LOGW(TAG, "Not running, boiler level low");
+        _power_off_ssr();
         return;
     }
 
@@ -144,32 +163,18 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
     }
 }
 
-void boiler_temp_enable(bool enable) {
-    if (enable != s_enabled) {
-        if (enable) {
-            ESP_LOGI(TAG, "Enabled.");
-            _pid_reset();
 
-            // We don't need to set anything to re-enable RMT, the next tx will
-            // re-start it in a loop
-        } else {
-            _power_off_ssr();
-            ESP_LOGI(TAG, "Disabled");
-        }
-        s_enabled = enable;
-    }
-}
-
-bool boiler_temp_is_enabled() {
-    return s_enabled;
-}
-
-
-void boiler_temp_init() {
+void boiler_temp_init(esp_event_loop_handle_t event_loop) {
+    s_event_loop = event_loop;
     s_cfg.setpoint.temp_max = 120;
     window_init(&s_data_window);
     _rmt_tx_init();
-    boiler_temp_enable(true);
+
+    // Get our power events in place so we can run the process loop as needed
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, s_event_loop));
 }
 
 void boiler_temp_delete() {

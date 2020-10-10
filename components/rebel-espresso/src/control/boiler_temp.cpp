@@ -181,4 +181,7 @@ void boiler_temp_init(esp_event_loop_handle_t event_loop) {
 void boiler_temp_delete() {
     rmt_driver_uninstall(RMT_TX_CHANNEL);
     window_reset(&s_data_window);
+
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
 }

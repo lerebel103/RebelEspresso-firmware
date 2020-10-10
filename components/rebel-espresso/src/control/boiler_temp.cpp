@@ -82,11 +82,11 @@ static void _rmt_tx_init() {
 }
 
 static void _pid_reset() {
-    ESP_LOGI(TAG, "Resetting...");
+    ESP_LOGD(TAG, "Resetting...");
     s_last_time_us = 0;
     g_last_pid_err = 0;
     window_reset(&s_data_window);
-    ESP_LOGI(TAG, "Reset done.");
+    ESP_LOGD(TAG, "Reset done.");
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -105,16 +105,21 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
         ESP_LOGW(TAG, "In standby, not running.");
         _power_off_ssr();
         return;
-    }
-
-    if (!(xEventGroupGetBits(status_event_group) &  BOILER_LEVEL_OK_BIT)) {
+    } else  if (!(xEventGroupGetBits(status_event_group) &  BOILER_LEVEL_OK_BIT)) {
         ESP_LOGW(TAG, "Not running, boiler level low");
+        _power_off_ssr();
+        return;
+    } else if (data.fault != Max31865Error::NoError) {
+        ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
         _power_off_ssr();
         return;
     }
 
+    // If we've had a gap, reset the PID
     double deltaT = (double)(time_us - s_last_time_us) / 1e6;
-    if (data.fault == Max31865Error::NoError && (deltaT < 5 || s_last_time_us == 0)) {
+    if (deltaT >= 5) {
+        _pid_reset();
+    } else {
         // Good to go
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
@@ -135,7 +140,7 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
             // Then we can proceed
             // Derivative part
             double derivative = 0;
-            if (deltaT != 0) {
+            if (s_last_time_us != 0 && deltaT != 0) {
                 derivative = (error - g_last_pid_err) / deltaT;
             }
 
@@ -154,13 +159,9 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
             boiler_temp_set_duty(duty);
             g_last_pid_err = error;
         }
-
-        s_last_time_us = time_us;
-    } else {
-        ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
-        _power_off_ssr();
-        _pid_reset();
     }
+
+    s_last_time_us = time_us;
 }
 
 

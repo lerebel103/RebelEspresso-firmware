@@ -8,15 +8,15 @@
 #include <esp32/pm.h>
 #include <esp_pm.h>
 
-const static char* TAG = "power";
+const static char *TAG = "power";
 
 static esp_event_loop_handle_t s_event_loop;
 static bool s_is_low_power = false;
 
-static void IRAM_ATTR _standby () {
-    if ((xEventGroupGetBitsFromISR(status_event_group) & POWER_ON_BIT)) {
-        xEventGroupClearBitsFromISR(status_event_group, POWER_ON_BIT);
-        ESP_ERROR_CHECK(esp_event_isr_post_to(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, nullptr));
+static void _standby() {
+    if ((xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
+        xEventGroupClearBits(status_event_group, POWER_ON_BIT);
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
     }
 }
 
@@ -25,12 +25,8 @@ static void _active() {
     if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         ESP_LOGI(TAG, "Entering ACTIVE state.");
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-        ESP_ERROR_CHECK(esp_event_isr_post_to(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, nullptr));
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, portMAX_DELAY));
     }
-}
-
-static void IRAM_ATTR _power_off(void *arg) {
-    _standby();
 }
 
 /*
@@ -45,16 +41,15 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-    // maintain pump state with switch
-    if(gpio_get_level(GPIO_SW3) == 0) {
+    if (gpio_get_level(GPIO_SW3) == 0) {
         if (s_is_low_power) {
+            // Enter normal power mode
             esp_pm_config_esp32_t pm_config = {
                     .max_freq_mhz = 240,
                     .min_freq_mhz = 240,
                     .light_sleep_enable = false
             };
 
-            // Adjust Dynamic Frequency Scaling range and enter light sleep
             ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
             s_is_low_power = false;
         }
@@ -64,10 +59,11 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         _standby();
 
         if (!s_is_low_power) {
+            // Enter lower power mode
             esp_pm_config_esp32_t pm_config = {
                     .max_freq_mhz = 160,
                     .min_freq_mhz = 160,
-                    .light_sleep_enable = true
+                    .light_sleep_enable = false
             };
 
             // Adjust Dynamic Frequency Scaling range and enter light sleep
@@ -88,28 +84,20 @@ void power_active() {
 
 void power_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
-    
+
     // No power until proven otherwise
     xEventGroupClearBits(status_event_group, POWER_ON_BIT);
-    ESP_ERROR_CHECK(esp_event_isr_post_to(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, nullptr));
+    ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
 
     // --- Configure input switch that drives power state
     gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_POSEDGE;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (
-            (1ULL << GPIO_SW3)
-    );
-
+    io_conf.pin_bit_mask = ((1ULL << GPIO_SW3));
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
 
-    // Now install switch interrupt and event handlers for boiler refill events
-    gpio_isr_handler_add(GPIO_SW3, _power_off, NULL);
-
     // We want tick events
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                    _tick, s_event_loop));
-
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK, _tick, s_event_loop));
 }

@@ -1,11 +1,11 @@
 #pragma once
 
-struct pid_setpoint_t {
-    double temp_min;
-    double temp_max;
-};
-
 struct pid_cfg_t {
+    /**
+     * Target setpoint
+     */
+    float setpoint = 0;
+
     float P = 3.5;
     float I = 0.5;
     float D = 35;

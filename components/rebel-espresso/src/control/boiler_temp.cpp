@@ -7,18 +7,18 @@
 #include "boiler_temp.h"
 #include "rmt_duty_map.h"
 #include "window.h"
+#include "pid.h"
 
 #define TAG "Boiler"
 
 #define RMT_CLK_DIV 160
-#define OVERT_TEMP_THRESHOLD 10
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 
 
 struct boiler_temp_cfg_t {
-    uint8_t mains_hz = MAINS_50HZ;
-    pid_setpoint_t setpoint = {};
     pid_cfg_t pid;
+    uint8_t mains_hz = MAINS_50HZ;
+    float over_temp_thresh = 10;
 };
 
 static esp_event_loop_handle_t s_event_loop;
@@ -124,17 +124,17 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
         // Accumulate
-        window_accumulate(&s_data_window, time_us, &data, &s_cfg.setpoint, s_cfg.pid.I_reset_s * 1e3);
+        window_accumulate(&s_data_window, time_us, &data, s_cfg.pid.setpoint, s_cfg.pid.I_reset_s * 1e3);
 
         // Get window statistics
         static window_data_t wdata = {};
         window_data(&s_data_window, &wdata);
 
         // delta from set-point, e.g. our error
-        double error = s_cfg.setpoint.temp_max - data.temperature;
+        double error = s_cfg.pid.setpoint - data.temperature;
 
         // Safety. If we are 10 degrees over set temperature, cut off
-        if (-error > OVERT_TEMP_THRESHOLD) {
+        if (-error > s_cfg.over_temp_thresh) {
             _power_off_ssr();
         } else {
             // Then we can proceed
@@ -167,7 +167,7 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
 
 void boiler_temp_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
-    s_cfg.setpoint.temp_max = 120;
+    s_cfg.pid.setpoint = 120;
     window_init(&s_data_window);
     _rmt_tx_init();
 

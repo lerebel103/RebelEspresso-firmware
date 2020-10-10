@@ -27,7 +27,7 @@ void window_accumulate(
         window_handle_t *window,
         uint64_t time_us,
         const rtd_data_t *result,
-        const pid_setpoint_t *setpoint,
+        float setpoint,
         uint16_t window_size_ms) {
 
     // Make room and free old entries
@@ -49,7 +49,7 @@ void window_accumulate(
     new_entry->time_us = time_us;
     new_entry->sequence = ++g_sequence;
     new_entry->data = *result;
-    new_entry->set_point = *setpoint;
+    new_entry->setpoint = setpoint;
 
     STAILQ_INSERT_TAIL(&window->queue, new_entry, entries);
 }
@@ -74,7 +74,7 @@ void window_data(window_handle_t *window, window_data_t *data) {
 
             if (previous != NULL) {
                 double dt = (double)((item->time_us - previous->time_us)) / 1e6;
-                data->error_integral += (item->set_point.temp_max - item->data.temperature) * dt;
+                data->error_integral += (item->setpoint - item->data.temperature) * dt;
             }
             previous = item;
         }

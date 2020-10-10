@@ -11,7 +11,6 @@ extern "C" {
 
 #include <hw/rtds.h>
 #include "controller.h"
-#include "pid.h"
 
 
 struct window_data_t {
@@ -27,7 +26,7 @@ struct window_entry_t {
     uint64_t time_us;
     uint64_t sequence;
     rtd_data_t data;
-    pid_setpoint_t set_point;
+    float setpoint;
     STAILQ_ENTRY(window_entry_t) entries;
 };
 
@@ -42,7 +41,7 @@ void window_accumulate(
         window_handle_t* handle,
         uint64_t tick,
         const rtd_data_t* result,
-        const pid_setpoint_t* setpoint,
+        float setpoint,
         uint16_t window_size_ms);
 
 void window_data(window_handle_t* window, window_data_t* data);

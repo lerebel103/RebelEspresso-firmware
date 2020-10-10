@@ -7,19 +7,12 @@
 #include "boiler_temp.h"
 #include "rmt_duty_map.h"
 #include "window.h"
-#include "pid.h"
 
 #define TAG "Boiler"
 
 #define RMT_CLK_DIV 160
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 
-
-struct boiler_temp_cfg_t {
-    pid_cfg_t pid;
-    uint8_t mains_hz = MAINS_50HZ;
-    float over_temp_thresh = 10;
-};
 
 static esp_event_loop_handle_t s_event_loop;
 static boiler_temp_cfg_t s_cfg;
@@ -35,7 +28,7 @@ static uint64_t s_last_duty = 0;
  * @param duty integral [0-100]
  */
 extern "C" void boiler_temp_set_duty(int duty) {
-    const struct rmt_pulse_t * pulses = rmt_duty_get_pulses(duty, s_cfg.mains_hz);
+    const struct rmt_pulse_t *pulses = rmt_duty_get_pulses(duty, s_cfg.mains_hz);
     ESP_ERROR_CHECK(rmt_fill_tx_items(RMT_TX_CHANNEL, pulses->items, pulses->num_items, false));
     s_last_duty = duty;
 }
@@ -100,12 +93,12 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 }
 
 
-void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
-    if (!(xEventGroupGetBits(status_event_group) &  POWER_ON_BIT)) {
+void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
+    if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         ESP_LOGW(TAG, "In standby, not running.");
         _power_off_ssr();
         return;
-    } else  if (!(xEventGroupGetBits(status_event_group) &  BOILER_LEVEL_OK_BIT)) {
+    } else if (!(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT)) {
         ESP_LOGW(TAG, "Not running, boiler level low");
         _power_off_ssr();
         return;
@@ -116,7 +109,7 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
     }
 
     // If we've had a gap, reset the PID
-    double deltaT = (double)(time_us - s_last_time_us) / 1e6;
+    double deltaT = (double) (time_us - s_last_time_us) / 1e6;
     if (deltaT >= 5) {
         _pid_reset();
     } else {
@@ -124,7 +117,7 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
         // Accumulate
-        window_accumulate(&s_data_window, time_us, &data, s_cfg.pid.setpoint, s_cfg.pid.I_reset_s * 1e3);
+        window_accumulate(&s_data_window, time_us, &data, s_cfg.pid.setpoint, s_cfg.pid.I_reset_sec * 1e3);
 
         // Get window statistics
         static window_data_t wdata = {};
@@ -134,7 +127,8 @@ void boiler_temp_tick(uint64_t time_us, const rtd_data_t &data) {
         double error = s_cfg.pid.setpoint - data.temperature;
 
         // Safety. If we are 10 degrees over set temperature, cut off
-        if (-error > s_cfg.over_temp_thresh) {
+        if (-error > s_cfg.pid.over_setpoint_perc * s_cfg.pid.setpoint / 100) {
+            ESP_LOGW(TAG, "Over temp threshold exceeded");
             _power_off_ssr();
         } else {
             // Then we can proceed
@@ -185,3 +179,17 @@ void boiler_temp_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
 }
+
+const boiler_temp_cfg_t& boiler_temp_cfg() {
+    return s_cfg;
+}
+
+void boiler_temp_cfg_set(const cJSON *config) {
+
+}
+
+const cJSON* boiler_temp_cfg_get() {
+
+    return nullptr;
+}
+

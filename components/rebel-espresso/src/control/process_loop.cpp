@@ -60,10 +60,10 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
 static void _handle_new_temp(uint64_t time_us, const rtd_data_t &data, uint8_t idx) {
     switch (idx) {
         case RTD_BOILER_IDX:
-            boiler_temp_tick(time_us, data);
+            boiler_temp_process(time_us, data);
             break;
         case RTD_BREW_HEAD_IDX:
-            brew_temp_tick(time_us, data);
+            brew_temp_process(time_us, data);
             break;
         case RTD_TEC_HOT_IDX:
             brew_temp_tec_hot_updated(time_us, data);
@@ -74,12 +74,6 @@ static void _handle_new_temp(uint64_t time_us, const rtd_data_t &data, uint8_t i
     }
 }
 
-static void _tick() {
-    ESP_LOGI(TAG, "Process, heap: %d, min: %d", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
-
-    // Get latest temperatures
-    rtds_update(_handle_new_temp);
-}
 
 static void _process_task(void *) {
     ESP_LOGI(TAG, "Process loop starting");
@@ -87,7 +81,10 @@ static void _process_task(void *) {
     do {
         if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
             // Do it
-            _tick();
+            ESP_LOGI(TAG, "Process, heap: %d, min: %d", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
+
+            // Get latest temperatures
+            rtds_update(_handle_new_temp);
 
             // Done, reset ISR to go again and maintain watchdog timer
             esp_task_wdt_reset();

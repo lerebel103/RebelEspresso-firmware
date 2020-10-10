@@ -8,7 +8,7 @@
 extern "C" void boiler_set_duty(uint8_t duty);
 extern "C" uint8_t boiler_get_duty();
 
-TEST_CASE( "[rmt_duty_map]", "Ensure out-of-bound duty is capped") {
+TEST_CASE( "[rmt_duty_map:test_out_of_bounds_duty]", "Ensure out-of-bound duty is capped") {
     const rmt_pulse_t* pulses_0 = rmt_duty_get_pulses(0, MAINS_50HZ);
     const rmt_pulse_t* pulses_100 = rmt_duty_get_pulses(100, MAINS_50HZ);
 
@@ -59,13 +59,13 @@ static void _test_duty(int mains_hz) {
     }
 }
 
-TEST_CASE( "[rmt_duty_map]", "Validate duty map 50Hz")
+TEST_CASE( "[rmt_duty_map:test_50Hz]", "Validate duty map 50Hz")
 {
     int mains_hz = MAINS_50HZ;
     _test_duty(mains_hz);
 }
 
-TEST_CASE( "[rmt_duty_map]", "Validate duty map 60Hz")
+TEST_CASE( "[rmt_duty_map:test_60Hz]", "Validate duty map 60Hz")
 {
     int mains_hz = MAINS_60HZ;
     _test_duty(mains_hz);

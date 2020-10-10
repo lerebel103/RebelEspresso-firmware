@@ -31,7 +31,7 @@ static void _set_duty(int duty) {
 }
 
 
-void brew_temp_tick(uint64_t time_us, const rtd_data_t& data) {
+void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
     if (!(xEventGroupGetBits(status_event_group) &  POWER_ON_BIT)) {
         ESP_LOGW(TAG, "In standby, not running.");
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);

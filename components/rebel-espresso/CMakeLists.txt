@@ -48,4 +48,3 @@ register_component()
 add_definitions(
         -DARDUINO=102
 )
-

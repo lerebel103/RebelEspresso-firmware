@@ -4,7 +4,7 @@
 
 void brew_temp_init(esp_event_loop_handle_t event_loop);
 
-void brew_temp_tick(uint64_t time_us, const rtd_data_t& data);
+void brew_temp_process(uint64_t time_us, const rtd_data_t& data);
 
 /**
  * Just got a new value for hot side of TEC

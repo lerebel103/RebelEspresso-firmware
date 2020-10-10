@@ -14,7 +14,7 @@ extern "C" void boiler_temp_set_duty(uint8_t duty);
 extern "C" uint8_t boiler_temp_get_duty();
 extern esp_event_loop_handle_t g_event_loop;
 
-TEST_CASE( "[boiler_temp]", "Ensure STANDBY cuts off power to SSR") {
+TEST_CASE( "[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power to SSR") {
     boiler_temp_init(g_event_loop);
 
     // Not enabled by default, zero duty
@@ -44,7 +44,7 @@ TEST_CASE( "[boiler_temp]", "Ensure STANDBY cuts off power to SSR") {
     boiler_temp_delete();
 }
 
-TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
+TEST_CASE( "[boiler_temp:test_error_conditions]", "Ensure tick cuts power when conditions not met") {
     boiler_temp_init(g_event_loop);
 
     // Not enabled by default, zero duty
@@ -66,7 +66,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         rtd_data_t data;
         data.fault = Max31865Error::NoError;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -80,7 +80,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::NoError;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -94,7 +94,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RTDHigh;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -108,7 +108,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RTDLow;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -122,7 +122,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RTDInLow;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -136,7 +136,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RefHigh;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -150,7 +150,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RefLow;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -164,7 +164,7 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RefHigh;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -178,13 +178,56 @@ TEST_CASE( "[boiler_temp]", "Ensure tick cuts power when conditions not met") {
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::Voltage;
-        boiler_temp_tick(esp_timer_get_time(), data);
+        boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
         TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
         state = (GPIO_REG_READ(GPIO_OUT_REG) >> BOILER_SSR_PIN) & 1U;
         TEST_ASSERT_FALSE(state);
     }
+
+    boiler_temp_delete();
+}
+
+TEST_CASE( "[boiler_temp:test_json_cfg]", "Test JSON configuration") {
+    boiler_temp_init(g_event_loop);
+
+    // Formulate a JSON object, set it and make sure we get the right answer
+    cJSON* root = cJSON_CreateObject();
+
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.P", 4.1);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.I", 0.5);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.D", 60.4);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.I_reset_sec", 16);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.I_reset_temp", 14);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.setpoint", 125);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.over_setpoint_perc", 25);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "mains_hz", 60);
+    char* json = cJSON_PrintUnformatted(root);
+
+
+    boiler_temp_cfg_t cfg = {};
+
+    // Apply and get back to compare
+    cfg.from_json(root);
+    TEST_ASSERT_EQUAL(4.1, cfg.pid.P);
+    TEST_ASSERT_EQUAL(0.5, cfg.pid.I);
+    TEST_ASSERT_EQUAL(60.4, cfg.pid.D);
+    TEST_ASSERT_EQUAL(16, cfg.pid.I_reset_sec);
+    TEST_ASSERT_EQUAL(14, cfg.pid.I_reset_temp);
+    TEST_ASSERT_EQUAL(125, cfg.pid.setpoint);
+    TEST_ASSERT_EQUAL(25, cfg.pid.over_setpoint_perc);
+    TEST_ASSERT_EQUAL(60, cfg.mains_hz);
+
+    cJSON* new_cfg = cJSON_CreateObject();
+    cfg.to_json(new_cfg, "");
+    char* new_json = cJSON_PrintUnformatted(new_cfg);
+    TEST_ASSERT_EQUAL_STRING(json, new_json);
+    
+    cJSON_free(json);
+    cJSON_free(new_json);
+    cJSON_Delete(root);
+    cJSON_Delete(new_cfg);
 
     boiler_temp_delete();
 }

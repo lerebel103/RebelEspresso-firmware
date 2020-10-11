@@ -14,6 +14,17 @@
 
 #define BOILER_CFG_JSON_KEY "boiler."
 
+// Defined here so unit tests can find these
+extern "C" const double BOILER_PID_P_DEFAULT;
+extern "C" const double BOILER_PID_I_DEFAULT;
+extern "C" const double BOILER_PID_D_DEFAULT;
+extern "C" const int32_t BOILER_PID_I_RESET_SEC_DEFAULT;
+extern "C" const double BOILER_PID_I_RESET_TEMP_DEFAULT;
+extern "C" const double BOILER_PID_SETPOINT_DEFAULT;
+extern "C" const double BOILER_PID_OVER_SETPOINT_PERC_DEFAULT;
+extern "C" const uint8_t BOILER_MAINS_HZ_DEFAULT;
+
+
 /**
  * Wrapper around boiler configuration
  */
@@ -26,7 +37,7 @@ struct boiler_temp_cfg_t {
     /**
      * What is the mains frequency, used to formulate variable time base pulses
      */
-    uint8_t mains_hz = MAINS_50HZ;
+    uint8_t mains_hz;
 
     /**
      * Apply new configuration
@@ -77,6 +88,8 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data);
  */
 const boiler_temp_cfg_t &boiler_temp_get_cfg();
 
-void boiler_temp_cfg_set(boiler_temp_cfg_t &cfg);
+void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
+
+void boiler_temp_reset_cfg();
 
 

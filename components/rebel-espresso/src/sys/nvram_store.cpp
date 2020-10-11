@@ -21,6 +21,9 @@ uint32_t g_cycle_count = 0;
 
 
 // Maximum we are going to wait for wifi connect etc... etc...
+
+
+
 #define DEFAULT_OPERATION_TIMEOUT_SECONDS 30
 
 #define NVRAM_STORAGE "storage"
@@ -85,19 +88,24 @@ esp_err_t nvram_store_read_u32(const char *key, uint32_t *value, uint32_t defaul
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Read
-        err = nvs_get_u32(my_handle, key, value);
-        if (err == ESP_ERR_NVS_NOT_FOUND) {
-            // Then set it
-            *value = default_value;
-            ESP_LOGI(TAG, "Key %s not found, setting to default %ul\n", key, *value);
-            err = nvs_set_u32(my_handle, key, *value);
-        }
+        err = nvram_store_get_u32(my_handle, key, value, &default_value);
     }
     nvs_close(my_handle);
+    return err;
+}
+
+esp_err_t nvram_store_get_u32(nvs_handle my_handle, const char *key, uint32_t *value, void* default_value) {
+    esp_err_t err = nvs_get_u32(my_handle, key, value);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // Then set it
+        *value = *(uint32_t*)default_value;
+        ESP_LOGI(TAG, "Key %s not found, setting to default %ul", key, *value);
+        err = nvs_set_u32(my_handle, key, *value);
+    }
     return err;
 }
 
@@ -105,14 +113,74 @@ esp_err_t nvram_store_write_u32(const char *key, uint32_t value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Write
-        err = nvs_set_u32(my_handle, key, value);
-        nvs_commit(my_handle);
+        err = nvram_store_set_u32(my_handle, key, &value);
     }
     nvs_close(my_handle);
+    return err;
+}
+
+esp_err_t nvram_store_set_u32(nvs_handle my_handle, const char *key, uint32_t* value) {
+    esp_err_t err;
+    err = nvs_set_u32(my_handle, key, *value);
+    nvs_commit(my_handle);
+    return err;
+}
+
+esp_err_t nvram_store_get_u64(nvs_handle my_handle, const char *key, uint64_t *value, void* default_value) {
+    esp_err_t err = nvs_get_u64(my_handle, key, value);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // Then set it
+        *value = *(uint64_t*)default_value;
+        ESP_LOGI(TAG, "Key %s not found, setting to default %llu", key, *value);
+        err = nvs_set_u64(my_handle, key, *value);
+    }
+    return err;
+}
+
+esp_err_t nvram_store_set_u64(nvs_handle my_handle, const char *key, uint64_t* value) {
+    esp_err_t err;
+    err = nvs_set_u64(my_handle, key, *value);
+    nvs_commit(my_handle);
+    return err;
+}
+
+esp_err_t nvram_store_get_u16(nvs_handle my_handle, const char *key, uint16_t *value, void* default_value) {
+    esp_err_t err = nvs_get_u16(my_handle, key, value);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // Then set it
+        *value = *(uint16_t*)default_value;
+        ESP_LOGI(TAG, "Key %s not found, setting to default %u", key, *value);
+        err = nvs_set_u16(my_handle, key, *value);
+    }
+    return err;
+}
+
+esp_err_t nvram_store_set_u16(nvs_handle my_handle, const char *key, uint16_t* value) {
+    esp_err_t err;
+    err = nvs_set_u16(my_handle, key, *value);
+    nvs_commit(my_handle);
+    return err;
+}
+
+esp_err_t nvram_store_get_u8(nvs_handle my_handle, const char *key, uint8_t *value, void* default_value) {
+    esp_err_t err = nvs_get_u8(my_handle, key, value);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // Then set it
+        *value = *(uint8_t*)default_value;
+        ESP_LOGI(TAG, "Key %s not found, setting to default %u", key, *value);
+        err = nvs_set_u8(my_handle, key, *value);
+    }
+    return err;
+}
+
+esp_err_t nvram_store_set_u8(nvs_handle my_handle, const char *key, uint8_t* value) {
+    esp_err_t err;
+    err = nvs_set_u8(my_handle, key, *value);
+    nvs_commit(my_handle);
     return err;
 }
 
@@ -120,7 +188,7 @@ esp_err_t nvram_store_read_i16(const char *key, int16_t *value, int16_t default_
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Read
@@ -128,7 +196,7 @@ esp_err_t nvram_store_read_i16(const char *key, int16_t *value, int16_t default_
         if (err == ESP_ERR_NVS_NOT_FOUND) {
             // Then set it
             *value = default_value;
-            ESP_LOGI(TAG, "Key %s not found, setting to default %ul\n", key, *value);
+            ESP_LOGI(TAG, "Key %s not found, setting to default %ul", key, *value);
             err = nvs_set_i16(my_handle, key, *value);
         }
     }
@@ -140,7 +208,7 @@ esp_err_t nvram_store_write_i16(const char *key, int16_t value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Write
@@ -155,7 +223,7 @@ esp_err_t nvram_store_read_u16(const char *key, uint16_t *value, uint16_t defaul
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Read
@@ -163,7 +231,7 @@ esp_err_t nvram_store_read_u16(const char *key, uint16_t *value, uint16_t defaul
         if (err == ESP_ERR_NVS_NOT_FOUND) {
             // Then set it
             *value = default_value;
-            ESP_LOGI(TAG, "Key %s not found, setting to default %ul\n", key, *value);
+            ESP_LOGI(TAG, "Key %s not found, setting to default %ul", key, *value);
             err = nvs_set_u16(my_handle, key, *value);
         }
     }
@@ -175,7 +243,7 @@ esp_err_t nvram_store_write_u16(const char *key, uint16_t value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Write
@@ -190,19 +258,25 @@ esp_err_t nvram_store_read_i32(const char *key, int32_t *value, int32_t default_
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Read
-        err = nvs_get_i32(my_handle, key, value);
-        if (err == ESP_ERR_NVS_NOT_FOUND) {
-            // Then set it
-            *value = default_value;
-            ESP_LOGI(TAG, "Key %s not found, setting to default %ul\n", key, *value);
-            err = nvs_set_i32(my_handle, key, *value);
-        }
+        err = nvram_store_get_i32(my_handle, key, value, &default_value);
     }
     nvs_close(my_handle);
+    return err;
+}
+
+esp_err_t
+nvram_store_get_i32(nvs_handle my_handle, const char *key, int32_t *value, void* default_value) {
+    esp_err_t err = nvs_get_i32(my_handle, key, value);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // Then set it
+        *value = *(int32_t*)default_value;
+        ESP_LOGI(TAG, "Key %s not found, setting to default %u", key, *value);
+        err = nvs_set_i32(my_handle, key, *value);
+    }
     return err;
 }
 
@@ -210,14 +284,20 @@ esp_err_t nvram_store_write_i32(const char *key, int32_t value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Write
-        err = nvs_set_i32(my_handle, key, value);
-        nvs_commit(my_handle);
+        err = nvram_store_set_i32(my_handle, key, &value);
     }
     nvs_close(my_handle);
+    return err;
+}
+
+esp_err_t nvram_store_set_i32(nvs_handle my_handle, const char *key, int32_t* value) {
+    esp_err_t err;
+    err = nvs_set_i32(my_handle, key, *value);
+    nvs_commit(my_handle);
     return err;
 }
 
@@ -226,7 +306,7 @@ esp_err_t nvram_store_read_u8(const char *key, uint8_t *value, uint8_t default_v
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Read
@@ -234,7 +314,7 @@ esp_err_t nvram_store_read_u8(const char *key, uint8_t *value, uint8_t default_v
         if (err == ESP_ERR_NVS_NOT_FOUND) {
             // Then set it
             *value = default_value;
-            ESP_LOGI(TAG, "Key %s not found, setting to default %ul\n", key, *value);
+            ESP_LOGI(TAG, "Key %s not found, setting to default %ul", key, *value);
             err = nvs_set_u8(my_handle, key, *value);
         }
     }
@@ -246,7 +326,7 @@ esp_err_t nvram_store_write_u8(const char *key, uint8_t value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Write
@@ -262,7 +342,7 @@ esp_err_t nvram_store_read_bool(const char *key, bool *value, bool default_value
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Read
@@ -272,7 +352,7 @@ esp_err_t nvram_store_read_bool(const char *key, bool *value, bool default_value
         if (err == ESP_ERR_NVS_NOT_FOUND) {
             // Then set it
             *value = default_value;
-            ESP_LOGI(TAG, "Key %s not found, setting to default %d\n", key, (int8_t) (*value));
+            ESP_LOGI(TAG, "Key %s not found, setting to default %d", key, (int8_t) (*value));
             err = nvs_set_i8(my_handle, key, (int8_t) (*value));
         }
     }
@@ -284,7 +364,7 @@ esp_err_t nvram_store_write_bool(const char *key, bool value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Write
@@ -300,7 +380,7 @@ esp_err_t nvram_store_read_str(const char *key, char *value, size_t max_len, con
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Read
@@ -309,7 +389,7 @@ esp_err_t nvram_store_read_str(const char *key, char *value, size_t max_len, con
         if (err == ESP_ERR_NVS_NOT_FOUND) {
             // Then set it
             strcpy(value, default_value);
-            ESP_LOGI(TAG, "Key %s not found, setting to default %s\n", key, value);
+            ESP_LOGI(TAG, "Key %s not found, setting to default %s", key, value);
             err = nvs_set_str(my_handle, key, value);
         }
     }
@@ -321,7 +401,7 @@ esp_err_t nvram_store_write_str(const char *key, const char *value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
         // Write

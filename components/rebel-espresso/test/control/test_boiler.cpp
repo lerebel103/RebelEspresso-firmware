@@ -12,6 +12,7 @@
 
 extern "C" void boiler_temp_set_duty(uint8_t duty);
 extern "C" uint8_t boiler_temp_get_duty();
+
 extern esp_event_loop_handle_t g_event_loop;
 
 TEST_CASE( "[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power to SSR") {
@@ -189,7 +190,44 @@ TEST_CASE( "[boiler_temp:test_error_conditions]", "Ensure tick cuts power when c
     boiler_temp_delete();
 }
 
-TEST_CASE( "[boiler_temp:test_json_cfg]", "Test JSON configuration") {
+TEST_CASE( "[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
+    boiler_temp_init(g_event_loop);
+
+    boiler_temp_cfg_t new_cfg;
+    new_cfg.pid.P = 5.5;
+    new_cfg.pid.I = 5.6;
+    new_cfg.pid.D = 5.7;
+    new_cfg.pid.I_reset_temp = 5.8;
+    new_cfg.pid.I_reset_sec = 6;
+    new_cfg.pid.setpoint = 7.5;
+    new_cfg.pid.over_setpoint_perc = 13.1;
+    new_cfg.mains_hz = 60;
+
+    // Apply
+    boiler_temp_set_cfg(new_cfg);
+
+    // Now kill this instance and reload it
+    boiler_temp_delete();
+    boiler_temp_init(g_event_loop);
+
+    // Get config back, it must be identical
+    auto cfg = boiler_temp_get_cfg();
+
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.P, cfg.pid.P);
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.I, cfg.pid.I);
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.D, cfg.pid.D);
+    TEST_ASSERT_EQUAL(new_cfg.pid.I_reset_sec, cfg.pid.I_reset_sec);
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.I_reset_temp, cfg.pid.I_reset_temp);
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.setpoint, cfg.pid.setpoint);
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.over_setpoint_perc, cfg.pid.over_setpoint_perc);
+    TEST_ASSERT_EQUAL(new_cfg.mains_hz, cfg.mains_hz);
+
+    boiler_temp_delete();
+}
+
+TEST_CASE( "[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to defaults") {
+    // reset
+    boiler_temp_reset_cfg();
     boiler_temp_init(g_event_loop);
 
     // Formulate a JSON object, set it and make sure we get the right answer

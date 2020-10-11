@@ -6,6 +6,7 @@
 #include <unity_config.h>
 #include <esp_event.h>
 #include <src/events.h>
+#include <nvs_flash.h>
 
 esp_event_loop_handle_t g_event_loop;
 EventGroupHandle_t status_event_group;
@@ -37,6 +38,7 @@ void unityTask(void *pvParameters)
     };
     ESP_ERROR_CHECK(esp_event_loop_create(&event_loop_args, &g_event_loop));
     status_event_group = xEventGroupCreate();
+    ESP_ERROR_CHECK(nvs_flash_init());
 
     unity_run_menu(); /* Doesn't return */
 }

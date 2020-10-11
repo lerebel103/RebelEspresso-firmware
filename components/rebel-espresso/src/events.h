@@ -17,9 +17,9 @@ extern EventGroupHandle_t status_event_group;
 
 
 
-ESP_EVENT_DECLARE_BASE(TOUCH_BUTTONS_EVENTS);
+ESP_EVENT_DECLARE_BASE(BUTTONS_EVENTS);
 
-enum touch_button_events_t {
+enum button_events_t {
     BUTTON_CONTROLLER_PRESSED,
     BUTTON_CONTROLLER_HELD,
     BUTTON_UP_PRESSED,

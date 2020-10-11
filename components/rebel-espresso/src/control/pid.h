@@ -10,31 +10,31 @@
 
 struct pid_cfg_t {
 
-    double P = 3.5;
+    double P;
 
-    double I = 0.5;
+    double I;
 
-    double D = 35;
+    double D;
 
     /**
      * Integral time window is trimmed to this many seconds always
      */
-    int I_reset_sec = 15;
+    int I_reset_sec;
 
     /**
      * Integral is discarded if delta temperature to setpoint is above this value
      */
-    int I_reset_temp = 10;
+    double I_reset_temp;
 
     /**
      * Target setpoint
      */
-    double setpoint = 0;
+    double setpoint;
 
     /**
      * How far above current setpoint we can go before we cut off the SSR and disable the PID
      */
-    double over_setpoint_perc = 8;
+    double over_setpoint_perc;
 
     /**
      * Parses the given JSON into this object
@@ -63,13 +63,13 @@ struct pid_cfg_t {
                     I_reset_sec = val;
                 }
             } else if ( strend(item->string, PID_CFG_JSON_KEY "I_reset_temp") ) {
-                auto val = item->valueint;
+                auto val = item->valuedouble;
                 if (val >= 0 && val < 40) {
                     I_reset_temp = val;
                 }
             } else if ( strend(item->string, PID_CFG_JSON_KEY "setpoint") ) {
                 auto val = item->valuedouble;
-                if (val >= 0 && val <= 125) {
+                if (val >= SETPOINT_MIN && val <= SETPOINT_MAX) {
                     setpoint = val;
                 }
             } else if ( strend(item->string, PID_CFG_JSON_KEY "over_setpoint_perc") ) {

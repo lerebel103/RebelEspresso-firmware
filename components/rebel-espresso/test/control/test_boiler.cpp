@@ -204,14 +204,14 @@ TEST_CASE("[boiler_temp:test_update_config_from_json]", "Ensures partial json up
     cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.P", 4.1);
     cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.I", 0.5);
     cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.D", 60.4);
-    cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.setpoint", 99.9);
+    cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.setpoint0", 99.9);
 
     boiler_temp_update_cfg(root);
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
     TEST_ASSERT_EQUAL(4.1, cfg.pid.P);
     TEST_ASSERT_EQUAL(0.5, cfg.pid.I);
     TEST_ASSERT_EQUAL(60.4, cfg.pid.D);
-    TEST_ASSERT_EQUAL(99.9, cfg.pid.setpoint);
+    TEST_ASSERT_EQUAL(99.9, cfg.pid.setpoints[0]);
 
     cJSON_Delete(root);
     boiler_temp_delete();
@@ -227,7 +227,7 @@ TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     new_cfg.pid.D = 5.7;
     new_cfg.pid.I_reset_temp = 5.8;
     new_cfg.pid.I_reset_sec = 6;
-    new_cfg.pid.setpoint = 51.2;
+    new_cfg.pid.setpoints[0] = 51.2;
     new_cfg.pid.over_setpoint_perc = 13.1;
     new_cfg.mains_hz = 60;
 
@@ -246,7 +246,7 @@ TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.D, cfg.pid.D);
     TEST_ASSERT_EQUAL(new_cfg.pid.I_reset_sec, cfg.pid.I_reset_sec);
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.I_reset_temp, cfg.pid.I_reset_temp);
-    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.setpoint, cfg.pid.setpoint);
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.setpoints[0], cfg.pid.setpoints[0]);
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.over_setpoint_perc, cfg.pid.over_setpoint_perc);
     TEST_ASSERT_EQUAL(new_cfg.mains_hz, cfg.mains_hz);
 
@@ -266,7 +266,8 @@ TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to default
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.D", 60.4);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.I_reset_sec", 16);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.I_reset_temp", 14);
-    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.setpoint", 125);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.setpoint0", 125);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.setpoint1", 139);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.over_setpoint_perc", 25);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "mains_hz", 60);
     char *json = cJSON_PrintUnformatted(root);
@@ -281,7 +282,8 @@ TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to default
     TEST_ASSERT_EQUAL(60.4, cfg.pid.D);
     TEST_ASSERT_EQUAL(16, cfg.pid.I_reset_sec);
     TEST_ASSERT_EQUAL(14, cfg.pid.I_reset_temp);
-    TEST_ASSERT_EQUAL(125, cfg.pid.setpoint);
+    TEST_ASSERT_EQUAL(125, cfg.pid.setpoints[0]);
+    TEST_ASSERT_EQUAL(139, cfg.pid.setpoints[1]);
     TEST_ASSERT_EQUAL(25, cfg.pid.over_setpoint_perc);
     TEST_ASSERT_EQUAL(60, cfg.mains_hz);
 
@@ -303,7 +305,7 @@ TEST_CASE("[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setpo
 
     auto cfg = boiler_temp_get_cfg();
     double inc = -0.5;
-    double expected = cfg.pid.setpoint;
+    double expected = cfg.pid.setpoints[0];
     for (int i = 0; i < 10; i++) {
         expected += inc;
         TEST_ASSERT_EQUAL_DOUBLE(expected, boiler_setpoint_inc(inc));
@@ -311,27 +313,27 @@ TEST_CASE("[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setpo
         // Now this must be stored in nvram
         boiler_temp_delete();
         boiler_temp_init(g_event_loop);
-        TEST_ASSERT_EQUAL_DOUBLE(expected, boiler_temp_get_cfg().pid.setpoint);
+        TEST_ASSERT_EQUAL_DOUBLE(expected, boiler_temp_get_cfg().pid.setpoints[0]);
     }
 
     // go out of bounds
     inc = 1000;
     for (int i = 0; i < 10; i++) {
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_setpoint_inc(inc));
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_temp_get_cfg().pid.setpoint);
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MAX, boiler_setpoint_inc(inc));
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MAX, boiler_temp_get_cfg().pid.setpoints[0]);
     }
     boiler_temp_delete();
     boiler_temp_init(g_event_loop);
-    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_temp_get_cfg().pid.setpoint);
+    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MAX, boiler_temp_get_cfg().pid.setpoints[0]);
 
     inc = -1000;
     for (int i = 0; i < 10; i++) {
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_setpoint_inc(inc));
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_temp_get_cfg().pid.setpoint);
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MIN, boiler_setpoint_inc(inc));
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MIN, boiler_temp_get_cfg().pid.setpoints[0]);
     }
     boiler_temp_delete();
     boiler_temp_init(g_event_loop);
-    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_temp_get_cfg().pid.setpoint);
+    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MIN, boiler_temp_get_cfg().pid.setpoints[0]);
 
     boiler_temp_delete();
 }
@@ -343,7 +345,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_steady]", "Test duty when steady temp f
     boiler_temp_reset_cfg();
 
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
-    cfg.pid.setpoint = 120;
+    cfg.pid.setpoints[0] = 120;
     boiler_temp_set_cfg(cfg);
 
     rtd_data_t data;
@@ -369,7 +371,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     cfg.pid.P = 3;
     cfg.pid.I = 0.5;
     cfg.pid.D = 100;
-    cfg.pid.setpoint = 120;
+    cfg.pid.setpoints[0] = 120;
     boiler_temp_set_cfg(cfg);
 
     rtd_data_t data;

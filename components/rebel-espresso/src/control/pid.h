@@ -4,6 +4,7 @@
 #include "str_utils.h"
 
 #define PID_CFG_JSON_KEY "pid."
+#define MAX_SETPOINTS 2
 
 struct pid_cfg_t {
 
@@ -26,7 +27,9 @@ struct pid_cfg_t {
     /**
      * Target setpoint
      */
-    double setpoint;
+    double setpoints[MAX_SETPOINTS];
+
+    int active_setpoint = 0;
 
     /**
      * How far above current setpoint we can go before we cut off the SSR and disable the PID
@@ -49,8 +52,10 @@ struct pid_cfg_t {
                 I_reset_sec = item->valueint;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "I_reset_temp") ) {
                 I_reset_temp = item->valuedouble;
-            } else if ( strend(item->string, PID_CFG_JSON_KEY "setpoint") ) {
-                setpoint = item->valuedouble;
+            } else if ( strend(item->string, PID_CFG_JSON_KEY "setpoint0") ) {
+                setpoints[0] = item->valuedouble;
+            } else if ( strend(item->string, PID_CFG_JSON_KEY "setpoint1") ) {
+                setpoints[1] = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "over_setpoint_perc") ) {
                 over_setpoint_perc = item->valuedouble;
             }
@@ -71,8 +76,10 @@ struct pid_cfg_t {
         cJSON_AddNumberToObject(config, buf, I_reset_sec);
         sprintf(buf, "%.*s" PID_CFG_JSON_KEY "I_reset_temp", 32, base_key);
         cJSON_AddNumberToObject(config, buf, I_reset_temp);
-        sprintf(buf, "%.*s" PID_CFG_JSON_KEY "setpoint", 32, base_key);
-        cJSON_AddNumberToObject(config, buf, setpoint);
+        sprintf(buf, "%.*s" PID_CFG_JSON_KEY "setpoint0", 32, base_key);
+        cJSON_AddNumberToObject(config, buf, setpoints[0]);
+        sprintf(buf, "%.*s" PID_CFG_JSON_KEY "setpoint1", 32, base_key);
+        cJSON_AddNumberToObject(config, buf, setpoints[1]);
         sprintf(buf, "%.*s" PID_CFG_JSON_KEY "over_setpoint_perc", 32, base_key);
         cJSON_AddNumberToObject(config, buf, over_setpoint_perc);
         free(buf);

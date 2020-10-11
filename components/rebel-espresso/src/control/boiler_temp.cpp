@@ -20,7 +20,8 @@ const double BOILER_PID_I_DEFAULT = 0.5;
 const double BOILER_PID_D_DEFAULT = 100;
 const int32_t BOILER_PID_I_RESET_SEC_DEFAULT = 15;
 const double BOILER_PID_I_RESET_TEMP_DEFAULT = 15;
-const double BOILER_PID_SETPOINT_DEFAULT = 115;
+const double BOILER_PID_SETPOINT0_DEFAULT = 115;
+const double BOILER_PID_SETPOINT1_DEFAULT = 140;
 const double BOILER_PID_OVER_SETPOINT_PERC_DEFAULT = 8;
 const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 
@@ -79,8 +80,10 @@ static void _load_nvram() {
                         (void *) &BOILER_PID_I_RESET_SEC_DEFAULT);
     nvram_store_get_u64(my_handle, KEY_BOILER_PID_I_RESET_TEMP, (uint64_t *) &s_cfg.pid.I_reset_temp,
                         (void *) &BOILER_PID_I_RESET_TEMP_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint,
-                        (void *) &BOILER_PID_SETPOINT_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_SETPOINT0, (uint64_t *) &s_cfg.pid.setpoints[0],
+                        (void *) &BOILER_PID_SETPOINT0_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_SETPOINT1, (uint64_t *) &s_cfg.pid.setpoints[1],
+                        (void *) &BOILER_PID_SETPOINT1_DEFAULT);
     nvram_store_get_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc,
                         (void *) &BOILER_PID_OVER_SETPOINT_PERC_DEFAULT);
     nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz,
@@ -98,7 +101,8 @@ static void _save_nvram() {
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_D, (uint64_t *) &s_cfg.pid.D);
     nvram_store_set_i32(my_handle, KEY_BOILER_PID_I_RESET_SEC, (int32_t *) &s_cfg.pid.I_reset_sec);
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_I_RESET_TEMP, (uint64_t *) &s_cfg.pid.I_reset_temp);
-    nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT0, (uint64_t *) &s_cfg.pid.setpoints[0]);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT1, (uint64_t *) &s_cfg.pid.setpoints[1]);
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc);
     nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz);
 
@@ -220,17 +224,17 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
         // Accumulate
-        window_accumulate(&s_data_window, time_us, &data, s_cfg.pid.setpoint, s_cfg.pid.I_reset_sec * 1e3);
+        window_accumulate(&s_data_window, time_us, &data, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint], s_cfg.pid.I_reset_sec * 1e3);
 
         // Get window statistics
         static window_data_t wdata = {};
         window_data(&s_data_window, &wdata);
 
         // delta from set-point, e.g. our error
-        double error = s_cfg.pid.setpoint - data.temperature;
+        double error = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] - data.temperature;
 
         // Safety. If we are 10 degrees over set temperature, cut off
-        if (-error > s_cfg.pid.over_setpoint_perc * s_cfg.pid.setpoint / 100) {
+        if (-error > s_cfg.pid.over_setpoint_perc * s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] / 100) {
             ESP_LOGW(TAG, "Over temp threshold exceeded");
             _power_off_ssr();
             s_stats.boiler_over_temp_count++;
@@ -313,9 +317,11 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
     if (config.pid.I_reset_temp >=0 && config.pid.I_reset_temp < 30) {
         s_cfg.pid.I_reset_temp = config.pid.I_reset_temp;
     }
-    if (config.pid.setpoint >= BOILER_SETPOINT_MIN && config.pid.setpoint <= BOILER_SETPOINT_MAX) {
-        s_cfg.pid.setpoint = config.pid.setpoint;
-        ESP_LOGI(TAG, "New setpoint: %f", s_cfg.pid.setpoint);
+    if (config.pid.setpoints[0] >= BOILER_SETPOINT0_MIN && config.pid.setpoints[0] <= BOILER_SETPOINT0_MAX) {
+        s_cfg.pid.setpoints[0] = config.pid.setpoints[0];
+    }
+    if (config.pid.setpoints[1] >= BOILER_SETPOINT1_MIN && config.pid.setpoints[1] <= BOILER_SETPOINT1_MAX) {
+        s_cfg.pid.setpoints[1] = config.pid.setpoints[1];
     }
     if (config.pid.over_setpoint_perc >= 0 && config.pid.over_setpoint_perc < 40) {
         s_cfg.pid.over_setpoint_perc = config.pid.over_setpoint_perc;
@@ -357,29 +363,51 @@ void boiler_temp_reset_stats() {
 }
 
 double boiler_setpoint_inc(double inc) {
-    auto new_val = s_cfg.pid.setpoint + inc;
-    if (new_val < BOILER_SETPOINT_MIN) {
-        new_val = BOILER_SETPOINT_MIN;
-    }
-    if (new_val > BOILER_SETPOINT_MAX) {
-        new_val = BOILER_SETPOINT_MAX;
+    auto new_val = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] + inc;
+    if (s_cfg.pid.active_setpoint == 0) {
+        if (new_val < BOILER_SETPOINT0_MIN) {
+            new_val = BOILER_SETPOINT0_MIN;
+        }
+        if (new_val > BOILER_SETPOINT0_MAX) {
+            new_val = BOILER_SETPOINT0_MAX;
+        }
+    } else {
+        if (new_val < BOILER_SETPOINT1_MIN) {
+            new_val = BOILER_SETPOINT1_MIN;
+        }
+        if (new_val > BOILER_SETPOINT1_MAX) {
+            new_val = BOILER_SETPOINT1_MAX;
+        }
     }
 
-    if ( new_val != s_cfg.pid.setpoint) {
-        s_cfg.pid.setpoint = new_val;
+
+    if ( new_val != s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]) {
+        s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] = new_val;
 
         nvs_handle my_handle;
         ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
-        nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint);
+        if (s_cfg.pid.active_setpoint == 0) {
+            nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT0,
+                                (uint64_t *) &s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
+        } else {
+            nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT1,
+                                (uint64_t *) &s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
+        }
+
         nvs_close(my_handle);
     }
 
-    return s_cfg.pid.setpoint;
+    return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 }
 
 boiler_stats_t boiler_get_stats() {
     return s_stats;
 }
 
+void boiler_set_active_setpoint(int idx) {
+    if (idx >= 0 && idx < MAX_SETPOINTS) {
+        s_cfg.pid.active_setpoint = idx;
+    }
+}
 
 

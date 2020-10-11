@@ -18,7 +18,8 @@
 #define KEY_BOILER_PID_D "pid.D"
 #define KEY_BOILER_PID_I_RESET_SEC "pid.i_reset_sec"
 #define KEY_BOILER_PID_I_RESET_TEMP "pid.i_reset_tem"
-#define KEY_BOILER_PID_SETPOINT "pid.sp"
+#define KEY_BOILER_PID_SETPOINT0 "pid.sp0"
+#define KEY_BOILER_PID_SETPOINT1 "pid.sp1"
 #define KEY_BOILER_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
 #define KEY_BOILER_MAINS_HZ "pid.mains_hz"
 
@@ -27,8 +28,10 @@
 #define KEY_BOILER_STATS_TEMP_ERROR "temp_error"
 
 
-#define BOILER_SETPOINT_MIN 50
-#define BOILER_SETPOINT_MAX 125
+#define BOILER_SETPOINT0_MIN 50
+#define BOILER_SETPOINT0_MAX 125
+#define BOILER_SETPOINT1_MIN 110
+#define BOILER_SETPOINT1_MAX 140
 
 #define BOILER_CFG_JSON_KEY "boiler."
 
@@ -105,6 +108,8 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data);
  * @return
  */
 int boiler_temp_get_duty();
+
+void boiler_set_active_setpoint(int idx);
 
 /**
  * Increments the current setpoint by the specified value

@@ -270,3 +270,41 @@ TEST_CASE( "[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to defaul
     boiler_temp_delete();
 }
 
+TEST_CASE( "[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setpoint") {
+    boiler_temp_init(g_event_loop);
+
+    auto cfg = boiler_temp_get_cfg();
+    double inc = -0.5;
+    double expected = cfg.pid.setpoint;
+    for (int i=0; i<10; i++) {
+        expected += inc;
+        TEST_ASSERT_EQUAL_DOUBLE(expected, boiler_setpoint_inc(inc));
+
+        // Now this must be stored in nvram
+        boiler_temp_delete();
+        boiler_temp_init(g_event_loop);
+        TEST_ASSERT_EQUAL_DOUBLE(expected, boiler_temp_get_cfg().pid.setpoint);
+    }
+
+    // go out of bounds
+    inc = 1000;
+    for (int i=0; i<10; i++) {
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_setpoint_inc(inc));
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_temp_get_cfg().pid.setpoint);
+    }
+    boiler_temp_delete();
+    boiler_temp_init(g_event_loop);
+    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_temp_get_cfg().pid.setpoint);
+
+    inc = -1000;
+    for (int i=0; i<10; i++) {
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_setpoint_inc(inc));
+        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_temp_get_cfg().pid.setpoint);
+    }
+    boiler_temp_delete();
+    boiler_temp_init(g_event_loop);
+    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_temp_get_cfg().pid.setpoint);
+
+    boiler_temp_delete();
+}
+

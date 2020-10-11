@@ -12,6 +12,9 @@
 
 #define BOILER_SSR_PIN GPIO_TRIG1_SSR
 
+#define BOILER_SETPOINT_MIN 50
+#define BOILER_SETPOINT_MAX 125
+
 #define BOILER_CFG_JSON_KEY "boiler."
 
 // Defined here so unit tests can find these
@@ -48,12 +51,7 @@ struct boiler_temp_cfg_t {
         cJSON *item = config->child;
         while( item ) {
             if ( strend(item->string, BOILER_CFG_JSON_KEY "mains_hz") ) {
-                auto val = item->valuedouble;
-                if (val == 50) {
-                    mains_hz = MAINS_50HZ;
-                } else if (val == 60) {
-                    mains_hz = MAINS_60HZ;
-                }
+                mains_hz = item->valuedouble;
             }
             item = item->next;
         }
@@ -81,6 +79,13 @@ void boiler_temp_init(esp_event_loop_handle_t event_loop);
 void boiler_temp_delete();
 
 void boiler_temp_process(uint64_t time_us, const rtd_data_t &data);
+
+/**
+ * Increments the current setpoint by the specified value
+ * @param inc floating point
+ * @return New value, that is contained in min,max setpoint
+ */
+double boiler_setpoint_inc(double inc);
 
 /**
  * Get the underlying configuration set.

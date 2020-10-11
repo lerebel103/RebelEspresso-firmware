@@ -5,9 +5,6 @@
 
 #define PID_CFG_JSON_KEY "pid."
 
-#define SETPOINT_MIN 50
-#define SETPOINT_MAX 125
-
 struct pid_cfg_t {
 
     double P;
@@ -43,40 +40,19 @@ struct pid_cfg_t {
         cJSON *item = config->child;
         while( item ) {
             if ( strend(item->string, PID_CFG_JSON_KEY "P") ) {
-                auto val = item->valuedouble;
-                if (val >= 0 && val < 20) {
-                    P = val;
-                }
+                P = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "I") ) {
-                auto val = item->valuedouble;
-                if (val >= 0 && val < 10) {
-                    I = val;
-                }
+                I = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "D") ) {
-                auto val = item->valuedouble;
-                if (val >= 0 && val < 300) {
-                    D = val;
-                }
+                D = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "I_reset_sec") ) {
-                auto val = item->valueint;
-                if (val >= 0 && val < 60) {
-                    I_reset_sec = val;
-                }
+                I_reset_sec = item->valueint;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "I_reset_temp") ) {
-                auto val = item->valuedouble;
-                if (val >= 0 && val < 40) {
-                    I_reset_temp = val;
-                }
+                I_reset_temp = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "setpoint") ) {
-                auto val = item->valuedouble;
-                if (val >= SETPOINT_MIN && val <= SETPOINT_MAX) {
-                    setpoint = val;
-                }
+                setpoint = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "over_setpoint_perc") ) {
-                auto val = item->valuedouble;
-                if (val >= 0 && val < 125) {
-                    over_setpoint_perc = val;
-                }
+                over_setpoint_perc = item->valuedouble;
             }
 
             item = item->next;

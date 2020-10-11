@@ -178,7 +178,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
     s_last_time_us = time_us;
 }
 
-void _load_nvram() {
+static void _load_nvram() {
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_STORE, NVS_READWRITE, &my_handle));
 
@@ -202,7 +202,7 @@ void _load_nvram() {
     nvs_close(my_handle);
 }
 
-void _save_nvram() {
+static void _save_nvram() {
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_STORE, NVS_READWRITE, &my_handle));
 
@@ -245,6 +245,37 @@ const boiler_temp_cfg_t &boiler_temp_get_cfg() {
 
 void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
     s_cfg = config;
+    
+    // validate all fields
+    if (config.pid.P >=0 && config.pid.P < 20) {
+        s_cfg.pid.P = config.pid.P;
+    }
+    if (config.pid.I >=0 && config.pid.I < 10) {
+        s_cfg.pid.I = config.pid.I;
+    }
+    if (config.pid.D >=0 && config.pid.D < 300) {
+        s_cfg.pid.D = config.pid.D;
+    }
+    if (config.pid.I_reset_sec >=0 && config.pid.I_reset_sec < 60) {
+        s_cfg.pid.I_reset_sec = config.pid.I_reset_sec;
+    }
+    if (config.pid.I_reset_temp >=0 && config.pid.I_reset_temp < 30) {
+        s_cfg.pid.I_reset_temp = config.pid.I_reset_temp;
+    }
+    if (config.pid.setpoint >= BOILER_SETPOINT_MIN && config.pid.setpoint < BOILER_SETPOINT_MAX) {
+        s_cfg.pid.setpoint = config.pid.setpoint;
+    }
+    if (config.pid.setpoint >= 0 && config.pid.setpoint < 40) {
+        s_cfg.pid.over_setpoint_perc = config.pid.over_setpoint_perc;
+    }
+
+    if (config.mains_hz == 50) {
+        s_cfg.mains_hz = MAINS_50HZ;
+    } else if (config.mains_hz == 60) {
+        s_cfg.mains_hz = MAINS_60HZ;
+    }
+
+    // Save what we can then
     _save_nvram();
 }
 
@@ -254,5 +285,28 @@ void boiler_temp_reset_cfg() {
     nvs_erase_all(my_handle);
     nvs_close(my_handle);
 }
+
+double boiler_setpoint_inc(double inc) {
+    auto new_val = s_cfg.pid.setpoint + inc;
+    if (new_val < BOILER_SETPOINT_MIN) {
+        new_val = BOILER_SETPOINT_MIN;
+    }
+    if (new_val > BOILER_SETPOINT_MAX) {
+        new_val = BOILER_SETPOINT_MAX;
+    }
+
+    if ( new_val != s_cfg.pid.setpoint) {
+        s_cfg.pid.setpoint = new_val;
+
+        nvs_handle my_handle;
+        ESP_ERROR_CHECK(nvs_open(NVS_STORE, NVS_READWRITE, &my_handle));
+        nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint);
+        nvs_close(my_handle);
+    }
+
+    return s_cfg.pid.setpoint;
+}
+
+
 
 

@@ -196,6 +196,28 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure tick cuts power when co
     boiler_temp_delete();
 }
 
+TEST_CASE("[boiler_temp:test_update_config_from_json]", "Ensures partial json updates work") {
+    boiler_temp_init(g_event_loop);
+    boiler_temp_reset_cfg();
+    cJSON *root = cJSON_CreateObject();
+
+    cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.P", 4.1);
+    cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.I", 0.5);
+    cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.D", 60.4);
+    cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.setpoint", 99.9);
+
+    boiler_temp_update_cfg(root);
+    boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
+    TEST_ASSERT_EQUAL(4.1, cfg.pid.P);
+    TEST_ASSERT_EQUAL(0.5, cfg.pid.I);
+    TEST_ASSERT_EQUAL(60.4, cfg.pid.D);
+    TEST_ASSERT_EQUAL(99.9, cfg.pid.setpoint);
+
+    cJSON_Delete(root);
+    boiler_temp_delete();
+}
+
+
 TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     boiler_temp_init(g_event_loop);
 
@@ -205,7 +227,7 @@ TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     new_cfg.pid.D = 5.7;
     new_cfg.pid.I_reset_temp = 5.8;
     new_cfg.pid.I_reset_sec = 6;
-    new_cfg.pid.setpoint = 7.5;
+    new_cfg.pid.setpoint = 51.2;
     new_cfg.pid.over_setpoint_perc = 13.1;
     new_cfg.mains_hz = 60;
 

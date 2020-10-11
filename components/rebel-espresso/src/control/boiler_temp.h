@@ -119,7 +119,18 @@ double boiler_setpoint_inc(double inc);
  */
 const boiler_temp_cfg_t &boiler_temp_get_cfg();
 
+/**
+ * Updates underlying config, partial keys are accepted.
+ * @param json Config to be parsed.
+ */
+void boiler_temp_update_cfg(const cJSON* json);
+
+/**
+ * Whipes entire config with a new object
+ * @param cfg
+ */
 void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
+
 
 void boiler_temp_reset_cfg();
 

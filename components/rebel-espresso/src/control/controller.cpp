@@ -139,23 +139,22 @@ void controller_enable(bool enabled) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 void controller_cfg_to_json(cJSON *root) {
-    cJSON_AddBoolToObject(root, "enabled", g_controller_cfg.enabled);
-    // Not quite the right place for this... :-(
+    auto boiler = boiler_temp_get_cfg();
+    boiler.to_json(root, "state.");
+
 
     // Trigger status send
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
 
-void controller_cfg_from_json(const cJSON *config) {
-    ESP_LOGD(TAG, "Got remote config");
-    {
-        cJSON *item = cJSON_GetObjectItem(config, "enabled");
-        if (cJSON_IsBool(item)) {
-            bool enabled = item->valueint;
-            if (enabled != g_controller_cfg.enabled) {
-                controller_enable(enabled);
-            }
-        }
-    }
+void controller_handle_new_cfg(const cJSON* cfg) {
+    char* json = cJSON_Print(cfg);
+    ESP_LOGI(TAG, "Got remote config %s", json);
+
+    // Pass down to each component, they will deal with it - it's a bit lazy really
+    boiler_temp_update_cfg(cfg);
+
+    cJSON_free(json);
 }
+

@@ -53,8 +53,7 @@ static TickType_t s_last_connect_attempt = 0;
 
 char *subscribe_topic_command, *subscribe_topic_config;
 
-static void (*g_ota_cfg_cb)(const cJSON *) = nullptr;
-static void (*g_controller_cfg_cb)(const cJSON *) = nullptr;
+static void (*g_cfg_cb)(const cJSON *) = nullptr;
 
 void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connection_data_t *conn_data);
 
@@ -117,13 +116,6 @@ static void config_cb(
     if (strlen(msg) > 0) {
         cJSON *root = cJSON_Parse(msg);
         if (root) {
-            // Parse payload as json and send to the relevant bits of the system, ota always,
-            // this is a bit of a hack really, we need to treat this as conf rather than a trigger for OTA
-            cJSON *sub_system = cJSON_GetObjectItem(root, "ota");
-            if (cJSON_IsObject(sub_system) && g_ota_cfg_cb) {
-                g_ota_cfg_cb(sub_system);
-            }
-
             // If md5 is the same as what was previously processed, then no need to take it in again.
             MD5Context ctx;
             MD5Init(&ctx);
@@ -138,17 +130,17 @@ static void config_cb(
             nvram_store_read_str(MQTT_GIOT_LAST_CONFIG_MD5, last_md5, 17, "");
             if (strcmp(last_md5, md5) == 0) {
                 ESP_LOGI(TAG, "No config update, MD5 is identical to last processed");
-            } else {
-                sub_system = cJSON_GetObjectItem(root, "controller");
-                if (cJSON_IsObject(sub_system) && g_controller_cfg_cb) {
-                    g_controller_cfg_cb(sub_system);
-                }
+            } else if (g_cfg_cb) {
+                ESP_LOGI(TAG, "Invoking configuration CB");
+                g_cfg_cb(root);
 
                 // store MD5
                 nvram_store_write_str(MQTT_GIOT_LAST_CONFIG_MD5, md5);
             }
+            cJSON_Delete(root);
+        } else {
+            ESP_LOGW(TAG, "Configuration object is not JSON");
         }
-        cJSON_Delete(root);
     }
 
     free(msg);
@@ -380,10 +372,6 @@ void mqtt_set_client_private_key(const char *val) {
     // Restart mqtt
 }
 
-void mqtt_set_ota_cfg_cb(void (*cb)(const cJSON *)) {
-    g_ota_cfg_cb = cb;
-}
-
-void mqtt_set_controller_cfg_cb(void (*cb)(const cJSON *)) {
-    g_controller_cfg_cb = cb;
+void mqtt_set_cfg_cb(void (*cb)(const cJSON *)) {
+    g_cfg_cb = cb;
 }

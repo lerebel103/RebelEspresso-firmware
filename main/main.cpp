@@ -75,8 +75,8 @@ extern "C" void app_main() {
 
 
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
-    mqtt_set_ota_cfg_cb(ota_cfg_from_json);
-    mqtt_set_controller_cfg_cb(controller_cfg_from_json);
+    //mqtt_set_ota_cfg_cb(ota_cfg_from_json);
+    mqtt_set_cfg_cb(controller_handle_new_cfg);
     mqtt_init();
     homekit_init();
 

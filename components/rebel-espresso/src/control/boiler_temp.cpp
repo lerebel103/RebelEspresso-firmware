@@ -297,8 +297,6 @@ const boiler_temp_cfg_t &boiler_temp_get_cfg() {
 }
 
 void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
-    s_cfg = config;
-    
     // validate all fields
     if (config.pid.P >=0 && config.pid.P < 20) {
         s_cfg.pid.P = config.pid.P;
@@ -315,10 +313,11 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
     if (config.pid.I_reset_temp >=0 && config.pid.I_reset_temp < 30) {
         s_cfg.pid.I_reset_temp = config.pid.I_reset_temp;
     }
-    if (config.pid.setpoint >= BOILER_SETPOINT_MIN && config.pid.setpoint < BOILER_SETPOINT_MAX) {
+    if (config.pid.setpoint >= BOILER_SETPOINT_MIN && config.pid.setpoint <= BOILER_SETPOINT_MAX) {
         s_cfg.pid.setpoint = config.pid.setpoint;
+        ESP_LOGI(TAG, "New setpoint: %f", s_cfg.pid.setpoint);
     }
-    if (config.pid.setpoint >= 0 && config.pid.setpoint < 40) {
+    if (config.pid.over_setpoint_perc >= 0 && config.pid.over_setpoint_perc < 40) {
         s_cfg.pid.over_setpoint_perc = config.pid.over_setpoint_perc;
     }
 
@@ -331,6 +330,13 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
     // Save what we can then
     _save_nvram();
 }
+
+void boiler_temp_update_cfg(const cJSON* json) {
+    boiler_temp_cfg_t new_config = s_cfg;
+    new_config.from_json(json);
+    boiler_temp_set_cfg(new_config);
+}
+
 
 void boiler_temp_reset_cfg() {
     nvs_handle my_handle;

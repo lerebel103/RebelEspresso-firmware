@@ -8,11 +8,11 @@ static uint64_t g_sequence = 0;
 
 
 void window_init(window_handle_t *window) {
-    ESP_LOGI(TAG, "Initialising new window");
+    ESP_LOGD(TAG, "Initialising new window");
     window->queue = STAILQ_HEAD_INITIALIZER(window->queue);
 
     g_sequence = 0;
-    ESP_LOGI(TAG, "Queue initialised");
+    ESP_LOGD(TAG, "Queue initialised");
 }
 
 void window_reset(window_handle_t *window) {

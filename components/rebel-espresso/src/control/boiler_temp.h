@@ -12,6 +12,21 @@
 
 #define BOILER_SSR_PIN GPIO_TRIG1_SSR
 
+#define NVS_CFG_STORE "cfg.boiler"
+#define KEY_BOILER_PID_P "pid.P"
+#define KEY_BOILER_PID_I "pid.I"
+#define KEY_BOILER_PID_D "pid.D"
+#define KEY_BOILER_PID_I_RESET_SEC "pid.i_reset_sec"
+#define KEY_BOILER_PID_I_RESET_TEMP "pid.i_reset_tem"
+#define KEY_BOILER_PID_SETPOINT "pid.sp"
+#define KEY_BOILER_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
+#define KEY_BOILER_MAINS_HZ "pid.mains_hz"
+
+#define NVS_STATS_STORE "stats.boiler"
+#define KEY_BOILER_STATS_OVER_TEMP "over_temp"
+#define KEY_BOILER_STATS_TEMP_ERROR "temp_error"
+
+
 #define BOILER_SETPOINT_MIN 50
 #define BOILER_SETPOINT_MAX 125
 
@@ -74,11 +89,22 @@ struct boiler_temp_cfg_t {
 
 };
 
+struct boiler_stats_t {
+    uint32_t temp_read_error_count;
+    uint32_t boiler_over_temp_count;
+};
+
 void boiler_temp_init(esp_event_loop_handle_t event_loop);
 
 void boiler_temp_delete();
 
 void boiler_temp_process(uint64_t time_us, const rtd_data_t &data);
+
+/**
+ * Get current duty value applied to the SSR
+ * @return
+ */
+int boiler_temp_get_duty();
 
 /**
  * Increments the current setpoint by the specified value
@@ -96,5 +122,8 @@ const boiler_temp_cfg_t &boiler_temp_get_cfg();
 void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
 
 void boiler_temp_reset_cfg();
+
+boiler_stats_t boiler_get_stats();
+void boiler_temp_reset_stats();
 
 

@@ -5,17 +5,18 @@
 #include <esp_log.h>
 #include <driver/rmt.h>
 #include <esp_event.h>
+#include <nvs_handle.hpp>
+#include <src/sys/nvram_store.h>
 
 #include "control/boiler_temp.h"
 #include "control/rmt_duty_map.h"
 #include "events.h"
 
 extern "C" void boiler_temp_set_duty(uint8_t duty);
-extern "C" uint8_t boiler_temp_get_duty();
 
 extern esp_event_loop_handle_t g_event_loop;
 
-TEST_CASE( "[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power to SSR") {
+TEST_CASE("[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power to SSR") {
     boiler_temp_init(g_event_loop);
 
     // Not enabled by default, zero duty
@@ -31,7 +32,7 @@ TEST_CASE( "[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power 
     // and observe that it is dropped back to 0 forcefully when boiler_temp is disabled
     // + duty is set to zero
     gpio_set_level(BOILER_SSR_PIN, 1);
-    int state = (GPIO_REG_READ(GPIO_OUT_REG)  >> BOILER_SSR_PIN) & 1U;
+    int state = (GPIO_REG_READ(GPIO_OUT_REG) >> BOILER_SSR_PIN) & 1U;
     TEST_ASSERT_TRUE(state);
 
     // Generate a standby event, we have zero power to SSR
@@ -39,14 +40,15 @@ TEST_CASE( "[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power 
 
     // Now SSR must be powered off.
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
-    state = (GPIO_REG_READ(GPIO_OUT_REG)  >> BOILER_SSR_PIN) & 1U;
+    state = (GPIO_REG_READ(GPIO_OUT_REG) >> BOILER_SSR_PIN) & 1U;
     TEST_ASSERT_FALSE(state);
 
     boiler_temp_delete();
 }
 
-TEST_CASE( "[boiler_temp:test_error_conditions]", "Ensure tick cuts power when conditions not met") {
+TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure tick cuts power when conditions not met") {
     boiler_temp_init(g_event_loop);
+    boiler_temp_reset_stats();
 
     // Not enabled by default, zero duty
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -57,10 +59,10 @@ TEST_CASE( "[boiler_temp:test_error_conditions]", "Ensure tick cuts power when c
     // + duty is set to zero
     boiler_temp_set_duty(100);
     gpio_set_level(BOILER_SSR_PIN, 1);
-    int state = (GPIO_REG_READ(GPIO_OUT_REG)  >> BOILER_SSR_PIN) & 1U;
+    int state = (GPIO_REG_READ(GPIO_OUT_REG) >> BOILER_SSR_PIN) & 1U;
     TEST_ASSERT_TRUE(state);
 
-    for(int i=0; i<10; i++) {
+    for (int i = 0; i < 10; i++) {
         // --  Standby
         // Mark as standby mode and generate a tick process loop
         xEventGroupClearBits(status_event_group, POWER_ON_BIT);
@@ -187,10 +189,14 @@ TEST_CASE( "[boiler_temp:test_error_conditions]", "Ensure tick cuts power when c
         TEST_ASSERT_FALSE(state);
     }
 
+    // With above tests we expected this many temp read erros
+    TEST_ASSERT_EQUAL(70, boiler_get_stats().temp_read_error_count);
+
+
     boiler_temp_delete();
 }
 
-TEST_CASE( "[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
+TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     boiler_temp_init(g_event_loop);
 
     boiler_temp_cfg_t new_cfg;
@@ -225,13 +231,13 @@ TEST_CASE( "[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     boiler_temp_delete();
 }
 
-TEST_CASE( "[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to defaults") {
+TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to defaults") {
     // reset
     boiler_temp_reset_cfg();
     boiler_temp_init(g_event_loop);
 
     // Formulate a JSON object, set it and make sure we get the right answer
-    cJSON* root = cJSON_CreateObject();
+    cJSON *root = cJSON_CreateObject();
 
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.P", 4.1);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.I", 0.5);
@@ -241,7 +247,7 @@ TEST_CASE( "[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to defaul
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.setpoint", 125);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.over_setpoint_perc", 25);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "mains_hz", 60);
-    char* json = cJSON_PrintUnformatted(root);
+    char *json = cJSON_PrintUnformatted(root);
 
 
     boiler_temp_cfg_t cfg = {};
@@ -257,11 +263,11 @@ TEST_CASE( "[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to defaul
     TEST_ASSERT_EQUAL(25, cfg.pid.over_setpoint_perc);
     TEST_ASSERT_EQUAL(60, cfg.mains_hz);
 
-    cJSON* new_cfg = cJSON_CreateObject();
+    cJSON *new_cfg = cJSON_CreateObject();
     cfg.to_json(new_cfg, "");
-    char* new_json = cJSON_PrintUnformatted(new_cfg);
+    char *new_json = cJSON_PrintUnformatted(new_cfg);
     TEST_ASSERT_EQUAL_STRING(json, new_json);
-    
+
     cJSON_free(json);
     cJSON_free(new_json);
     cJSON_Delete(root);
@@ -270,13 +276,13 @@ TEST_CASE( "[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to defaul
     boiler_temp_delete();
 }
 
-TEST_CASE( "[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setpoint") {
+TEST_CASE("[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setpoint") {
     boiler_temp_init(g_event_loop);
 
     auto cfg = boiler_temp_get_cfg();
     double inc = -0.5;
     double expected = cfg.pid.setpoint;
-    for (int i=0; i<10; i++) {
+    for (int i = 0; i < 10; i++) {
         expected += inc;
         TEST_ASSERT_EQUAL_DOUBLE(expected, boiler_setpoint_inc(inc));
 
@@ -288,7 +294,7 @@ TEST_CASE( "[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setp
 
     // go out of bounds
     inc = 1000;
-    for (int i=0; i<10; i++) {
+    for (int i = 0; i < 10; i++) {
         TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_setpoint_inc(inc));
         TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_temp_get_cfg().pid.setpoint);
     }
@@ -297,7 +303,7 @@ TEST_CASE( "[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setp
     TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MAX, boiler_temp_get_cfg().pid.setpoint);
 
     inc = -1000;
-    for (int i=0; i<10; i++) {
+    for (int i = 0; i < 10; i++) {
         TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_setpoint_inc(inc));
         TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT_MIN, boiler_temp_get_cfg().pid.setpoint);
     }
@@ -308,3 +314,179 @@ TEST_CASE( "[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setp
     boiler_temp_delete();
 }
 
+TEST_CASE("[boiler_temp:test_boiler_duty_steady]", "Test duty when steady temp fed") {
+    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
+    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    boiler_temp_init(g_event_loop);
+    boiler_temp_reset_cfg();
+
+    boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
+    cfg.pid.setpoint = 120;
+    boiler_temp_set_cfg(cfg);
+
+    rtd_data_t data;
+    data.fault = Max31865Error::NoError;
+    data.temperature = 25;
+
+    // Maxes out duty in this case
+    for (int i = 0; i < 50; i++) {
+        boiler_temp_process(i * 1e6, data);
+        TEST_ASSERT_EQUAL(100, boiler_temp_get_duty());
+    }
+
+    boiler_temp_delete();
+}
+
+TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up") {
+    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
+    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    boiler_temp_init(g_event_loop);
+    boiler_temp_reset_cfg();
+
+    boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
+    cfg.pid.P = 3;
+    cfg.pid.I = 0.5;
+    cfg.pid.D = 100;
+    cfg.pid.setpoint = 120;
+    boiler_temp_set_cfg(cfg);
+
+    rtd_data_t data;
+    data.fault = Max31865Error::NoError;
+    data.temperature = 25;
+
+    double expectedDuties[] = {
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            98,
+            95,
+            92,
+            89,
+            86,
+            83,
+            80,
+            77,
+            74,
+            71,
+            68,
+            65,
+            62,
+            59,
+            56,
+            53,
+            50,
+            47,
+            44,
+            41,
+            38,
+            35,
+            32,
+            29,
+            26,
+            23,
+            20,
+            17,
+            14,
+            11,
+            8,
+            5,
+            2,
+    };
+
+    for (int i = 0; i < 150; i++) {
+        data.temperature = 25 + i;
+        boiler_temp_process(i * 1e6, data);
+
+        // Cuts off with these settings
+        if (data.temperature >= 87) {
+            TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
+        } else {
+            TEST_ASSERT_EQUAL(expectedDuties[i], boiler_temp_get_duty());
+        }
+    }
+
+    // Over temp got triggered this many times
+    TEST_ASSERT_EQUAL(45, boiler_get_stats().boiler_over_temp_count);
+
+    boiler_temp_delete();
+}
+
+TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok") {
+    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
+    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    boiler_temp_init(g_event_loop);
+    boiler_temp_reset_stats();
+
+    // Cause temp read error
+    rtd_data_t data;
+    data.fault = Max31865Error::RefHigh;
+    boiler_temp_process(1e6, data);
+    TEST_ASSERT_EQUAL(1, boiler_get_stats().temp_read_error_count);
+
+    // but it did not persist just yet
+    boiler_temp_delete();
+    boiler_temp_init(g_event_loop);
+    TEST_ASSERT_EQUAL(0, boiler_get_stats().temp_read_error_count);
+
+    // Do it again, issue TICK, and it will take straight away
+    boiler_temp_process(1.3e6, data);
+    TEST_ASSERT_EQUAL(1, boiler_get_stats().temp_read_error_count);
+
+    boiler_stats_t stats;
+    nvs_handle my_handle;
+    uint32_t defaultVal = 0;
+    ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
+
+    // First tick saves straight away (zero last save time)
+    ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
+    vTaskDelay(pdMS_TO_TICKS(100));
+    nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &stats.temp_read_error_count,
+                        (void *) &defaultVal);
+    TEST_ASSERT_EQUAL(1, stats.temp_read_error_count);
+
+    // Now do it again, it takes 5s to register
+    boiler_temp_process(1e6, data);
+
+    for(int i=0; i<7; i++) {
+        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
+        nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &stats.temp_read_error_count,
+                            (void *) &defaultVal);
+
+        if ( i > 5) {
+            TEST_ASSERT_EQUAL(2, stats.temp_read_error_count);
+        } else {
+            TEST_ASSERT_EQUAL(1, stats.temp_read_error_count);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+    nvs_close(my_handle);
+    boiler_temp_delete();
+}

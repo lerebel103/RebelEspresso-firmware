@@ -15,19 +15,9 @@
 #define RMT_CLK_DIV 160
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 
-#define NVS_STORE "boiler"
-#define KEY_BOILER_PID_P "pid.P"
-#define KEY_BOILER_PID_I "pid.I"
-#define KEY_BOILER_PID_D "pid.D"
-#define KEY_BOILER_PID_I_RESET_SEC "pid.i_reset_sec"
-#define KEY_BOILER_PID_I_RESET_TEMP "pid.i_reset_tem"
-#define KEY_BOILER_PID_SETPOINT "pid.sp"
-#define KEY_BOILER_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
-#define KEY_BOILER_MAINS_HZ "pid.mains_hz"
-
-const double BOILER_PID_P_DEFAULT = 3.5;
+const double BOILER_PID_P_DEFAULT = 3;
 const double BOILER_PID_I_DEFAULT = 0.5;
-const double BOILER_PID_D_DEFAULT = 30;
+const double BOILER_PID_D_DEFAULT = 100;
 const int32_t BOILER_PID_I_RESET_SEC_DEFAULT = 15;
 const double BOILER_PID_I_RESET_TEMP_DEFAULT = 15;
 const double BOILER_PID_SETPOINT_DEFAULT = 115;
@@ -40,8 +30,81 @@ static boiler_temp_cfg_t s_cfg;
 static window_handle_t s_data_window;
 static double g_last_pid_err = 0;
 
+static uint64_t s_last_stats_save = 0;
+static bool s_stats_changed = false;
+static boiler_stats_t s_stats = { };
+
 static uint64_t s_last_time_us = 0;
-static uint64_t s_last_duty = 0;
+static int s_last_duty = 0;
+
+static void _load_stats() {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
+
+    uint32_t defaultVal = 0;
+    nvram_store_get_u32(my_handle, KEY_BOILER_STATS_OVER_TEMP, (uint32_t *) &s_stats.boiler_over_temp_count,
+                        (void *) &defaultVal);
+    nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count,
+                        (void *) &defaultVal);
+
+    nvs_close(my_handle);
+
+    s_last_stats_save = 0;
+    s_stats_changed = false;
+}
+
+static void _save_stats(uint64_t time) {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
+
+    nvram_store_set_u32(my_handle, KEY_BOILER_STATS_OVER_TEMP, (uint32_t *) &s_stats.boiler_over_temp_count);
+    nvram_store_set_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count);
+
+    nvs_close(my_handle);
+    s_last_stats_save = time;
+    s_stats_changed = false;
+}
+
+static void _load_nvram() {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_P, (uint64_t *) &s_cfg.pid.P,
+                        (void *) &BOILER_PID_P_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_I, (uint64_t *) &s_cfg.pid.I,
+                        (void *) &BOILER_PID_I_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_D, (uint64_t *) &s_cfg.pid.D,
+                        (void *) &BOILER_PID_D_DEFAULT);
+    nvram_store_get_i32(my_handle, KEY_BOILER_PID_I_RESET_SEC, (int32_t *) &s_cfg.pid.I_reset_sec,
+                        (void *) &BOILER_PID_I_RESET_SEC_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_I_RESET_TEMP, (uint64_t *) &s_cfg.pid.I_reset_temp,
+                        (void *) &BOILER_PID_I_RESET_TEMP_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint,
+                        (void *) &BOILER_PID_SETPOINT_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc,
+                        (void *) &BOILER_PID_OVER_SETPOINT_PERC_DEFAULT);
+    nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz,
+                       (void *) &BOILER_MAINS_HZ_DEFAULT);
+
+    nvs_close(my_handle);
+}
+
+static void _save_nvram() {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_P, (uint64_t *) &s_cfg.pid.P);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_I, (uint64_t *) &s_cfg.pid.I);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_D, (uint64_t *) &s_cfg.pid.D);
+    nvram_store_set_i32(my_handle, KEY_BOILER_PID_I_RESET_SEC, (int32_t *) &s_cfg.pid.I_reset_sec);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_I_RESET_TEMP, (uint64_t *) &s_cfg.pid.I_reset_temp);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc);
+    nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz);
+
+    nvs_close(my_handle);
+
+}
 
 /*
  * Apply new duty to SSR
@@ -49,6 +112,12 @@ static uint64_t s_last_duty = 0;
  * @param duty integral [0-100]
  */
 extern "C" void boiler_temp_set_duty(int duty) {
+    if (duty > 100) {
+        duty = 100;
+    } else if (duty < 0) {
+        duty = 0;
+    }
+
     const struct rmt_pulse_t *pulses = rmt_duty_get_pulses(duty, s_cfg.mains_hz);
     ESP_ERROR_CHECK(rmt_fill_tx_items(RMT_TX_CHANNEL, pulses->items, pulses->num_items, false));
     s_last_duty = duty;
@@ -57,7 +126,7 @@ extern "C" void boiler_temp_set_duty(int duty) {
 /**
  * Used for testing
  */
-extern "C" uint8_t boiler_temp_get_duty() {
+int boiler_temp_get_duty() {
     return s_last_duty;
 }
 
@@ -112,6 +181,17 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     }
 }
 
+static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    if (id != TICK) {
+        return;
+    }
+
+    // See if we need to serialise stats, but pace it so we don't kill the flash
+    uint64_t now = esp_timer_get_time();
+    if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t)5e6) ) {
+        _save_stats(now);
+    }
+}
 
 void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
     if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
@@ -124,6 +204,8 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         return;
     } else if (data.fault != Max31865Error::NoError) {
         ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
+        s_stats.temp_read_error_count++;
+        s_stats_changed = true;
         _power_off_ssr();
         return;
     }
@@ -132,6 +214,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
     double deltaT = (double) (time_us - s_last_time_us) / 1e6;
     if (deltaT >= 5) {
         _pid_reset();
+        boiler_temp_set_duty(0);
     } else {
         // Good to go
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
@@ -150,6 +233,8 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         if (-error > s_cfg.pid.over_setpoint_perc * s_cfg.pid.setpoint / 100) {
             ESP_LOGW(TAG, "Over temp threshold exceeded");
             _power_off_ssr();
+            s_stats.boiler_over_temp_count++;
+            s_stats_changed = true;
         } else {
             // Then we can proceed
             // Derivative part
@@ -169,7 +254,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
                 window_reset(&s_data_window);
             }
 
-            ESP_LOGI(TAG, "Calculated PID duty %f", duty);
+            ESP_LOGD(TAG, "Calculated PID duty %f", duty);
             boiler_temp_set_duty(duty);
             g_last_pid_err = error;
         }
@@ -178,57 +263,24 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
     s_last_time_us = time_us;
 }
 
-static void _load_nvram() {
-    nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_STORE, NVS_READWRITE, &my_handle));
-
-    nvram_store_get_u64(my_handle, KEY_BOILER_PID_P, (uint64_t *) &s_cfg.pid.P,
-                        (void *) &BOILER_PID_P_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_PID_I, (uint64_t *) &s_cfg.pid.I,
-                        (void *) &BOILER_PID_I_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_PID_D, (uint64_t *) &s_cfg.pid.D,
-                        (void *) &BOILER_PID_D_DEFAULT);
-    nvram_store_get_i32(my_handle, KEY_BOILER_PID_I_RESET_SEC, (int32_t *) &s_cfg.pid.I_reset_sec,
-                        (void *) &BOILER_PID_I_RESET_SEC_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_PID_I_RESET_TEMP, (uint64_t *) &s_cfg.pid.I_reset_temp,
-                        (void *) &BOILER_PID_I_RESET_TEMP_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint,
-                        (void *) &BOILER_PID_SETPOINT_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc,
-                        (void *) &BOILER_PID_OVER_SETPOINT_PERC_DEFAULT);
-    nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz,
-                       (void *) &BOILER_MAINS_HZ_DEFAULT);
-
-    nvs_close(my_handle);
-}
-
-static void _save_nvram() {
-    nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_STORE, NVS_READWRITE, &my_handle));
-
-    nvram_store_set_u64(my_handle, KEY_BOILER_PID_P, (uint64_t *) &s_cfg.pid.P);
-    nvram_store_set_u64(my_handle, KEY_BOILER_PID_I, (uint64_t *) &s_cfg.pid.I);
-    nvram_store_set_u64(my_handle, KEY_BOILER_PID_D, (uint64_t *) &s_cfg.pid.D);
-    nvram_store_set_i32(my_handle, KEY_BOILER_PID_I_RESET_SEC, (int32_t *) &s_cfg.pid.I_reset_sec);
-    nvram_store_set_u64(my_handle, KEY_BOILER_PID_I_RESET_TEMP, (uint64_t *) &s_cfg.pid.I_reset_temp);
-    nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint);
-    nvram_store_set_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc);
-    nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz);
-
-    nvs_close(my_handle);
-}
 
 void boiler_temp_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     window_init(&s_data_window);
+
     _load_nvram();
+    _load_stats();
+
     _rmt_tx_init();
+    _pid_reset();
 
     // Get our power events in place so we can run the process loop as needed
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
                                                     _power_events, s_event_loop));
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
                                                     _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
+                                                    _tick_events, s_event_loop));
 }
 
 void boiler_temp_delete() {
@@ -237,6 +289,7 @@ void boiler_temp_delete() {
 
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
 }
 
 const boiler_temp_cfg_t &boiler_temp_get_cfg() {
@@ -281,9 +334,20 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
 
 void boiler_temp_reset_cfg() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
     nvs_erase_all(my_handle);
     nvs_close(my_handle);
+
+    _load_nvram();
+}
+
+void boiler_temp_reset_stats() {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
+    nvs_erase_all(my_handle);
+    nvs_close(my_handle);
+
+    _load_stats();
 }
 
 double boiler_setpoint_inc(double inc) {
@@ -299,7 +363,7 @@ double boiler_setpoint_inc(double inc) {
         s_cfg.pid.setpoint = new_val;
 
         nvs_handle my_handle;
-        ESP_ERROR_CHECK(nvs_open(NVS_STORE, NVS_READWRITE, &my_handle));
+        ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
         nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT, (uint64_t *) &s_cfg.pid.setpoint);
         nvs_close(my_handle);
     }
@@ -307,6 +371,9 @@ double boiler_setpoint_inc(double inc) {
     return s_cfg.pid.setpoint;
 }
 
+boiler_stats_t boiler_get_stats() {
+    return s_stats;
+}
 
 
 

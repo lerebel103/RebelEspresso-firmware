@@ -25,6 +25,7 @@
 typedef struct {
     gpio_num_t clk;
     gpio_num_t mosi;
+    gpio_num_t miso;
     gpio_num_t sda; // data for I²C
     gpio_num_t scl; // clock for I²C
     gpio_num_t cs;

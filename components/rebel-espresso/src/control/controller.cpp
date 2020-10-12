@@ -138,15 +138,21 @@ void controller_enable(bool enabled) {
 // Config stuff
 // ---------------------------------------------------------------------------------------------------------------------
 
-void controller_cfg_to_json(cJSON *root) {
-    auto boiler = boiler_temp_get_cfg();
-    boiler.to_json(root, "state.");
-
+void controller_cfg_to_json(cJSON *root, const char* base_key) {
+    auto boiler_cfg = boiler_temp_get_cfg();
+    boiler_cfg.to_json(root, base_key);
 
     // Trigger status send
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
+void controller_status_to_json(cJSON *root, const char* base_key) {
+    auto boiler_status = boiler_temp_get_stats();
+    boiler_status.to_json(root, base_key);
+
+    // Trigger status send
+    xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
+}
 
 void controller_handle_new_cfg(const cJSON* cfg) {
     char* json = cJSON_Print(cfg);

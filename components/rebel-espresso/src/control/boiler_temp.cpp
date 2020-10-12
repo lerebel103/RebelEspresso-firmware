@@ -33,7 +33,7 @@ static double g_last_pid_err = 0;
 
 static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
-static boiler_stats_t s_stats = { };
+static boiler_status_t s_stats = { };
 
 static uint64_t s_last_time_us = 0;
 static int s_last_duty = 0;
@@ -353,6 +353,10 @@ void boiler_temp_reset_cfg() {
     _load_nvram();
 }
 
+const boiler_status_t &boiler_temp_get_status() {
+    return s_stats;
+}
+
 void boiler_temp_reset_stats() {
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
@@ -400,7 +404,7 @@ double boiler_setpoint_inc(double inc) {
     return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 }
 
-boiler_stats_t boiler_get_stats() {
+const boiler_status_t& boiler_temp_get_stats() {
     return s_stats;
 }
 

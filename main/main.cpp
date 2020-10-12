@@ -51,7 +51,7 @@ extern "C" void app_main() {
     thing_info_init();
     state_print_system_info();
     controller_init(event_loop);
-    //display_init();
+    display_init();
 
     // Now for wifi, ota, mqtt
     wifi_init();

@@ -87,12 +87,9 @@ void state_send(time_t timestamp) {
     cJSON_AddNumberToObject(status, "ota_duration", ota_get_duration());
     cJSON_AddNumberToObject(status, "sntp.sync_duration", sntp_sync_get_sync_duration());
 
-    // Start of config block
-    cJSON *cfg = cJSON_AddObjectToObject(status, "config");
+    controller_status_to_json(root, "status.");
 
-    // Controller
-    cJSON *controller = cJSON_AddObjectToObject(cfg, "controller");
-    controller_cfg_to_json(controller);
+    controller_cfg_to_json(root, "config.");
 
     char *json_unformatted = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);

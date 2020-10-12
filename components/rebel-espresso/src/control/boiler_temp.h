@@ -92,9 +92,25 @@ struct boiler_temp_cfg_t {
 
 };
 
-struct boiler_stats_t {
+struct boiler_status_t {
     uint32_t temp_read_error_count;
     uint32_t boiler_over_temp_count;
+
+    /**
+     * Report current configuration
+     */
+    void to_json(cJSON* config, const char* base_key) {
+        char* buf = (char*) malloc(64);
+
+        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_read_error_count", base_key);
+        cJSON_AddNumberToObject(config, buf, temp_read_error_count);
+
+        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "boiler_over_temp_count", base_key);
+        cJSON_AddNumberToObject(config, buf, boiler_over_temp_count);
+
+        free(buf);
+    }
+
 };
 
 void boiler_temp_init(esp_event_loop_handle_t event_loop);
@@ -139,7 +155,8 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
 
 void boiler_temp_reset_cfg();
 
-boiler_stats_t boiler_get_stats();
+const boiler_status_t& boiler_temp_get_stats();
+
 void boiler_temp_reset_stats();
 
 

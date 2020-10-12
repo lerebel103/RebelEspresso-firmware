@@ -24,10 +24,6 @@ static rtd_data_t _rtd_array[RTD_MAX_COUNT];
 static void _read_temp(rtd_update_cb_t cb, int idx) {
     uint16_t rtd;
 
-    vTaskDelay(pdMS_TO_TICKS(10));
-    s_tempSensor.clearFault();
-    vTaskDelay(pdMS_TO_TICKS(10));
-
     s_tempSensor.getRTD(&rtd, &_rtd_array[idx].fault);
 
     // Calculate new value if we can, otherwise leave the old one there.
@@ -80,7 +76,7 @@ int rtds_init(const rtds_cfg_t *cfg) {
     max31865_config_t tempConfig = {};
     tempConfig.autoConversion = false;
     tempConfig.faultDetection = Max31865FaultDetection::AutoDelay;
-    tempConfig.vbias = true;
+    tempConfig.vbias = false;
     tempConfig.filter = Max31865Filter::Hz50;
     tempConfig.nWires = Max31865NWires::Two;
 

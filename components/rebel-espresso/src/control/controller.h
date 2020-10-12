@@ -15,6 +15,7 @@ const bool& controller_is_enabled();
 void controller_enable(bool enable);
 
 
-void controller_cfg_to_json(cJSON *root);
+void controller_cfg_to_json(cJSON *root, const char* base_key);
+void controller_status_to_json(cJSON *root, const char* base_key);
 
 void controller_handle_new_cfg(const cJSON* cfg);

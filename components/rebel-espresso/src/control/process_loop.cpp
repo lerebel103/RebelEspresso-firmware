@@ -160,7 +160,7 @@ void process_loop_init(esp_event_loop_handle_t event_loop) {
     // Cool now create a task that will run our process loop.
     _go = true;
     ESP_ERROR_CHECK( esp_task_wdt_init(ceil(TIMER_INTERVAL0_SEC * 2), true));
-    xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 7, &_process_task_handle);
+    xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 10, &_process_task_handle);
     vTaskSuspend(_process_task_handle);
 
     // We also start a secondary tick loop, which for a machine wide tick that is not realtime based

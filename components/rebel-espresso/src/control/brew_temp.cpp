@@ -40,7 +40,7 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
 
     if (data.fault == Max31865Error::NoError) {
         // Good to go
-        uint64_t deltaT = time_us - s_last_time_us;
+        //uint64_t deltaT = time_us - s_last_time_us;
 
         if (!(xEventGroupGetBits(status_event_group) &  BOILER_LEVEL_OK_BIT)) {
             ESP_LOGE(TAG, "Not running, boiler level low");
@@ -54,11 +54,6 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
         ESP_LOGE(TAG, "BrewHead sensor error %s", Max31865::errorToString(data.fault));
     }
 
-    duty ++;
-    if (duty > 20) {
-        duty = 0;
-    }
-    _set_duty(duty);
 }
 
 void brew_temp_tec_hot_updated(uint64_t time_us, const rtd_data_t& data) {

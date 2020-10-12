@@ -46,7 +46,7 @@ static void display_draw_frame(u8g2_t *u8g2, int xSeparator, int ySeparator) {
     u8g2_DrawLine(u8g2, xSeparator, 0, xSeparator, 64);
 
     // Vertical separator for probes
-    u8g2_DrawLine(u8g2, TEMPERATURE_PANEL_WIDTH / 2, ySeparator, TEMPERATURE_PANEL_WIDTH / 2, 64);
+    //u8g2_DrawLine(u8g2, TEMPERATURE_PANEL_WIDTH / 2, ySeparator, TEMPERATURE_PANEL_WIDTH / 2, 64);
 
     // Horizontal spliter for probes / fan
     u8g2_DrawLine(u8g2, 0, ySeparator + 23, xSeparator, ySeparator + 23);
@@ -127,6 +127,13 @@ void display_draw_pit_temp(u8g2_t *u8g2, int *y) {
     auto x_setpoint = x_offset + width_of_intregral_temp + width_of_floating_point;
     u8g2_SetFont(u8g2, u8g2_font_courR10_tf);
     u8g2_DrawStr(u8g2, x_setpoint, (*y), setPointBuf);
+
+    // Duty
+    double duty = boiler_temp_get_duty();
+    sprintf(tempBuf, "%d%%", (int)duty);
+    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+    u8g2_DrawStr(u8g2, x_offset + width_of_intregral_temp, *y + 20, tempBuf);
+
 }
 
 

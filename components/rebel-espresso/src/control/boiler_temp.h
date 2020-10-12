@@ -155,7 +155,7 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
 
 void boiler_temp_reset_cfg();
 
-const boiler_status_t& boiler_temp_get_stats();
+const boiler_status_t& boiler_temp_get_status();
 
 void boiler_temp_reset_stats();
 

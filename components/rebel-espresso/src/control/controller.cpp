@@ -149,7 +149,7 @@ void controller_cfg_to_json(cJSON *root, const char* base_key) {
 }
 
 void controller_status_to_json(cJSON *root, const char* base_key) {
-    auto boiler_status = boiler_temp_get_stats();
+    auto boiler_status = boiler_temp_get_status();
     boiler_status.to_json(root, base_key);
 
     // Trigger status send

@@ -404,10 +404,6 @@ double boiler_setpoint_inc(double inc) {
     return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 }
 
-const boiler_status_t& boiler_temp_get_stats() {
-    return s_stats;
-}
-
 void boiler_set_active_setpoint(int idx) {
     if (idx >= 0 && idx < MAX_SETPOINTS) {
         s_cfg.pid.active_setpoint = idx;

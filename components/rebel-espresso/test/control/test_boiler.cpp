@@ -190,7 +190,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure tick cuts power when co
     }
 
     // With above tests we expected this many temp read erros
-    TEST_ASSERT_EQUAL(70, boiler_get_stats().temp_read_error_count);
+    TEST_ASSERT_EQUAL(70, boiler_temp_get_status().temp_read_error_count);
 
 
     boiler_temp_delete();
@@ -456,7 +456,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     }
 
     // Over temp got triggered this many times
-    TEST_ASSERT_EQUAL(45, boiler_get_stats().boiler_over_temp_count);
+    TEST_ASSERT_EQUAL(45, boiler_temp_get_status().boiler_over_temp_count);
 
     boiler_temp_delete();
 }
@@ -471,18 +471,18 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     rtd_data_t data;
     data.fault = Max31865Error::RefHigh;
     boiler_temp_process(1e6, data);
-    TEST_ASSERT_EQUAL(1, boiler_get_stats().temp_read_error_count);
+    TEST_ASSERT_EQUAL(1, boiler_temp_get_status().temp_read_error_count);
 
     // but it did not persist just yet
     boiler_temp_delete();
     boiler_temp_init(g_event_loop);
-    TEST_ASSERT_EQUAL(0, boiler_get_stats().temp_read_error_count);
+    TEST_ASSERT_EQUAL(0, boiler_temp_get_status().temp_read_error_count);
 
     // Do it again, issue TICK, and it will take straight away
     boiler_temp_process(1.3e6, data);
-    TEST_ASSERT_EQUAL(1, boiler_get_stats().temp_read_error_count);
+    TEST_ASSERT_EQUAL(1, boiler_temp_get_status().temp_read_error_count);
 
-    boiler_stats_t stats;
+    boiler_status_t stats;
     nvs_handle my_handle;
     uint32_t defaultVal = 0;
     ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));

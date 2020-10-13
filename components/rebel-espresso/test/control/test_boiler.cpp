@@ -372,6 +372,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     cfg.pid.I = 0.5;
     cfg.pid.D = 100;
     cfg.pid.setpoints[0] = 120;
+    cfg.pid.over_setpoint_perc = 10;
     boiler_temp_set_cfg(cfg);
 
     rtd_data_t data;
@@ -456,7 +457,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     }
 
     // Over temp got triggered this many times
-    TEST_ASSERT_EQUAL(45, boiler_temp_get_status().boiler_over_temp_count);
+    TEST_ASSERT_EQUAL(18, boiler_temp_get_status().temp_over_limit_count);
 
     boiler_temp_delete();
 }

@@ -15,6 +15,9 @@
 // Talks to the MAX IC for RTD sensing
 static Max31865 s_tempSensor(GPIO_MISO, GPIO_MOSI, GPIO_SCK, GPIO_RTD_CS);
 static max31865_rtd_config_t s_rtdConfig = {};
+static uint16_t s_min_rtd = 0;
+static uint16_t s_max_rtd = 0;
+static max31865_config_t s_tempConfig;
 
 /**
  * Contains our last known reading
@@ -24,13 +27,15 @@ static rtd_data_t _rtd_array[RTD_MAX_COUNT];
 static void _read_temp(rtd_update_cb_t cb, int idx) {
     uint16_t rtd;
 
+    //ESP_ERROR_CHECK(s_tempSensor.setConfig(s_tempConfig));
+    //ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(s_min_rtd, s_max_rtd));
+    vTaskDelay(pdMS_TO_TICKS(20));
     s_tempSensor.getRTD(&rtd, &_rtd_array[idx].fault);
+
 
     // Calculate new value if we can, otherwise leave the old one there.
     if (_rtd_array[idx].fault == Max31865Error::NoError && idx == RTD_BOILER_IDX) {
         _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
-    } else {
-        s_tempSensor.clearFault();
     }
 
     // Invoke CB now
@@ -75,29 +80,29 @@ int rtds_init(const rtds_cfg_t *cfg) {
     gpio_config(&io_conf);
 
     // Now for the RTC IC
-    max31865_config_t tempConfig = {};
-    tempConfig.autoConversion = false;
-    tempConfig.faultDetection = Max31865FaultDetection::AutoDelay;
-    tempConfig.vbias = false;
-    tempConfig.filter = Max31865Filter::Hz50;
-    tempConfig.nWires = Max31865NWires::Two;
+    s_tempConfig = {};
+    s_tempConfig.autoConversion = false;
+    s_tempConfig.faultDetection = Max31865FaultDetection::NoAction;
+    s_tempConfig.vbias = true;
+    s_tempConfig.filter = Max31865Filter::Hz50;
+    s_tempConfig.nWires = Max31865NWires::Two;
 
     s_rtdConfig.nominal = RTD_R_NOMINAL;
     s_rtdConfig.ref = RTD_R_REF;
     s_rtdConfig.offsetOhms = STATIC_R_OFFSET;
 
-    ESP_ERROR_CHECK(s_tempSensor.begin(tempConfig));
+    ESP_ERROR_CHECK(s_tempSensor.begin(s_tempConfig));
 
     // Based on upper value of 1K at around -10C and +200C
-    auto min_rtd = (1U << 15U) * 500 / s_rtdConfig.ref;
-    auto max_rtd =(1U << 15U) * 2000 / s_rtdConfig.ref;
-    ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(min_rtd, max_rtd));
+    s_min_rtd = (1U << 15U) * 500 / s_rtdConfig.ref;
+    s_max_rtd =(1U << 15U) * 2000 / s_rtdConfig.ref;
+    ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(s_min_rtd, s_max_rtd));
 
     max31865_config_t read_cfg;
     s_tempSensor.getConfig(&read_cfg);
 
-    if (read_cfg.filter != tempConfig.filter ||
-        read_cfg.nWires != tempConfig.nWires) {
+    if (read_cfg.filter != s_tempConfig.filter ||
+        read_cfg.nWires != s_tempConfig.nWires) {
         ESP_LOGE(TAG, "Failed to initialised RTD sensor.");
         return -1;
     } else {

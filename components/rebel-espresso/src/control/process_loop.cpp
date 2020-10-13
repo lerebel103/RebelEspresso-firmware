@@ -87,7 +87,7 @@ static void _process_task(void *) {
             rtds_update(_handle_new_temp);
 
             // Done, reset ISR to go again and maintain watchdog timer
-            esp_task_wdt_reset();
+            //esp_task_wdt_reset();
             timer_group_enable_alarm_in_isr(s_timer_group, s_timer_idx);
         }
     } while (_go);
@@ -113,7 +113,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     if (id == POWER_STANDBY) {
         ESP_LOGI(TAG, "Stopping process loop");
 
-        esp_task_wdt_delete(_process_task_handle);
+        //esp_task_wdt_delete(_process_task_handle);
         vTaskSuspend(_process_task_handle);
         ESP_ERROR_CHECK(timer_pause(s_timer_group, s_timer_idx));
     } else if (id == POWER_ACTIVE) {
@@ -122,7 +122,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
         // We want a strict watchdog timer on this one
         ESP_ERROR_CHECK(timer_start(s_timer_group, s_timer_idx));
         vTaskResume(_process_task_handle);
-        ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
+        //ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
     }
 }
 
@@ -159,7 +159,7 @@ void process_loop_init(esp_event_loop_handle_t event_loop) {
 
     // Cool now create a task that will run our process loop.
     _go = true;
-    ESP_ERROR_CHECK( esp_task_wdt_init(ceil(TIMER_INTERVAL0_SEC * 2), true));
+    //ESP_ERROR_CHECK( esp_task_wdt_init(ceil(TIMER_INTERVAL0_SEC * 1.5), true));
     xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 10, &_process_task_handle);
     vTaskSuspend(_process_task_handle);
 

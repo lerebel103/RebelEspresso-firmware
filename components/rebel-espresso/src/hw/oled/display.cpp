@@ -16,7 +16,7 @@
 #include "state.h"
 
 extern "C" {
-#include "u8g2_esp32_hal.h"
+    #include "u8g2_esp32_hal.h"
 }
 
 #define PIN_SDA GPIO_NUM_4
@@ -42,6 +42,7 @@ static float temperature_to_unit(double celcius, units_enum_t unit) {
 static void display_draw_frame(u8g2_t *u8g2, int xSeparator, int ySeparator) {
     // H Line just below pit temp
     u8g2_DrawLine(u8g2, 0, ySeparator, xSeparator, ySeparator);
+
     // Right most separator
     u8g2_DrawLine(u8g2, xSeparator, 0, xSeparator, 64);
 
@@ -49,14 +50,14 @@ static void display_draw_frame(u8g2_t *u8g2, int xSeparator, int ySeparator) {
     //u8g2_DrawLine(u8g2, TEMPERATURE_PANEL_WIDTH / 2, ySeparator, TEMPERATURE_PANEL_WIDTH / 2, 64);
 
     // Horizontal spliter for probes / fan
-    u8g2_DrawLine(u8g2, 0, ySeparator + 23, xSeparator, ySeparator + 23);
+    //u8g2_DrawLine(u8g2, 0, ySeparator + 23, xSeparator, ySeparator + 23);
 }
 
 static void display_draw_on_off(u8g2_t *u8g2, int yPos, bool is_on) {
     int radius = ((128 - TEMPERATURE_PANEL_WIDTH) - 5) / 2;
     u8g2_DrawDisc(u8g2, TEMPERATURE_PANEL_WIDTH + radius / 2 + 6, yPos, 1, 0);
     if (is_on) {
-        u8g2_DrawDisc(u8g2, TEMPERATURE_PANEL_WIDTH + radius / 2 + 7, yPos, radius * .7,
+        u8g2_DrawDisc(u8g2, TEMPERATURE_PANEL_WIDTH + radius / 2 + 7, yPos, radius * .4,
                       U8G2_DRAW_UPPER_RIGHT | U8G2_DRAW_UPPER_LEFT | U8G2_DRAW_LOWER_LEFT | U8G2_DRAW_LOWER_RIGHT);
     }
 
@@ -156,6 +157,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
     u8g2_ClearBuffer(&u8g2);
     u8g2_SendBuffer(&u8g2);
 
+    bool toggle = controller_is_enabled();
     while (g_go) {
         u8g2_ClearBuffer(&u8g2);
 
@@ -196,7 +198,8 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         display_draw_unit(&u8g2, yPosWifi + (yPosOnOff - yPosWifi) / 2);
 
         // On / Off
-        display_draw_on_off(&u8g2, yPosOnOff, controller_is_enabled());
+        toggle = !toggle;
+        display_draw_on_off(&u8g2, yPosOnOff, toggle);
 
         u8g2_SendBuffer(&u8g2);
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
@@ -207,40 +210,16 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
 static void do_display(void* userData) {
     ESP_LOGI(TAG, "Initialising display");
-    //SPI.begin(GPIO_SCK, GPIO_MISO, GPIO_MOSI, -1);
-//    U8G2_SSD1322_NHD_256X64_F_3W_HW_SPI u8g2(U8G2_R0, /* cs=*/ GPIO_OLED_CS, /* reset=*/ GPIO_OLED_RESET); // Enable U8G2_16BIT in u8g2.h
-/*
-    ESP_LOGI(TAG, "Start");
-    u8g2.begin();
 
-    do {
-        ESP_LOGI(TAG, "First page");
-        u8g2.firstPage();
-        do {
-            ESP_LOGI(TAG, "Draw");
-            u8g2.setFont(u8g2_font_ncenB14_tr);
-            u8g2.drawStr(0, 24, "Hello World!");
-        } while (u8g2.nextPage());
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }while(1);
-
-
-
-*/
-
-
-
-
-
-    u8g2_esp32_hal_t u8g2_esp32_hal = U8G2_ESP32_HAL_DEFAULT;
+    u8g2_esp32_hal_t u8g2_esp32_hal = {};
     u8g2_esp32_hal.sda   = GPIO_NUM_NC;
     u8g2_esp32_hal.scl  = GPIO_NUM_NC;
     u8g2_esp32_hal.mosi = GPIO_MOSI;
     u8g2_esp32_hal.miso = GPIO_MISO;
     u8g2_esp32_hal.clk = GPIO_SCK;
     u8g2_esp32_hal.cs = GPIO_OLED_CS;
-    u8g2_esp32_hal.reset = GPIO_NUM_NC; //GPIO_OLED_RESET;
-    u8g2_esp32_hal.dc = GPIO_OLED_RESET; //GPIO_NUM_25;
+    u8g2_esp32_hal.reset = GPIO_NUM_NC;
+    u8g2_esp32_hal.dc = GPIO_OLED_DC;
 
     u8g2_esp32_hal_init(u8g2_esp32_hal);
 
@@ -257,7 +236,7 @@ static void do_display(void* userData) {
 
     // First display firmware version
     display_draw_info(u8g2);
-    vTaskDelay(600 / portTICK_PERIOD_MS);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     int delay = 500;
     display_draw_panel(u8g2, drawWifi, delay);

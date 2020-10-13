@@ -71,10 +71,10 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             dev_config.duty_cycle_pos   = 0;
             dev_config.cs_ena_posttrans = 0;
             dev_config.cs_ena_pretrans  = 0;
-            dev_config.clock_speed_hz   = 15000000;
+            dev_config.clock_speed_hz   = 20000000;
             dev_config.spics_io_num     = u8g2_esp32_hal.cs;
             dev_config.flags            = SPI_DEVICE_HALFDUPLEX;
-            dev_config.queue_size       = 10;
+            dev_config.queue_size       = 200;
             dev_config.pre_cb           = NULL;
             dev_config.post_cb          = NULL;
             ESP_LOGI(TAG, "... Adding device bus with cs %d.", dev_config.spics_io_num);
@@ -93,14 +93,9 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             trans_desc.tx_buffer = arg_ptr;
             trans_desc.rx_buffer = NULL;
 
-            //spi_device_transmit(handle_spi, &trans_desc);
-
-            //ESP_LOGI(TAG, "... Transmitting %d bytes.", arg_int);
-            //gpio_set_level(u8g2_esp32_hal.cs, 0);
-            spi_device_polling_transmit(handle_spi, &trans_desc);
-            //spi_device_queue_trans(handle_spi, &trans_desc, portMAX_DELAY);
-            //ESP_ERROR_CHECK(spi_device_polling_transmit(handle_spi, &trans_desc));
-            //gpio_set_level(u8g2_esp32_hal.cs, 1);
+            spi_device_acquire_bus(handle_spi, portMAX_DELAY);
+            spi_device_transmit(handle_spi, &trans_desc);
+            spi_device_release_bus(handle_spi);
 
             break;
         }

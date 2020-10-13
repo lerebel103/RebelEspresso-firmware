@@ -24,8 +24,9 @@
 #define KEY_BOILER_MAINS_HZ "pid.mains_hz"
 
 #define NVS_STATS_STORE "stats.boiler"
-#define KEY_BOILER_STATS_OVER_TEMP "over_temp"
-#define KEY_BOILER_STATS_TEMP_ERROR "temp_error"
+#define KEY_BOILER_STATS_OVER_TEMP        "t_over_limit"
+#define KEY_BOILER_STATS_TEMP_ERROR       "t_read_error"
+#define KEY_BOILER_STATS_TEMP_RANGE_ERROR "t_range_error"
 
 
 #define BOILER_SETPOINT0_MIN 50
@@ -94,7 +95,8 @@ struct boiler_temp_cfg_t {
 
 struct boiler_status_t {
     uint32_t temp_read_error_count;
-    uint32_t boiler_over_temp_count;
+    uint32_t temp_over_limit_count;
+    uint32_t temp_out_of_range_count;
 
     /**
      * Report current configuration
@@ -105,8 +107,11 @@ struct boiler_status_t {
         sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_read_error_count", base_key);
         cJSON_AddNumberToObject(config, buf, temp_read_error_count);
 
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "boiler_over_temp_count", base_key);
-        cJSON_AddNumberToObject(config, buf, boiler_over_temp_count);
+        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_over_limit_count", base_key);
+        cJSON_AddNumberToObject(config, buf, temp_over_limit_count);
+
+        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_out_of_range_count", base_key);
+        cJSON_AddNumberToObject(config, buf, temp_out_of_range_count);
 
         free(buf);
     }

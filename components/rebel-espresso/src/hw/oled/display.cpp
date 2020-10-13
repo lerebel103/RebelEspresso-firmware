@@ -131,9 +131,10 @@ void display_draw_pit_temp(u8g2_t *u8g2, int *y) {
 
     // Duty
     double duty = boiler_temp_get_duty();
-    sprintf(tempBuf, "%d%%", (int)duty);
+    sprintf(tempBuf, "Duty: %d%%", (int)duty);
+    auto width_of_duty_temp = strlen(tempBuf) * 10;
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2, x_offset + width_of_intregral_temp, *y + 20, tempBuf);
+    u8g2_DrawStr(u8g2, 10 + (TEMPERATURE_PANEL_WIDTH - width_of_duty_temp) / 2, *y + 26, tempBuf);
 
 }
 

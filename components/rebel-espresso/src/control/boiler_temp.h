@@ -21,6 +21,7 @@
 #define KEY_BOILER_PID_SETPOINT0 "pid.sp0"
 #define KEY_BOILER_PID_SETPOINT1 "pid.sp1"
 #define KEY_BOILER_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
+#define KEY_BOILER_PID_MIN_DUTY_BAND "pid.min_d_band"
 #define KEY_BOILER_MAINS_HZ "pid.mains_hz"
 
 #define NVS_STATS_STORE "stats.boiler"

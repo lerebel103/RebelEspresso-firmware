@@ -22,6 +22,7 @@ const double BOILER_PID_I_RESET_TEMP_DEFAULT = 15;
 const double BOILER_PID_SETPOINT0_DEFAULT = 115;
 const double BOILER_PID_SETPOINT1_DEFAULT = 140;
 const double BOILER_PID_OVER_SETPOINT_PERC_DEFAULT = 8;
+const double BOILER_PID_MIN_DUTY_BAND_DEFAULT = 4;
 const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 
 
@@ -36,6 +37,8 @@ static boiler_status_t s_stats = {};
 
 static uint64_t s_last_time_us = 0;
 static int s_last_duty = 0;
+static double s_last_raw_duty = 0;
+
 
 static void _load_stats() {
     nvs_handle my_handle;
@@ -88,6 +91,8 @@ static void _load_nvram() {
                         (void *) &BOILER_PID_SETPOINT1_DEFAULT);
     nvram_store_get_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc,
                         (void *) &BOILER_PID_OVER_SETPOINT_PERC_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BOILER_PID_MIN_DUTY_BAND, (uint64_t *) &s_cfg.pid.min_duty_band,
+                        (void *) &BOILER_PID_MIN_DUTY_BAND_DEFAULT);
     nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz,
                        (void *) &BOILER_MAINS_HZ_DEFAULT);
 
@@ -106,6 +111,7 @@ static void _save_nvram() {
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT0, (uint64_t *) &s_cfg.pid.setpoints[0]);
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_SETPOINT1, (uint64_t *) &s_cfg.pid.setpoints[1]);
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc);
+    nvram_store_set_u64(my_handle, KEY_BOILER_PID_MIN_DUTY_BAND, (uint64_t *) &s_cfg.pid.min_duty_band);
     nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz);
 
     nvs_close(my_handle);
@@ -263,6 +269,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
 
                 // Integral is added if we are below our delta error temp
                 if (fabs(error) < s_cfg.pid.I_reset_temp) {
+                    ESP_LOGI(TAG, "I=%f, value=%f", s_cfg.pid.I, (s_cfg.pid.I * wdata.error_integral));
                     duty += (s_cfg.pid.I * wdata.error_integral);
                 } else {
                     // Keep on resetting window in this case
@@ -277,8 +284,16 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
                 }
             }
 
-            ESP_LOGD(TAG, "Calculated PID duty %f", duty);
-            boiler_temp_set_duty(duty);
+            // first duties are two long a cycle and upset stability
+            auto smoothed_duty = (duty + s_last_raw_duty) / 2;
+            s_last_raw_duty = duty;
+            static auto min_duty = 5;
+            if (smoothed_duty > 0 && smoothed_duty < min_duty) {
+                smoothed_duty = min_duty;
+            }
+
+            ESP_LOGD(TAG, "Calculated PID duty %f", smoothed_duty);
+            boiler_temp_set_duty(smoothed_duty);
             g_last_pid_err = error;
         }
     }

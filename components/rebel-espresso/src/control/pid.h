@@ -37,6 +37,11 @@ struct pid_cfg_t {
     double over_setpoint_perc;
 
     /**
+     * Minimum duty band, where any duty within this band is clamped to this value
+     */
+    double min_duty_band;
+
+    /**
      * Parses the given JSON into this object
      */
     void from_json(const cJSON* config) {
@@ -58,6 +63,8 @@ struct pid_cfg_t {
                 setpoints[1] = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "over_setpoint_perc") ) {
                 over_setpoint_perc = item->valuedouble;
+            } else if ( strend(item->string, PID_CFG_JSON_KEY "min_duty_band") ) {
+                min_duty_band = item->valuedouble;
             }
 
             item = item->next;
@@ -82,6 +89,8 @@ struct pid_cfg_t {
         cJSON_AddNumberToObject(config, buf, setpoints[1]);
         sprintf(buf, "%.*s" PID_CFG_JSON_KEY "over_setpoint_perc", 32, base_key);
         cJSON_AddNumberToObject(config, buf, over_setpoint_perc);
+        sprintf(buf, "%.*s" PID_CFG_JSON_KEY "min_duty_band", 32, base_key);
+        cJSON_AddNumberToObject(config, buf, min_duty_band);
         free(buf);
     }
     

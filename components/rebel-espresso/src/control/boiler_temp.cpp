@@ -284,12 +284,13 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
                 }
             }
 
-            // first duties are two long a cycle and upset stability
+            // Bit of smooting
             auto smoothed_duty = (duty + s_last_raw_duty) / 2;
             s_last_raw_duty = duty;
-            static auto min_duty = 5;
-            if (smoothed_duty > 0 && smoothed_duty < min_duty) {
-                smoothed_duty = min_duty;
+
+            // Clamp to min duty band
+            if (smoothed_duty > 0 && smoothed_duty < s_cfg.pid.min_duty_band) {
+                smoothed_duty = s_cfg.pid.min_duty_band;
             }
 
             ESP_LOGD(TAG, "Calculated PID duty %f", smoothed_duty);

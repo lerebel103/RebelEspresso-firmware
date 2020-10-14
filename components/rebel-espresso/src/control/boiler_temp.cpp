@@ -256,6 +256,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
             s_stats_changed = true;
         } else {
             double duty = 0;
+            // Normal PID on setpoint 0
             if (s_cfg.pid.active_setpoint == 0) {
                 // Then we can proceed
                 // Derivative part
@@ -277,6 +278,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
                 }
 
             } else {
+                // setpoint 1 treated as alarm setpoint, no PID.
                 if (data.temperature >= s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]) {
                     duty = 0;
                 } else {
@@ -284,7 +286,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
                 }
             }
 
-            // Bit of smooting
+            // Bit of smoothing
             auto smoothed_duty = (duty + s_last_raw_duty) / 2;
             s_last_raw_duty = duty;
 
@@ -360,6 +362,9 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
     }
     if (config.pid.over_setpoint_perc >= 0 && config.pid.over_setpoint_perc < 40) {
         s_cfg.pid.over_setpoint_perc = config.pid.over_setpoint_perc;
+    }
+    if (config.pid.min_duty_band >= 0 && config.pid.min_duty_band <= 25) {
+        s_cfg.pid.min_duty_band = config.pid.min_duty_band;
     }
 
     if (config.mains_hz == 50) {

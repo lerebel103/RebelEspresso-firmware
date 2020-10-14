@@ -229,6 +229,7 @@ TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     new_cfg.pid.I_reset_sec = 6;
     new_cfg.pid.setpoints[0] = 51.2;
     new_cfg.pid.over_setpoint_perc = 13.1;
+    new_cfg.pid.min_duty_band = 6.1;
     new_cfg.mains_hz = 60;
 
     // Apply
@@ -248,6 +249,7 @@ TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.I_reset_temp, cfg.pid.I_reset_temp);
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.setpoints[0], cfg.pid.setpoints[0]);
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.over_setpoint_perc, cfg.pid.over_setpoint_perc);
+    TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.min_duty_band, cfg.pid.min_duty_band);
     TEST_ASSERT_EQUAL(new_cfg.mains_hz, cfg.mains_hz);
 
     boiler_temp_delete();
@@ -269,6 +271,7 @@ TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to default
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.setpoint0", 125);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.setpoint1", 139);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.over_setpoint_perc", 25);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.min_duty_band", 8);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "mains_hz", 60);
     char *json = cJSON_PrintUnformatted(root);
 
@@ -285,6 +288,7 @@ TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to default
     TEST_ASSERT_EQUAL(125, cfg.pid.setpoints[0]);
     TEST_ASSERT_EQUAL(139, cfg.pid.setpoints[1]);
     TEST_ASSERT_EQUAL(25, cfg.pid.over_setpoint_perc);
+    TEST_ASSERT_EQUAL(8, cfg.pid.min_duty_band);
     TEST_ASSERT_EQUAL(60, cfg.mains_hz);
 
     cJSON *new_cfg = cJSON_CreateObject();

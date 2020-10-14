@@ -37,7 +37,9 @@ static boiler_status_t s_stats = {};
 
 static uint64_t s_last_time_us = 0;
 static int s_last_duty = 0;
+
 static double s_last_raw_duty = 0;
+static double s_last_raw_temp = 0;
 
 
 static void _load_stats() {
@@ -246,7 +248,13 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         window_data(&s_data_window, &wdata);
 
         // delta from set-point, e.g. our error
-        double error = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] - data.temperature;
+        if (s_last_raw_temp == 0) {
+            s_last_raw_temp = data.temperature;
+        }
+
+        double temp_average = (data.temperature + s_last_raw_temp) / 2;
+        s_last_raw_temp = data.temperature;
+        double error = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] - temp_average;
 
         // Safety. If we are 10 degrees over set temperature, cut off
         if (-error > s_cfg.pid.over_setpoint_perc * s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] / 100) {
@@ -348,7 +356,7 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
     if (config.pid.D >= 0 && config.pid.D < 300) {
         s_cfg.pid.D = config.pid.D;
     }
-    if (config.pid.I_reset_sec >= 0 && config.pid.I_reset_sec < 60) {
+    if (config.pid.I_reset_sec >= 0 && config.pid.I_reset_sec < 60*10) {
         s_cfg.pid.I_reset_sec = config.pid.I_reset_sec;
     }
     if (config.pid.I_reset_temp >= 0 && config.pid.I_reset_temp < 30) {

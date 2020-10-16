@@ -13,7 +13,6 @@ static const char *TAG = "u8g2_hal";
 //static const unsigned int I2C_TIMEOUT_MS = 1000;
 
 static spi_device_handle_t handle_spi;      // SPI handle.
-static i2c_cmd_handle_t    handle_i2c;      // I2C handle.
 static u8g2_esp32_hal_t    u8g2_esp32_hal;  // HAL state data.
 
 #undef ESP_ERROR_CHECK
@@ -71,7 +70,7 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             dev_config.duty_cycle_pos   = 0;
             dev_config.cs_ena_posttrans = 0;
             dev_config.cs_ena_pretrans  = 0;
-            dev_config.clock_speed_hz   = 20000000;
+            dev_config.clock_speed_hz   = 15000000;
             dev_config.spics_io_num     = u8g2_esp32_hal.cs;
             dev_config.flags            = SPI_DEVICE_HALFDUPLEX;
             dev_config.queue_size       = 200;

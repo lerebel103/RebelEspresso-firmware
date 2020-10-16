@@ -29,7 +29,7 @@ const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 static esp_event_loop_handle_t s_event_loop;
 static boiler_temp_cfg_t s_cfg;
 static window_handle_t s_data_window;
-static double g_last_pid_err = 0;
+static double s_last_pid_err = 0;
 
 static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
@@ -180,7 +180,10 @@ static void _rmt_tx_init() {
 static void _pid_reset() {
     ESP_LOGD(TAG, "Resetting...");
     s_last_time_us = 0;
-    g_last_pid_err = 0;
+    s_last_pid_err = 0;
+    s_last_raw_duty = 0;
+    s_last_raw_temp = 0;
+
     window_reset(&s_data_window);
     ESP_LOGD(TAG, "Reset done.");
 }
@@ -239,25 +242,27 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         // Good to go
         ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
 
+        double setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
+        
         // Accumulate
-        window_accumulate(&s_data_window, time_us, &data, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint],
-                          s_cfg.pid.I_reset_sec * 1e3);
+        window_accumulate(&s_data_window, time_us, &data, setpoint,s_cfg.pid.I_reset_sec * 1e3);
 
         // Get window statistics
         static window_data_t wdata = {};
         window_data(&s_data_window, &wdata);
 
-        // delta from set-point, e.g. our error
+        // Average with last value for stability
         if (s_last_raw_temp == 0) {
             s_last_raw_temp = data.temperature;
         }
-
         double temp_average = (data.temperature + s_last_raw_temp) / 2;
         s_last_raw_temp = data.temperature;
-        double error = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] - temp_average;
+
+        // delta from set-point, e.g. our error
+        double error = setpoint - temp_average;
 
         // Safety. If we are 10 degrees over set temperature, cut off
-        if (-error > s_cfg.pid.over_setpoint_perc * s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] / 100) {
+        if (-error > s_cfg.pid.over_setpoint_perc * setpoint / 100) {
             ESP_LOGW(TAG, "Over temp threshold exceeded");
             _power_off_ssr();
             s_stats.temp_over_limit_count++;
@@ -270,7 +275,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
                 // Derivative part
                 double derivative = 0;
                 if (s_last_time_us != 0 && deltaT != 0) {
-                    derivative = (error - g_last_pid_err) / deltaT;
+                    derivative = (error - s_last_pid_err) / deltaT;
                 }
 
                 // Calculate duty, start with P and D
@@ -278,16 +283,15 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
 
                 // Integral is added if we are below our delta error temp
                 if (fabs(error) < s_cfg.pid.I_reset_temp) {
-                    ESP_LOGI(TAG, "I=%f, value=%f", s_cfg.pid.I, (s_cfg.pid.I * wdata.error_integral));
+                    ESP_LOGD(TAG, "I=%f, value=%f", s_cfg.pid.I, (s_cfg.pid.I * wdata.error_integral));
                     duty += (s_cfg.pid.I * wdata.error_integral);
                 } else {
                     // Keep on resetting window in this case
                     window_reset(&s_data_window);
                 }
-
             } else {
                 // setpoint 1 treated as alarm setpoint, no PID.
-                if (data.temperature >= s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]) {
+                if (data.temperature >= setpoint) {
                     duty = 0;
                 } else {
                     duty = 100;
@@ -305,7 +309,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
 
             ESP_LOGD(TAG, "Calculated PID duty %f", smoothed_duty);
             boiler_temp_set_duty(smoothed_duty);
-            g_last_pid_err = error;
+            s_last_pid_err = error;
         }
     }
 

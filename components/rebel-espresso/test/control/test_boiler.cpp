@@ -413,6 +413,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
             100,
             100,
             100,
+            100,
             98,
             95,
             92,
@@ -445,7 +446,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
             11,
             8,
             5,
-            2,
+            4,
     };
 
     for (int i = 0; i < 150; i++) {
@@ -453,7 +454,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
         boiler_temp_process(i * 1e6, data);
 
         // Cuts off with these settings
-        if (data.temperature >= 87) {
+        if (data.temperature >= 88) {
             TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
         } else {
             TEST_ASSERT_EQUAL(expectedDuties[i], boiler_temp_get_duty());

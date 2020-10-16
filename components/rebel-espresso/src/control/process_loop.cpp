@@ -13,7 +13,6 @@
 #include <freertos/semphr.h>
 #include <esp_task_wdt.h>
 #include <cmath>
-#include <sys/time.h>
 #include <hw/rtds.h>
 #include <hw/r1.0/hw_config.h>
 #include <esp_event.h>
@@ -52,6 +51,8 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
     if (xHigherPriorityTaskWoken != pdFALSE) {
         portYIELD_FROM_ISR();
     }
+
+    timer_group_enable_alarm_in_isr(s_timer_group, s_timer_idx);
 }
 
 /**
@@ -88,7 +89,6 @@ static void _process_task(void *) {
 
             // Done, reset ISR to go again and maintain watchdog timer
             esp_task_wdt_reset();
-            timer_group_enable_alarm_in_isr(s_timer_group, s_timer_idx);
         }
     } while (_go);
     ESP_LOGI(TAG, "Process loop ended");
@@ -159,8 +159,8 @@ void process_loop_init(esp_event_loop_handle_t event_loop) {
 
     // Cool now create a task that will run our process loop.
     _go = true;
-    ESP_ERROR_CHECK( esp_task_wdt_init(ceil(TIMER_INTERVAL0_SEC * 4), true));
-    xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 10, &_process_task_handle);
+    ESP_ERROR_CHECK( esp_task_wdt_init(10, true));
+    xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 8, &_process_task_handle);
     vTaskSuspend(_process_task_handle);
 
     // We also start a secondary tick loop, which for a machine wide tick that is not realtime based

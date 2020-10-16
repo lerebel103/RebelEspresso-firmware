@@ -18,6 +18,7 @@ static max31865_rtd_config_t s_rtdConfig = {};
 static uint16_t s_min_rtd = 0;
 static uint16_t s_max_rtd = 0;
 static max31865_config_t s_tempConfig;
+static int s_restart_error_count = 0;
 
 /**
  * Contains our last known reading
@@ -36,6 +37,16 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
     // Calculate new value if we can, otherwise leave the old one there.
     if (_rtd_array[idx].fault == Max31865Error::NoError && idx == RTD_BOILER_IDX) {
         _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
+        if ( idx == 0 ) {
+            s_restart_error_count = 0;
+        }
+    } else if (idx == 0) {
+        // If we get successive errors from the boiler for 1 minute, restart
+        s_restart_error_count++;
+        if (s_restart_error_count > 60) {
+            ESP_LOGE(TAG, "Restarting, too many RTD errors received in succession.");
+            esp_restart();
+        }
     }
 
     // Invoke CB now

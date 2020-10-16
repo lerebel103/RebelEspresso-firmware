@@ -158,7 +158,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
     u8g2_ClearBuffer(&u8g2);
     u8g2_SendBuffer(&u8g2);
 
-    bool toggle = controller_is_enabled();
+    bool toggle = true;
     while (g_go) {
         u8g2_ClearBuffer(&u8g2);
 

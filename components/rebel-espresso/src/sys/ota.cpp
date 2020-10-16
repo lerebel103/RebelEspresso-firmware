@@ -10,6 +10,7 @@
 #include <esp_image_format.h>
 #include <esp_partition.h>
 #include <mbedtls/ssl.h>
+#include <src/str_utils.h>
 
 #include "ota.h"
 #include "nvram_store.h"
@@ -21,25 +22,33 @@
 #define MAX_OTA_API_KEY 128
 #define OTA_DEFAULT_TIMEOUT 20000
 
+#define NVS_CFG_STORE "cfg.ota"
+#define KEY_OTA_ENABLED "enabled"
+#define KEY_OTA_URL "url"
+#define KEY_OTA_API_KEY "api_key"
+#define KEY_OTA_VERSION "version"
+#define KEY_OTA_BUILD_TYPE "build_type"
+
 const static char *TAG = "OTA";
+
 
 struct ota_config_t {
     char url[MAX_OTA_URI] = {0};
     char api_key[MAX_OTA_API_KEY] = {0};
 
     uint32_t timeout_ms = OTA_DEFAULT_TIMEOUT;
-    const char *thing_id;
-    const char *thing_type;
-    const char *firmware_version;
-    const char *hardware_revision;
+    const char *thing_id = nullptr;
+    const char *thing_type = nullptr;
+    const char *firmware_version = nullptr;
+    const char *hardware_revision = nullptr;
 
     char desiredVersion[MAX_VERSION_LEN] = {0};
     char desiredBuildType[MAX_VERSION_LEN] = {0};
 };
 
 
-static uint32_t g_last_ota_time = 0;
-static TaskHandle_t g_ota_task_handle = NULL;
+static bool s_enabled = false;
+static TaskHandle_t g_ota_task_handle = nullptr;
 static ota_config_t g_ota_config;
 static int g_ota_duration = -1;
 
@@ -66,12 +75,12 @@ uint32_t ota_get_error_count() {
 
 void getHost(char *dest) {
     strcpy(dest, strstr((char *) g_ota_config.url, "://") + 3);
-    if (dest == NULL) {
+    if (dest == nullptr) {
         ESP_LOGE(TAG, "OTA URL appears to be invalid: '%s'", g_ota_config.url);
     }
 
     char *host_last = strstr(dest, "/");
-    if (host_last != NULL) {
+    if (host_last != nullptr) {
         *host_last = '\0';
     }
 }
@@ -82,7 +91,7 @@ static void ota_get_latest_version(char *latest_version) {
 
     char host[MAX_OTA_URI];
     getHost(host);
-    if (host == NULL) {
+    if (strlen(host) == 0) {
         ESP_LOGE(TAG, "OTA URL appears to be invalid: '%s'", g_ota_config.url);
         return;
     }
@@ -105,14 +114,14 @@ static void ota_get_latest_version(char *latest_version) {
     ESP_LOGD(TAG, "Sending query %s", buffer);
 
     esp_tls_cfg_t cfg = {
-            .alpn_protos = NULL,
-            .cacert_pem_buf  = (const unsigned char *) NULL, //mqtt_conf.ca,
+            .alpn_protos = nullptr,
+            .cacert_pem_buf  = nullptr, //mqtt_conf.ca,
             .cacert_pem_bytes = (unsigned int) 0, //strlen(mqtt_conf.ca),
-            .clientcert_pem_buf = (const unsigned char *) NULL, //(const unsigned char*)mqtt_conf.client_cert,
+            .clientcert_pem_buf = nullptr, //(const unsigned char*)mqtt_conf.client_cert,
             .clientcert_pem_bytes = (unsigned int) 0, //strlen(mqtt_conf.client_cert),
-            .clientkey_pem_buf = (const unsigned char *) NULL, //mqtt_conf.client_pk,
+            .clientkey_pem_buf = nullptr, //mqtt_conf.client_pk,
             .clientkey_pem_bytes = (unsigned int) 0, //strlen(mqtt_conf.client_pk),
-            .clientkey_password = NULL,
+            .clientkey_password = nullptr,
             .clientkey_password_len = 0,
             .non_block = false,
             .timeout_ms = (int) g_ota_config.timeout_ms,
@@ -125,7 +134,7 @@ static void ota_get_latest_version(char *latest_version) {
     ESP_LOGI(TAG, "Connecting to '%s'", url);
     esp_tls_t *tls = esp_tls_conn_http_new(url, &cfg);
 
-    if (tls != NULL) {
+    if (tls != nullptr) {
         ESP_LOGI(TAG, "Connected to OTA service");
     } else {
         ESP_LOGE(TAG, "Connection failed...");
@@ -146,7 +155,7 @@ static void ota_get_latest_version(char *latest_version) {
     // Get response back
     bzero(buffer, buf_len);
     int num_read = esp_tls_conn_read(tls, buffer, 15);
-    if (num_read > 0 && strstr((char *) buffer, "200 OK") != NULL) {
+    if (num_read > 0 && strstr((char *) buffer, "200 OK") != nullptr) {
         char *body = new char[254];
         bzero(body, 254);
 
@@ -183,7 +192,7 @@ static bool ota_download_new_firmware(esp_tls_t *tls) {
     esp_err_t err;
     esp_ota_handle_t update_handle = 0;
 
-    const esp_partition_t *update_partition = NULL;
+    const esp_partition_t *update_partition = nullptr;
     const esp_partition_t *configured = esp_ota_get_boot_partition();
     const esp_partition_t *running = esp_ota_get_running_partition();
 
@@ -197,12 +206,12 @@ static bool ota_download_new_firmware(esp_tls_t *tls) {
     ESP_LOGI(TAG, "Running partition type %d subtype %d (offset 0x%08x)",
              running->type, running->subtype, running->address);
 
-    update_partition = esp_ota_get_next_update_partition(NULL);
+    update_partition = esp_ota_get_next_update_partition(nullptr);
     ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
              update_partition->subtype, update_partition->address);
-    assert(update_partition != NULL);
+    assert(update_partition != nullptr);
 
-    esp_task_wdt_delete(NULL);
+    esp_task_wdt_delete(nullptr);
 
     err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle);
     if (err != ESP_OK) {
@@ -279,7 +288,7 @@ static bool ota_download_firmware(char *version) {
 
     char host[MAX_OTA_URI];
     getHost(host);
-    if (host == NULL) {
+    if (strlen(host) == 0) {
         ESP_LOGE(TAG, "OTA URL appears to be invalid: '%s'", g_ota_config.url);
         return false;
     }
@@ -302,14 +311,14 @@ static bool ota_download_firmware(char *version) {
             url, host, g_ota_config.thing_type, g_ota_config.thing_id, g_ota_config.api_key);
 
     esp_tls_cfg_t cfg = {
-            .alpn_protos = NULL,
-            .cacert_pem_buf  = (const unsigned char *) NULL, //mqtt_conf.ca,
-            .cacert_pem_bytes = (unsigned int) NULL, //strlen(mqtt_conf.ca),
-            .clientcert_pem_buf = (const unsigned char *) NULL, //(const unsigned char*)mqtt_conf.client_cert,
-            .clientcert_pem_bytes = (unsigned int) NULL, //strlen(mqtt_conf.client_cert),
-            .clientkey_pem_buf = (const unsigned char *) NULL, //mqtt_conf.client_pk,
-            .clientkey_pem_bytes = (unsigned int) NULL, //strlen(mqtt_conf.client_pk),
-            .clientkey_password = NULL,
+            .alpn_protos = nullptr,
+            .cacert_pem_buf  = nullptr, //mqtt_conf.ca,
+            .cacert_pem_bytes = 0, //strlen(mqtt_conf.ca),
+            .clientcert_pem_buf = nullptr, //(const unsigned char*)mqtt_conf.client_cert,
+            .clientcert_pem_bytes = 0, //strlen(mqtt_conf.client_cert),
+            .clientkey_pem_buf = nullptr, //mqtt_conf.client_pk,
+            .clientkey_pem_bytes = 0, //strlen(mqtt_conf.client_pk),
+            .clientkey_password = nullptr,
             .clientkey_password_len = 0,
             .non_block = false,
             .timeout_ms =(int) g_ota_config.timeout_ms,
@@ -321,7 +330,7 @@ static bool ota_download_firmware(char *version) {
 
     esp_tls_t *tls = esp_tls_conn_http_new(url, &cfg);
 
-    if (tls != NULL) {
+    if (tls != nullptr) {
         ESP_LOGI(TAG, "Connected to Firmware download service");
     } else {
         ESP_LOGE(TAG, "Connection failed...");
@@ -343,7 +352,7 @@ static bool ota_download_firmware(char *version) {
     bzero(buffer, buf_len);
     esp_tls_conn_read(tls, buffer, 15);
 
-    if (strstr((char *) buffer, "200 OK") != NULL) {
+    if (strstr((char *) buffer, "200 OK") != nullptr) {
         is_ok = ota_download_new_firmware(tls);
     } else {
         ESP_LOGE(TAG, "HTTP status code error %s", buffer);
@@ -388,7 +397,26 @@ bool ota_can_upgrade(const char *ota_version) {
     return can_update;
 }
 
+static void _check_load_params() {
+    if(strlen(g_ota_config.url) == 0) {
+        ESP_LOGI(TAG, "Loading OTA params from NVS");
+        nvs_handle my_handle;
+        ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+
+        s_enabled = true;
+        nvram_store_get_u8(my_handle, KEY_OTA_ENABLED, (uint8_t*)&s_enabled, (uint8_t*)& s_enabled);
+
+        // URL, etc...
+
+        nvs_close(my_handle);
+    }
+}
+
+
 static void do_ota(void *) {
+    // Load params from nvram
+    _check_load_params();
+
     EventBits_t uxBits = xEventGroupWaitBits(
             status_event_group,
             WIFI_CONNECTED_BIT,
@@ -435,8 +463,8 @@ static void do_ota(void *) {
     xEventGroupSetBits(status_event_group, OTA_PERFORMED_BIT);
 
     ESP_LOGI(TAG, "OTA task finished.");
-    g_ota_task_handle = NULL;
-    vTaskDelete(NULL);
+    g_ota_task_handle = nullptr;
+    vTaskDelete(nullptr);
 }
 
 void ota_init(
@@ -451,54 +479,65 @@ void ota_init(
 }
 
 void ota_cfg_from_json(const cJSON *config) {
-    // Only do OTA every now and then, no need to go crazy
-    uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    if (g_last_ota_time != 0 && ((now - g_last_ota_time) < 60000 || g_ota_task_handle != NULL)) {
-        return;
-    }
-    g_last_ota_time = now;
+    cJSON *item = config->child;
+    while( item ) {
+        if ( strend(item->string, OTA_CFG_JSON_KEY "enabled") ) {
+            if (cJSON_IsBool(item) && item->valueint == 0) {
+                ESP_LOGI(TAG, "OTA disabled.");
+                g_ota_config.url[0] = '\0';
+                return;
+            }
+        } else if ( strend(item->string, OTA_CFG_JSON_KEY "url") ) {
+            if (cJSON_IsString(item)) {
+                strncpy(g_ota_config.url, item->valuestring, MAX_OTA_URI);
+            } else {
+                ESP_LOGE(TAG, "url is invalid");
+                return;
+            }
+        } else if ( strend(item->string, OTA_CFG_JSON_KEY "api_key") ) {
+            if (cJSON_IsString(item)) {
+                strncpy(g_ota_config.api_key, item->valuestring, MAX_OTA_URI);
+            }
+        } else if ( strend(item->string, OTA_CFG_JSON_KEY "version") ) {
+            if (cJSON_IsString(item)) {
+                strncpy(g_ota_config.desiredVersion, item->valuestring, MAX_VERSION_LEN);
+            } else {
+                ESP_LOGE(TAG, "desiredVersion is invalid");
+                return;
+            }
+        } else if ( strend(item->string, OTA_CFG_JSON_KEY "build_type") ) {
+            if (cJSON_IsString(item)) {
+                strncpy(g_ota_config.desiredBuildType, item->valuestring, MAX_VERSION_LEN);
+            } else {
+                ESP_LOGE(TAG, "desiredBuildType is invalid");
+                return;
+            }
+        }
 
-
-    cJSON *item = cJSON_GetObjectItem(config, "enabled");
-    if (cJSON_IsBool(item) && item->valueint == 0) {
-        ESP_LOGI(TAG, "OTA disabled.");
-        g_ota_config.url[0] = '\0';
-        return;
+        item = item->next;
     }
 
-    item = cJSON_GetObjectItem(config, "url");
-    if (cJSON_IsString(item)) {
-        strncpy(g_ota_config.url, item->valuestring, MAX_OTA_URI);
-    } else {
-        ESP_LOGE(TAG, "url is invalid");
-        return;
-    }
+    // save all now
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
 
-    item = cJSON_GetObjectItem(config, "apiKey");  // optional API KEY
-    if (cJSON_IsString(item)) {
-        strncpy(g_ota_config.api_key, item->valuestring, MAX_OTA_URI);
-    }
+    nvram_store_set_u8(my_handle, KEY_OTA_ENABLED, (uint8_t *) &s_enabled);
+    nvram_store_write_str(my_handle, KEY_OTA_URL, g_ota_config.url);
+    nvram_store_write_str(my_handle, KEY_OTA_API_KEY, g_ota_config.api_key);
+    nvram_store_write_str(my_handle, KEY_OTA_VERSION, g_ota_config.desiredVersion);
+    nvram_store_write_str(my_handle, KEY_OTA_BUILD_TYPE, g_ota_config.desiredBuildType);
 
-    item = cJSON_GetObjectItem(config, "version");
-    if (cJSON_IsString(item)) {
-        strncpy(g_ota_config.desiredVersion, item->valuestring, MAX_VERSION_LEN);
-    } else {
-        ESP_LOGE(TAG, "desiredVersion is invalid");
-        return;
-    }
-
-    item = cJSON_GetObjectItem(config, "buildType");
-    if (cJSON_IsString(item)) {
-        strncpy(g_ota_config.desiredBuildType, item->valuestring, MAX_VERSION_LEN);
-    } else {
-        ESP_LOGE(TAG, "desiredBuildType is invalid");
-        return;
-    }
+    nvs_close(my_handle);
 }
 
 void ota_run() {
+    if (g_ota_task_handle != nullptr) {
+        ESP_LOGW(TAG, "OTA already in progress");
+        return;
+    }
+
     // Good to go! Put it all in a task
-    xTaskCreate(do_ota, "ota_run_task", 7 * 1024, NULL, 5, &g_ota_task_handle);
+    xTaskCreate(do_ota, "ota_run_task", 7 * 1024, nullptr, 5, &g_ota_task_handle);
 }
 
 bool ota_is_configured() {

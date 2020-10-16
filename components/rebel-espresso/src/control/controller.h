@@ -11,10 +11,6 @@ struct controller_cfg_t {
 void controller_init(esp_event_loop_handle_t event_loop);
 void controller_enter_loop();
 
-const bool& controller_is_enabled();
-void controller_enable(bool enable);
-
-
 void controller_cfg_to_json(cJSON *root, const char* base_key);
 void controller_status_to_json(cJSON *root, const char* base_key);
 

@@ -98,16 +98,6 @@ static void _process_task(void *) {
     vTaskDelete(nullptr);
 }
 
-void _machine_tick(void *) {
-    while (_go) {
-        // Tick keeps going regardless of power state.
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
-        vTaskDelay(pdMS_TO_TICKS(250));
-    }
-
-    _tick_task_handle = nullptr;
-    vTaskDelete(nullptr);
-}
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
@@ -162,9 +152,6 @@ void process_loop_init(esp_event_loop_handle_t event_loop) {
     ESP_ERROR_CHECK( esp_task_wdt_init(10, true));
     xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 8, &_process_task_handle);
     vTaskSuspend(_process_task_handle);
-
-    // We also start a secondary tick loop, which for a machine wide tick that is not realtime based
-    xTaskCreate(_machine_tick, "machine_tick", configMINIMAL_STACK_SIZE + 1024, nullptr, 5, &_tick_task_handle);
 
     // Get our power events in place so we can run the process loop as needed
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,

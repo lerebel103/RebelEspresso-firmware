@@ -397,6 +397,13 @@ esp_err_t nvram_store_read_str(const char *key, char *value, size_t max_len, con
     return err;
 }
 
+esp_err_t nvram_store_write_str(nvs_handle handle, const char *key, const char* value) {
+    // Write
+    esp_err_t err = nvs_set_str(handle, key, value);
+    nvs_commit(handle);
+    return err;
+}
+
 esp_err_t nvram_store_write_str(const char *key, const char *value) {
     nvs_handle my_handle;
     esp_err_t err = nvs_open(NVRAM_STORAGE, NVS_READWRITE, &my_handle);
@@ -404,9 +411,7 @@ esp_err_t nvram_store_write_str(const char *key, const char *value) {
         ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
         ESP_ERROR_CHECK(err);
     } else {
-        // Write
-        err = nvs_set_str(my_handle, key, value);
-        nvs_commit(my_handle);
+        nvram_store_write_str(my_handle, key, value);
     }
     nvs_close(my_handle);
     return err;

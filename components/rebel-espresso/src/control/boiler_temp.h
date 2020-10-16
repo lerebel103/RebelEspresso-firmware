@@ -23,6 +23,7 @@
 #define KEY_BOILER_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
 #define KEY_BOILER_PID_MIN_DUTY_BAND "pid.min_d_band"
 #define KEY_BOILER_MAINS_HZ "pid.mains_hz"
+#define KEY_BOILER_TEMP_ERROR_RESTART_SEC "pid.t_err_rest"
 
 #define NVS_STATS_STORE "stats.boiler"
 #define KEY_BOILER_STATS_OVER_TEMP        "t_over_limit"
@@ -43,9 +44,11 @@ extern "C" const double BOILER_PID_I_DEFAULT;
 extern "C" const double BOILER_PID_D_DEFAULT;
 extern "C" const int32_t BOILER_PID_I_RESET_SEC_DEFAULT;
 extern "C" const double BOILER_PID_I_RESET_TEMP_DEFAULT;
-extern "C" const double BOILER_PID_SETPOINT_DEFAULT;
+extern "C" const double BOILER_PID_SETPOINT0_DEFAULT;
+extern "C" const double BOILER_PID_SETPOINT1_DEFAULT;
 extern "C" const double BOILER_PID_OVER_SETPOINT_PERC_DEFAULT;
 extern "C" const uint8_t BOILER_MAINS_HZ_DEFAULT;
+extern "C" const uint16_t BOILER_TEMP_ERROR_RESTART_SEC;
 
 
 /**
@@ -56,6 +59,11 @@ struct boiler_temp_cfg_t {
      * Main PID settings
      */
     pid_cfg_t pid;
+
+    /**
+     * When non-zero, restart the MCU if we get successive erros for this long.
+     */
+    uint16_t temp_error_restart_time_sec;
 
     /**
      * What is the mains frequency, used to formulate variable time base pulses
@@ -72,6 +80,8 @@ struct boiler_temp_cfg_t {
         while( item ) {
             if ( strend(item->string, BOILER_CFG_JSON_KEY "mains_hz") ) {
                 mains_hz = item->valuedouble;
+            } else if ( strend(item->string, BOILER_CFG_JSON_KEY "temp_error_restart_time_sec") ) {
+                temp_error_restart_time_sec = item->valueint;
             }
             item = item->next;
         }
@@ -88,6 +98,9 @@ struct boiler_temp_cfg_t {
 
         sprintf(buf, "%s" BOILER_CFG_JSON_KEY "mains_hz", base_key);
         cJSON_AddNumberToObject(config, buf, mains_hz);
+
+        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_error_restart_time_sec", base_key);
+        cJSON_AddNumberToObject(config, buf, temp_error_restart_time_sec);
 
         free(buf);
     }

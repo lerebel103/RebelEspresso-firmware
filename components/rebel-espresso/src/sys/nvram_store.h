@@ -9,6 +9,7 @@ void nvram_store_init();
 
 esp_err_t nvram_store_read_str(const char *key, char *value, size_t max_len, const char* default_value);
 esp_err_t nvram_store_write_str(const char *key, const char* value);
+esp_err_t nvram_store_write_str(nvs_handle handle, const char *key, const char* value);
 
 esp_err_t nvram_store_get_u64(nvs_handle handle, const char *key, uint64_t *value, void* default_value);
 esp_err_t nvram_store_set_u64(nvs_handle handle, const char *key, uint64_t* value);

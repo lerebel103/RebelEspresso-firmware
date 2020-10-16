@@ -4,6 +4,7 @@
 #include <freertos/task.h>
 #include <hw/r1.0/hw_config.h>
 #include <esp_log.h>
+#include <src/events.h>
 #include "rtds.h"
 
 #define TAG "Temperature"
@@ -18,7 +19,6 @@ static max31865_rtd_config_t s_rtdConfig = {};
 static uint16_t s_min_rtd = 0;
 static uint16_t s_max_rtd = 0;
 static max31865_config_t s_tempConfig;
-static int s_restart_error_count = 0;
 
 /**
  * Contains our last known reading
@@ -30,23 +30,13 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
 
     ESP_ERROR_CHECK(s_tempSensor.setConfig(s_tempConfig));
     ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(s_min_rtd, s_max_rtd));
-    vTaskDelay(pdMS_TO_TICKS(65));
+    vTaskDelay(pdMS_TO_TICKS(20));
     s_tempSensor.getRTD(&rtd, &_rtd_array[idx].fault);
 
 
     // Calculate new value if we can, otherwise leave the old one there.
     if (_rtd_array[idx].fault == Max31865Error::NoError && idx == RTD_BOILER_IDX) {
         _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
-        if ( idx == 0 ) {
-            s_restart_error_count = 0;
-        }
-    } else if (idx == 0) {
-        // If we get successive errors from the boiler for 1 minute, restart
-        s_restart_error_count++;
-        if (s_restart_error_count > 60) {
-            ESP_LOGE(TAG, "Restarting, too many RTD errors received in succession.");
-            esp_restart();
-        }
     }
 
     // Invoke CB now
@@ -67,6 +57,9 @@ void rtds_update(rtd_update_cb_t cb) {
 
     gpio_set_level(GPIO_RTD_A0, 0);
     _read_temp(cb, RTD_TEC_HOT_IDX);
+
+    // Always trigger display refresh at the back of new temperatures
+    xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
 }
 
 esp_err_t rtds_get(rtd_data_t* data, uint8_t idx) {

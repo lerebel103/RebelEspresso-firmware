@@ -2,6 +2,8 @@
 
 #include <cJSON.h>
 
+#define OTA_CFG_JSON_KEY "ota."
+
 /**
  * This is an async call, we compare our current firmware version
  * to what is available from the cloud side. If the cloud side is not

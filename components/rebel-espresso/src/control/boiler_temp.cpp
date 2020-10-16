@@ -19,12 +19,12 @@ const double BOILER_PID_I_DEFAULT = 0.5;
 const double BOILER_PID_D_DEFAULT = 100;
 const int32_t BOILER_PID_I_RESET_SEC_DEFAULT = 15;
 const double BOILER_PID_I_RESET_TEMP_DEFAULT = 15;
-const double BOILER_PID_SETPOINT0_DEFAULT = 115;
+const double BOILER_PID_SETPOINT0_DEFAULT = 105;
 const double BOILER_PID_SETPOINT1_DEFAULT = 140;
 const double BOILER_PID_OVER_SETPOINT_PERC_DEFAULT = 8;
 const double BOILER_PID_MIN_DUTY_BAND_DEFAULT = 4;
 const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
-
+const uint16_t BOILER_TEMP_ERROR_RESTART_SEC = 60;
 
 static esp_event_loop_handle_t s_event_loop;
 static boiler_temp_cfg_t s_cfg;
@@ -40,6 +40,7 @@ static int s_last_duty = 0;
 
 static double s_last_raw_duty = 0;
 static double s_last_raw_temp = 0;
+static uint32_t s_boiler_error_sec = 0;
 
 
 static void _load_stats() {
@@ -97,6 +98,8 @@ static void _load_nvram() {
                         (void *) &BOILER_PID_MIN_DUTY_BAND_DEFAULT);
     nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz,
                        (void *) &BOILER_MAINS_HZ_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_BOILER_TEMP_ERROR_RESTART_SEC, &s_cfg.temp_error_restart_time_sec,
+                       (void *) &BOILER_TEMP_ERROR_RESTART_SEC);
 
     nvs_close(my_handle);
 }
@@ -115,6 +118,7 @@ static void _save_nvram() {
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_OVER_SETPOINT_PERC, (uint64_t *) &s_cfg.pid.over_setpoint_perc);
     nvram_store_set_u64(my_handle, KEY_BOILER_PID_MIN_DUTY_BAND, (uint64_t *) &s_cfg.pid.min_duty_band);
     nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz);
+    nvram_store_set_u16(my_handle, KEY_BOILER_TEMP_ERROR_RESTART_SEC, &s_cfg.temp_error_restart_time_sec);
 
     nvs_close(my_handle);
 
@@ -224,6 +228,14 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
         _power_off_ssr();
+
+        // If we get successive errors from the boiler restart
+        s_boiler_error_sec += time_us * 1e-6;
+        if (s_cfg.temp_error_restart_time_sec != 0 && s_boiler_error_sec > s_cfg.temp_error_restart_time_sec) {
+            ESP_LOGE(TAG, "Restarting, too many RTD errors received in succession.");
+            esp_restart();
+        }
+
         return;
     } else if (data.temperature > 150 || data.temperature < 5) {
         ESP_LOGE(TAG, "Boiler temperature out of range: %f", data.temperature);
@@ -232,6 +244,9 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         _power_off_ssr();
         return;
     }
+
+    // No errors from RTD, all good reset.
+    s_boiler_error_sec = 0;
 
     // If we've had a gap, reset the PID
     double deltaT = (double) (time_us - s_last_time_us) / 1e6;
@@ -384,6 +399,7 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
     } else if (config.mains_hz == 60) {
         s_cfg.mains_hz = MAINS_60HZ;
     }
+    s_cfg.temp_error_restart_time_sec = config.temp_error_restart_time_sec;
 
     // Save what we can then
     _save_nvram();

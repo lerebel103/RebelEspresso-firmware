@@ -19,6 +19,11 @@ extern esp_event_loop_handle_t g_event_loop;
 TEST_CASE("[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power to SSR") {
     boiler_temp_init(g_event_loop);
 
+    // Turn off restart on RTD error
+    auto cfg = boiler_temp_get_cfg();
+    cfg.temp_error_restart_time_sec = 0;
+    boiler_temp_set_cfg(cfg);
+
     // Not enabled by default, zero duty
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
 
@@ -49,6 +54,11 @@ TEST_CASE("[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power t
 TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure tick cuts power when conditions not met") {
     boiler_temp_init(g_event_loop);
     boiler_temp_reset_stats();
+
+    // Turn off restart on RTD error
+    auto cfg = boiler_temp_get_cfg();
+    cfg.temp_error_restart_time_sec = 0;
+    boiler_temp_set_cfg(cfg);
 
     // Not enabled by default, zero duty
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
@@ -205,6 +215,7 @@ TEST_CASE("[boiler_temp:test_update_config_from_json]", "Ensures partial json up
     cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.I", 0.5);
     cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.D", 60.4);
     cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "pid.setpoint0", 99.9);
+    cJSON_AddNumberToObject(root, "cfg." BOILER_CFG_JSON_KEY "temp_error_restart_time_sec", 1);
 
     boiler_temp_update_cfg(root);
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
@@ -212,6 +223,7 @@ TEST_CASE("[boiler_temp:test_update_config_from_json]", "Ensures partial json up
     TEST_ASSERT_EQUAL(0.5, cfg.pid.I);
     TEST_ASSERT_EQUAL(60.4, cfg.pid.D);
     TEST_ASSERT_EQUAL(99.9, cfg.pid.setpoints[0]);
+    TEST_ASSERT_EQUAL(1, cfg.temp_error_restart_time_sec);
 
     cJSON_Delete(root);
     boiler_temp_delete();
@@ -231,6 +243,7 @@ TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     new_cfg.pid.over_setpoint_perc = 13.1;
     new_cfg.pid.min_duty_band = 6.1;
     new_cfg.mains_hz = 60;
+    new_cfg.temp_error_restart_time_sec = 58;
 
     // Apply
     boiler_temp_set_cfg(new_cfg);
@@ -251,6 +264,7 @@ TEST_CASE("[boiler_temp:test_nvs_load_save]", "Test load/save config works") {
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.over_setpoint_perc, cfg.pid.over_setpoint_perc);
     TEST_ASSERT_EQUAL_DOUBLE(new_cfg.pid.min_duty_band, cfg.pid.min_duty_band);
     TEST_ASSERT_EQUAL(new_cfg.mains_hz, cfg.mains_hz);
+    TEST_ASSERT_EQUAL(new_cfg.temp_error_restart_time_sec, cfg.temp_error_restart_time_sec);
 
     boiler_temp_delete();
 }
@@ -273,6 +287,7 @@ TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to default
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.over_setpoint_perc", 25);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "pid.min_duty_band", 8);
     cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "mains_hz", 60);
+    cJSON_AddNumberToObject(root, BOILER_CFG_JSON_KEY "temp_error_restart_time_sec", 59);
     char *json = cJSON_PrintUnformatted(root);
 
 
@@ -290,6 +305,7 @@ TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to default
     TEST_ASSERT_EQUAL(25, cfg.pid.over_setpoint_perc);
     TEST_ASSERT_EQUAL(8, cfg.pid.min_duty_band);
     TEST_ASSERT_EQUAL(60, cfg.mains_hz);
+    TEST_ASSERT_EQUAL(59, cfg.temp_error_restart_time_sec);
 
     cJSON *new_cfg = cJSON_CreateObject();
     cfg.to_json(new_cfg, "");
@@ -348,11 +364,13 @@ TEST_CASE("[boiler_temp:test_boiler_duty_steady]", "Test duty when steady temp f
     boiler_temp_init(g_event_loop);
     boiler_temp_reset_cfg();
 
-    boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
+    // Turn off restart on RTD error
+    auto cfg = boiler_temp_get_cfg();
+    cfg.temp_error_restart_time_sec = 0;
     cfg.pid.setpoints[0] = 120;
     boiler_temp_set_cfg(cfg);
 
-    rtd_data_t data;
+    rtd_data_t data = {};
     data.fault = Max31865Error::NoError;
     data.temperature = 25;
 
@@ -377,6 +395,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     cfg.pid.D = 100;
     cfg.pid.setpoints[0] = 120;
     cfg.pid.over_setpoint_perc = 10;
+    cfg.temp_error_restart_time_sec = 0;
     boiler_temp_set_cfg(cfg);
 
     rtd_data_t data;

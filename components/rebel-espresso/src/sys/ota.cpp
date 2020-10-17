@@ -111,7 +111,7 @@ static void ota_get_latest_version(char *latest_version) {
                     "\r\n",
             url, host, g_ota_config.thing_type, g_ota_config.thing_id, g_ota_config.api_key);
 
-    ESP_LOGI(TAG, "Sending query %s", buffer);
+    ESP_LOGD(TAG, "Sending query %s", buffer);
 
     esp_tls_cfg_t cfg = {
             .alpn_protos = nullptr,

@@ -56,7 +56,7 @@ bool boiler_refill_read_state() {
     }
     level_voltage = level_voltage / s_cfg.num_readings;
 
-    ESP_LOGD(TAG, "Level voltage: %f", level_voltage);
+    ESP_LOGI(TAG, "Level voltage: %f", level_voltage);
 
     // Done, disable to prevent electrolysis
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);

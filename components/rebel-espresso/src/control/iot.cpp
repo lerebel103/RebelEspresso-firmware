@@ -51,7 +51,7 @@ void _iot_task(void*) {
             send_iot_events(time_millis);
 
             // Do we need to run OTA (wait 15 seconds after we connect to let things settle first)?
-            if (s_ota_needed && ota_is_configured() && (time_millis - mqtt_last_connect_attempt()) > 15000) {
+            if (s_ota_needed && ota_is_enabled() && (time_millis - mqtt_last_connect_attempt()) > 15000) {
                 ota_run();
                 s_ota_needed = false;
             }
@@ -76,9 +76,9 @@ void iot_init(esp_event_loop_handle_t event_loop) {
 
     // Now for wifi, ota, mqtt
     wifi_init();
-    ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
 
-    /*
+    ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
+/*
     mqtt_set_client_private_key(    "-----BEGIN EC PRIVATE KEY-----\n"
                                     "MHcCAQEEIDvKD7cTp5i6OeJhXvw/PxQFWs0rq5wAt3hTOUScpJr1oAoGCCqGSM49\n"
                                     "AwEHoUQDQgAE3a5tg30Yse9WDVIzNYI5p9AXB9ipSBMLg1/yv6fweoNikB+/mbtg\n"
@@ -89,8 +89,7 @@ void iot_init(esp_event_loop_handle_t event_loop) {
     mqtt_set_registry_id("RebelEspresso");
     mqtt_set_location("asia-east1");
     mqtt_set_project_id("rebelthings");
-    */
-
+*/
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
 
     mqtt_set_cfg_cb(controller_handle_new_cfg);

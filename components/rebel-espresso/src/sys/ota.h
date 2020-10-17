@@ -22,9 +22,11 @@ void ota_init(
 /**
  * Configure OTA
  */
-void ota_cfg_from_json(const cJSON *config);
+void ota_update_cfg(const cJSON *config);
 
-bool ota_is_configured();
+void ota_cfg_to_json(cJSON* config, const char* base_key);
+
+bool ota_is_enabled();
 
 /**
  * Run OTA in a separate task

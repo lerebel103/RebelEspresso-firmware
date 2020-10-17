@@ -23,7 +23,7 @@
 #define OTA_DEFAULT_TIMEOUT 20000
 
 #define NVS_CFG_STORE "cfg.ota"
-#define KEY_OTA_ENABLED "enabled"
+#define KEY_OTA_ENABLE "enable"
 #define KEY_OTA_URL "url"
 #define KEY_OTA_API_KEY "api_key"
 #define KEY_OTA_VERSION "version"
@@ -99,7 +99,7 @@ static void ota_get_latest_version(char *latest_version) {
     char *url = new char[256]; // Don't crowd stack
     sprintf(url, "%s/latest-version?thing_type=%s&hardware_revision=%s&build_type=%s",
             g_ota_config.url, g_ota_config.thing_type, g_ota_config.hardware_revision, g_ota_config.desiredBuildType);
-    ESP_LOGD(TAG, "OTA version check url='%s' len=%d", url, strlen(url));
+    ESP_LOGI(TAG, "OTA version check url='%s' len=%d", url, strlen(url));
 
     const static int buf_len = 512; // Yes, this is a bit lazy for embedded programming, I hear you
     char *buffer = new char[buf_len];
@@ -111,7 +111,7 @@ static void ota_get_latest_version(char *latest_version) {
                     "\r\n",
             url, host, g_ota_config.thing_type, g_ota_config.thing_id, g_ota_config.api_key);
 
-    ESP_LOGD(TAG, "Sending query %s", buffer);
+    ESP_LOGI(TAG, "Sending query %s", buffer);
 
     esp_tls_cfg_t cfg = {
             .alpn_protos = nullptr,
@@ -397,16 +397,18 @@ bool ota_can_upgrade(const char *ota_version) {
     return can_update;
 }
 
-static void _check_load_params() {
+static void _load_params() {
     if(strlen(g_ota_config.url) == 0) {
         ESP_LOGI(TAG, "Loading OTA params from NVS");
         nvs_handle my_handle;
         ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
 
         s_enabled = true;
-        nvram_store_get_u8(my_handle, KEY_OTA_ENABLED, (uint8_t*)&s_enabled, (uint8_t*)& s_enabled);
-
-        // URL, etc...
+        nvram_store_get_u8(my_handle, KEY_OTA_ENABLE, (uint8_t*)&s_enabled, (uint8_t*)& s_enabled);
+        nvram_store_read_str(my_handle, KEY_OTA_URL, g_ota_config.url, MAX_OTA_URI, g_ota_config.url);
+        nvram_store_read_str(my_handle, KEY_OTA_API_KEY, g_ota_config.api_key, MAX_OTA_API_KEY, g_ota_config.api_key);
+        nvram_store_read_str(my_handle, KEY_OTA_VERSION, g_ota_config.desiredVersion, MAX_VERSION_LEN, g_ota_config.desiredVersion);
+        nvram_store_read_str(my_handle, KEY_OTA_BUILD_TYPE, g_ota_config.desiredBuildType, MAX_VERSION_LEN, g_ota_config.desiredBuildType);
 
         nvs_close(my_handle);
     }
@@ -414,9 +416,6 @@ static void _check_load_params() {
 
 
 static void do_ota(void *) {
-    // Load params from nvram
-    _check_load_params();
-
     EventBits_t uxBits = xEventGroupWaitBits(
             status_event_group,
             WIFI_CONNECTED_BIT,
@@ -472,20 +471,25 @@ void ota_init(
         const char *thing_type,
         const char *firmware_version,
         const char *hardware_revision) {
+    // Load params from nvram
+    _load_params();
+
     g_ota_config.thing_id = thing_id;
     g_ota_config.thing_type = thing_type;
     g_ota_config.firmware_version = firmware_version;
     g_ota_config.hardware_revision = hardware_revision;
 }
 
-void ota_cfg_from_json(const cJSON *config) {
+void ota_update_cfg(const cJSON *config) {
     cJSON *item = config->child;
     while( item ) {
-        if ( strend(item->string, OTA_CFG_JSON_KEY "enabled") ) {
+        if ( strend(item->string, OTA_CFG_JSON_KEY "enable") ) {
             if (cJSON_IsBool(item) && item->valueint == 0) {
-                ESP_LOGI(TAG, "OTA disabled.");
-                g_ota_config.url[0] = '\0';
-                return;
+                s_enabled = false;
+                ESP_LOGI(TAG, "OTA disabled");
+            } else {
+                ESP_LOGI(TAG, "OTA enabled");
+                s_enabled = true;
             }
         } else if ( strend(item->string, OTA_CFG_JSON_KEY "url") ) {
             if (cJSON_IsString(item)) {
@@ -498,14 +502,14 @@ void ota_cfg_from_json(const cJSON *config) {
             if (cJSON_IsString(item)) {
                 strncpy(g_ota_config.api_key, item->valuestring, MAX_OTA_URI);
             }
-        } else if ( strend(item->string, OTA_CFG_JSON_KEY "version") ) {
+        } else if ( strend(item->string, OTA_CFG_JSON_KEY "desired_version") ) {
             if (cJSON_IsString(item)) {
                 strncpy(g_ota_config.desiredVersion, item->valuestring, MAX_VERSION_LEN);
             } else {
                 ESP_LOGE(TAG, "desiredVersion is invalid");
                 return;
             }
-        } else if ( strend(item->string, OTA_CFG_JSON_KEY "build_type") ) {
+        } else if ( strend(item->string, OTA_CFG_JSON_KEY "desired_build_type") ) {
             if (cJSON_IsString(item)) {
                 strncpy(g_ota_config.desiredBuildType, item->valuestring, MAX_VERSION_LEN);
             } else {
@@ -521,7 +525,7 @@ void ota_cfg_from_json(const cJSON *config) {
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
 
-    nvram_store_set_u8(my_handle, KEY_OTA_ENABLED, (uint8_t *) &s_enabled);
+    nvram_store_set_u8(my_handle, KEY_OTA_ENABLE, (uint8_t *) &s_enabled);
     nvram_store_write_str(my_handle, KEY_OTA_URL, g_ota_config.url);
     nvram_store_write_str(my_handle, KEY_OTA_API_KEY, g_ota_config.api_key);
     nvram_store_write_str(my_handle, KEY_OTA_VERSION, g_ota_config.desiredVersion);
@@ -529,6 +533,28 @@ void ota_cfg_from_json(const cJSON *config) {
 
     nvs_close(my_handle);
 }
+
+void ota_cfg_to_json(cJSON* config, const char* base_key) {
+    char* buf = (char*)malloc(64);
+
+    sprintf(buf, "%.*s" OTA_CFG_JSON_KEY "enable", 32, base_key);
+    cJSON_AddBoolToObject(config, buf, s_enabled);
+
+    sprintf(buf, "%.*s" OTA_CFG_JSON_KEY "url", 32, base_key);
+    cJSON_AddStringToObject(config, buf, g_ota_config.url);
+
+    sprintf(buf, "%.*s" OTA_CFG_JSON_KEY "api_key", 32, base_key);
+    cJSON_AddStringToObject(config, buf, g_ota_config.api_key);
+
+    sprintf(buf, "%.*s" OTA_CFG_JSON_KEY "desired_version", 32, base_key);
+    cJSON_AddStringToObject(config, buf, g_ota_config.desiredVersion);
+
+    sprintf(buf, "%.*s" OTA_CFG_JSON_KEY "desired_build_type", 32, base_key);
+    cJSON_AddStringToObject(config, buf, g_ota_config.desiredBuildType);
+
+    free(buf);
+}
+
 
 void ota_run() {
     if (g_ota_task_handle != nullptr) {
@@ -540,10 +566,9 @@ void ota_run() {
     xTaskCreate(do_ota, "ota_run_task", 7 * 1024, nullptr, 5, &g_ota_task_handle);
 }
 
-bool ota_is_configured() {
-    return strlen(g_ota_config.url) > 0;
+bool ota_is_enabled() {
+    return s_enabled;
 }
-
 
 int ota_get_duration() {
     return g_ota_duration;

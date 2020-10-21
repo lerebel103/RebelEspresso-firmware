@@ -28,9 +28,9 @@ static rtd_data_t _rtd_array[RTD_MAX_COUNT];
 static void _read_temp(rtd_update_cb_t cb, int idx) {
     uint16_t rtd;
 
+    vTaskDelay(pdMS_TO_TICKS(20));
     ESP_ERROR_CHECK(s_tempSensor.setConfig(s_tempConfig));
     ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(s_min_rtd, s_max_rtd));
-    vTaskDelay(pdMS_TO_TICKS(20));
     s_tempSensor.getRTD(&rtd, &_rtd_array[idx].fault);
 
 

@@ -229,8 +229,8 @@ static void do_display(void* userData) {
 
 
     u8g2_InitDisplay(&u8g2); // send init sequence to the display, display is in sleep mode after this,
-    u8g2_SetPowerSave(&u8g2, 0); // wake up display
     u8g2_ClearDisplay(&u8g2);
+    u8g2_SetPowerSave(&u8g2, 0); // wake up display
 
     ESP_LOGI(TAG, "Display initialised");
     bool drawWifi = true;

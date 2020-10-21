@@ -13,6 +13,7 @@
 
 #define RMT_CLK_DIV 160
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
+#define ABSOLUTE_MIN_DUTY 4
 
 const double BOILER_PID_P_DEFAULT = 3;
 const double BOILER_PID_I_DEFAULT = 0.5;
@@ -38,8 +39,8 @@ static boiler_status_t s_stats = {};
 static uint64_t s_last_time_us = 0;
 static int s_last_duty = 0;
 
-static double s_last_raw_duty = 0;
-static double s_last_raw_temp = 0;
+static double s_smoothed_duty = 0;
+static double s_smoothed_temp = 0;
 static uint32_t s_boiler_error_sec = 0;
 
 
@@ -185,8 +186,8 @@ static void _pid_reset() {
     ESP_LOGD(TAG, "Resetting...");
     s_last_time_us = 0;
     s_last_pid_err = 0;
-    s_last_raw_duty = 0;
-    s_last_raw_temp = 0;
+    s_smoothed_duty = 0;
+    s_smoothed_temp = 0;
 
     window_reset(&s_data_window);
     ESP_LOGD(TAG, "Reset done.");
@@ -267,14 +268,13 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         window_data(&s_data_window, &wdata);
 
         // Average with last value for stability
-        if (s_last_raw_temp == 0) {
-            s_last_raw_temp = data.temperature;
+        if (s_smoothed_temp == 0) {
+            s_smoothed_temp = data.temperature;
         }
-        double temp_average = (data.temperature + s_last_raw_temp) / 2;
-        s_last_raw_temp = data.temperature;
+        s_smoothed_temp = (data.temperature + s_smoothed_temp) / 2;
 
         // delta from set-point, e.g. our error
-        double error = setpoint - temp_average;
+        double error = setpoint - s_smoothed_temp;
 
         // Safety. If we are 10 degrees over set temperature, cut off
         if (-error > s_cfg.pid.over_setpoint_perc * setpoint / 100) {
@@ -314,16 +314,24 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
             }
 
             // Bit of smoothing
-            auto smoothed_duty = (duty + s_last_raw_duty) / 2;
-            s_last_raw_duty = duty;
+            s_smoothed_duty = (duty + s_smoothed_duty) / 2;
 
             // Clamp to min duty band
-            if (smoothed_duty > 0 && smoothed_duty < s_cfg.pid.min_duty_band) {
-                smoothed_duty = s_cfg.pid.min_duty_band;
+            int adjusted_duty = ceil(s_smoothed_duty);
+            if (adjusted_duty > 0) {
+                if (fabs(error) > 0.5) {
+                    if (adjusted_duty < ABSOLUTE_MIN_DUTY) {
+                        // Lower duties are far too slow in period (6s for 1%)
+                        adjusted_duty = ABSOLUTE_MIN_DUTY;
+                    }
+                } else if (adjusted_duty < s_cfg.pid.min_duty_band) {
+                    // Helps to maintain a tighter band by using more power
+                    adjusted_duty = s_cfg.pid.min_duty_band;
+                }
             }
 
-            ESP_LOGD(TAG, "Calculated PID duty %f", smoothed_duty);
-            boiler_temp_set_duty(smoothed_duty);
+            ESP_LOGD(TAG, "Adjusted PID duty %d", adjusted_duty);
+            boiler_temp_set_duty(adjusted_duty);
             s_last_pid_err = error;
         }
     }

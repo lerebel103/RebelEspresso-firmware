@@ -99,7 +99,7 @@ static void ota_get_latest_version(char *latest_version) {
     char *url = new char[256]; // Don't crowd stack
     sprintf(url, "%s/latest-version?thing_type=%s&hardware_revision=%s&build_type=%s",
             g_ota_config.url, g_ota_config.thing_type, g_ota_config.hardware_revision, g_ota_config.desiredBuildType);
-    ESP_LOGI(TAG, "OTA version check url='%s' len=%d", url, strlen(url));
+    ESP_LOGD(TAG, "OTA version check url='%s' len=%d", url, strlen(url));
 
     const static int buf_len = 512; // Yes, this is a bit lazy for embedded programming, I hear you
     char *buffer = new char[buf_len];

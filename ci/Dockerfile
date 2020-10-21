@@ -42,11 +42,11 @@ RUN python2 get-pip.py && rm get-pip.py
 RUN pip install -r ${IDF_PATH}/requirements.txt
 
 
-RUN curl -L https://github.com/protocolbuffers/protobuf/releases/download/v3.8.0/protobuf-all-3.8.0.tar.gz > /tmp/protobuf.tar.gz && \
-cd /tmp && tar xvzf protobuf.tar.gz && \
-cd protobuf-3.8.0 && \
-./configure && make -j4 install && \
-cd python && python setup.py install --cpp_implementation
+#RUN curl -L https://github.com/protocolbuffers/protobuf/releases/download/v3.8.0/protobuf-all-3.8.0.tar.gz > /tmp/protobuf.tar.gz && \
+#cd /tmp && tar xvzf protobuf.tar.gz && \
+#cd protobuf-3.8.0 && \
+#./configure && make -j4 install && \
+#cd python && python setup.py install --cpp_implementation
 
 ENV PATH /opt/esp/xtensa-esp32-elf/bin:${IDF_PATH}/components/esptool_py/esptool/:${IDF_PATH}/tools:${PATH}
 

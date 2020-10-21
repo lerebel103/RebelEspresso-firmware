@@ -1,5 +1,5 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/esp/dev-base:latest', '.' ]
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest', '.' ]
 images:
-- 'gcr.io/$PROJECT_ID/esp/dev-base:latest'
+- 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest'

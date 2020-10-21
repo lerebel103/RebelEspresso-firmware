@@ -1,7 +1,7 @@
 from ubuntu:20.04
 
 # taken from https://docs.espressif.com/projects/esp-idf/en/latest/get-started/linux-setup.html
-LABEL maintainer=will.castelnau@woodside.com.au
+LABEL maintainer=will.castelnau@gmail.com
 
 ENV LC_ALL C.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
@@ -30,7 +30,7 @@ RUN apt-get install -y cmake ninja-build
 RUN curl https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2020r2-linux-amd64.tar.gz > /tmp/xtensa.tar.gz && mkdir -p /opt/esp && cd /opt/esp && tar -xzf /tmp/xtensa.tar.gz 
 
 # esp-idf
-ENV ESP_IDF_VERSION v4.1-rc
+ENV ESP_IDF_VERSION v4.1
 RUN cd /opt/esp && git clone --recursive --branch ${ESP_IDF_VERSION} https://github.com/espressif/esp-idf.git
 
 # Set paths

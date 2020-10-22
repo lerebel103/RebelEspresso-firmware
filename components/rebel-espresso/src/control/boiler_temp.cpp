@@ -41,7 +41,7 @@ static int s_last_duty = 0;
 
 static double s_smoothed_duty = 0;
 static double s_smoothed_temp = 0;
-static uint32_t s_boiler_error_sec = 0;
+static double s_boiler_error_sec = 0;
 
 
 static void _load_stats() {
@@ -231,12 +231,16 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         _power_off_ssr();
 
         // If we get successive errors from the boiler restart
-        s_boiler_error_sec += time_us * 1e-6;
+        if (s_last_time_us != 0 ) {
+            s_boiler_error_sec += (time_us - s_last_time_us) * 1e-6;
+        }
+        printf("elapsed %f\r\n", s_boiler_error_sec);
         if (s_cfg.temp_error_restart_time_sec != 0 && s_boiler_error_sec > s_cfg.temp_error_restart_time_sec) {
             ESP_LOGE(TAG, "Restarting, too many RTD errors received in succession.");
             esp_restart();
         }
 
+        s_last_time_us = time_us;
         return;
     } else if (data.temperature > 150 || data.temperature < 5) {
         ESP_LOGE(TAG, "Boiler temperature out of range: %f", data.temperature);

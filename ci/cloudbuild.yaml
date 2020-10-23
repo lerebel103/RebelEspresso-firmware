@@ -23,7 +23,14 @@ steps:
         path: /root/.ssh
 
   - name: 'gcr.io/cloud-builders/git'
-    args: [init]
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - |
+        # Cloud Build doesn't recover the .git file. Thus checkout the repo for this
+        git clone --branch $BRANCH_NAME git@github.com:lerebel103/RebelEspresso-firmware.git /tmp/repo ;
+        # Copy only the .git file
+        mv /tmp/repo/.git .
 
   # We are not on a branch per say and this is somewhat of a hack to always go to a branch
   - name: 'gcr.io/cloud-builders/git'

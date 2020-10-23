@@ -24,16 +24,18 @@ steps:
       - name: 'ssh'
         path: /root/.ssh
 
-  - id: Get the .git directory
-    name: git
+  # checkout git submodules
+  - name: 'gcr.io/cloud-builders/git'
+    entrypoint: 'bash'
     args:
-      - bash
-      - -c
-      - |-
-        # get the .git directory only
-        git clone --branch $BRANCH_NAME git@github.com:lerebel103/RebelEspresso-firmware.git /tmp/repo ;
-        # move it to the workspace
-        mv /tmp/repo/.git .
+      - '-c'
+      - |
+        git init
+        git remote add origin git@github.com:/orgname/$REPO_NAME.git
+        git fetch --depth=100 origin $COMMIT_SHA
+        git reset --hard FETCH_HEAD
+        git config -f .gitmodules submodule.core.url git@github.com:/orgname/$REPO_NAME.git
+        git submodule update --init
 
   - name: 'gcr.io/cloud-builders/git'
     args: [branch, --set-upstream-to=origin/$BRANCH_NAME, $BRANCH_NAME]

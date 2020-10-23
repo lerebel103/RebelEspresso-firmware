@@ -1,5 +1,7 @@
 steps:
   # See https://cloud.google.com/cloud-build/docs/access-private-github-repos
+  # Also need 'gcloud config set gcloudignore/enabled false'
+  # and don't forget to add a .gcloudignore file with "!.git" in it
   - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
     args: [ '-c', 'gcloud secrets versions access latest --secret=github-rsa-key > /root/.ssh/id_github' ]
@@ -21,16 +23,6 @@ steps:
     volumes:
       - name: 'ssh'
         path: /root/.ssh
-
-  - name: 'gcr.io/cloud-builders/git'
-    entrypoint: /bin/bash
-    args:
-      - -c
-      - |
-        # Cloud Build doesn't recover the .git file. Thus checkout the repo for this
-        git clone --branch $BRANCH_NAME git@github.com:lerebel103/RebelEspresso-firmware.git /tmp/repo ;
-        # Copy only the .git file
-        mv /tmp/repo/.git .
 
   # We are not on a branch per say and this is somewhat of a hack to always go to a branch
   - name: 'gcr.io/cloud-builders/git'

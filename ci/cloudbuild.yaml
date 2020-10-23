@@ -19,7 +19,6 @@ steps:
         Hostname github.com
         IdentityFile /root/.ssh/id_github
         EOF
-        ssh-keyscan -t rsa github.com > /root/.ssh/known_hosts
     volumes:
       - name: 'ssh'
         path: /root/.ssh
@@ -30,23 +29,14 @@ steps:
     args:
       - '-c'
       - |
+        ssh-keyscan -t rsa github.com > /root/.ssh/known_hosts
         git init
         git remote add origin git@github.com:/orgname/$REPO_NAME.git
         git fetch --depth=100 origin $COMMIT_SHA
-        git reset --hard FETCH_HEAD
-        git config -f .gitmodules submodule.core.url git@github.com:/orgname/$REPO_NAME.git
+        git pull --tags
+        git branch --set-upstream-to=origin/$BRANCH_NAME $BRANCH_NAME
+        git submodule init
         git submodule update --init
-
-  - name: 'gcr.io/cloud-builders/git'
-    args: [branch, --set-upstream-to=origin/$BRANCH_NAME, $BRANCH_NAME]
-
-  - name: 'gcr.io/cloud-builders/git'
-    args: [pull, --tags]
-
-  # Show tags
-  - name: 'gcr.io/cloud-builders/git'
-    args: [tag]
-
 
   # Now build project
   - name: 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest'

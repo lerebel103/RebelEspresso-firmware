@@ -22,9 +22,8 @@ steps:
       - name: 'ssh'
         path: /root/.ssh
 
-  - name: gcr.io/cloud-builders/gcloud
-    entrypoint: 'bash'
-    args: [ '-c', 'ls', '-la' ]
+  - name: 'gcr.io/cloud-builders/git'
+    args: [init]
 
   # We are not on a branch per say and this is somewhat of a hack to always go to a branch
   - name: 'gcr.io/cloud-builders/git'

@@ -31,7 +31,7 @@ steps:
       - -c
       - |-
         # get the .git directory only
-        git clone --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME /tmp/repo ;
+        git clone --branch $BRANCH_NAME git@github.com:lerebel103/RebelEspresso-firmware.git /tmp/repo ;
         # move it to the workspace
         mv /tmp/repo/.git .
 

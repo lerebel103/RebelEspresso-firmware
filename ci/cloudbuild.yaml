@@ -24,7 +24,7 @@ steps:
 
   - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
-    args: [ 'ls', '-l' ]
+    args: [ '-c', 'ls', '-l' ]
 
   # We are not on a branch per say and this is somewhat of a hack to always go to a branch
   - name: 'gcr.io/cloud-builders/git'

@@ -2,6 +2,10 @@ steps:
   # See https://cloud.google.com/cloud-build/docs/access-private-github-repos
   # Also need 'gcloud config set gcloudignore/enabled false'
   # and don't forget to add a .gcloudignore file with "!.git" in it
+  #
+  # Also enable container caching
+  # gcloud config set builds/use_kaniko True
+  #
   - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
     args: [ '-c', 'gcloud secrets versions access latest --secret=github-rsa-key > /root/.ssh/id_github' ]

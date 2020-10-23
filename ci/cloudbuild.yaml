@@ -32,8 +32,9 @@ steps:
       - |
         git init
         git remote add origin git@github.com:/lerebel103/$REPO_NAME.git
-        git fetch --depth=100 origin $COMMIT_SHA
+        git branch --set-upstream-to=origin/$BRANCH_NAME $BRANCH_NAME
         git pull --tags
+        git fetch --depth=1000 origin $COMMIT_SHA
         git submodule update --init --recursive
     volumes:
       - name: 'ssh'

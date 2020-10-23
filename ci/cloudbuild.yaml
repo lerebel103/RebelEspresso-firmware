@@ -30,11 +30,10 @@ steps:
     args:
       - '-c'
       - |
-        git init
-        git remote add origin git@github.com:/lerebel103/$REPO_NAME.git
-        git branch --set-upstream-to=origin/$BRANCH_NAME $BRANCH_NAME
+        # get the .git directory only
+        git clone --no-checkout --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME.git /tmp/repo
+        mv /tmp/repo/.git .
         git pull --tags
-        git fetch --depth=1000 origin $COMMIT_SHA
         git submodule update --init --recursive
     volumes:
       - name: 'ssh'

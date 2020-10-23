@@ -2,7 +2,7 @@ steps:
   # See https://cloud.google.com/cloud-build/docs/access-private-github-repos
   - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
-    args: [ '-c', 'gcloud secrets versions access latest --secret=secret-name > /root/.ssh/id_github' ]
+    args: [ '-c', 'gcloud secrets versions access latest --secret=github-rsa-key > /root/.ssh/id_github' ]
     volumes:
       - name: 'ssh'
         path: /root/.ssh

@@ -37,12 +37,15 @@ steps:
         git branch --set-upstream-to=origin/$BRANCH_NAME $BRANCH_NAME
         git submodule init
         git submodule update --init
+    volumes:
+      - name: 'ssh'
+        path: /root/.ssh
 
   # Now build project
   - name: 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest'
     volumes:
       - name: 'ssh'
-        path: /home/dev/.ssh
+        path: /root/.ssh
     args: ['bash', 'ci/build.sh']
 
   # Place artifacts on GS

@@ -112,7 +112,8 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-    bool level_ok = boiler_refill_read_state();
+    // disable check for now
+    bool level_ok = true; //boiler_refill_read_state();
 
     if (!level_ok) {
         xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);

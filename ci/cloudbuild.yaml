@@ -19,6 +19,7 @@ steps:
         Hostname github.com
         IdentityFile /root/.ssh/id_github
         EOF
+        ssh-keyscan -t rsa github.com > /root/.ssh/known_hosts
     volumes:
       - name: 'ssh'
         path: /root/.ssh
@@ -29,9 +30,8 @@ steps:
     args:
       - '-c'
       - |
-        ssh-keyscan -t rsa github.com > /root/.ssh/known_hosts
         git init
-        git remote add origin git@github.com:/orgname/$REPO_NAME.git
+        git remote add origin git@github.com:/lerebel103/$REPO_NAME.git
         git fetch --depth=100 origin $COMMIT_SHA
         git pull --tags
         git branch --set-upstream-to=origin/$BRANCH_NAME $BRANCH_NAME
@@ -43,10 +43,10 @@ steps:
 
   # Now build project
   - name: 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest'
+    args: ['bash', 'ci/build.sh']
     volumes:
       - name: 'ssh'
         path: /root/.ssh
-    args: ['bash', 'ci/build.sh']
 
   # Place artifacts on GS
   - name: 'gcr.io/cloud-builders/gsutil'

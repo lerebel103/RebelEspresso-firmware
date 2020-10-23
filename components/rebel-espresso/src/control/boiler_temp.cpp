@@ -288,33 +288,23 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
             s_stats_changed = true;
         } else {
             double duty = 0;
-            // Normal PID on setpoint 0
-            if (s_cfg.pid.active_setpoint == 0) {
-                // Then we can proceed
-                // Derivative part
-                double derivative = 0;
-                if (s_last_time_us != 0 && deltaT != 0) {
-                    derivative = (error - s_last_pid_err) / deltaT;
-                }
+            // Then we can proceed
+            // Derivative part
+            double derivative = 0;
+            if (s_last_time_us != 0 && deltaT != 0) {
+                derivative = (error - s_last_pid_err) / deltaT;
+            }
 
-                // Calculate duty, start with P and D
-                duty = (s_cfg.pid.P * error) + (s_cfg.pid.D * derivative);
+            // Calculate duty, start with P and D
+            duty = (s_cfg.pid.P * error) + (s_cfg.pid.D * derivative);
 
-                // Integral is added if we are below our delta error temp
-                if (fabs(error) < s_cfg.pid.I_reset_temp) {
-                    ESP_LOGD(TAG, "I=%f, value=%f", s_cfg.pid.I, (s_cfg.pid.I * wdata.error_integral));
-                    duty += (s_cfg.pid.I * wdata.error_integral);
-                } else {
-                    // Keep on resetting window in this case
-                    window_reset(&s_data_window);
-                }
+            // Integral is added if we are below our delta error temp
+            if (fabs(error) < s_cfg.pid.I_reset_temp) {
+                ESP_LOGD(TAG, "I=%f, value=%f", s_cfg.pid.I, (s_cfg.pid.I * wdata.error_integral));
+                duty += (s_cfg.pid.I * wdata.error_integral);
             } else {
-                // setpoint 1 treated as alarm setpoint, no PID.
-                if (data.temperature >= setpoint) {
-                    duty = 0;
-                } else {
-                    duty = 100;
-                }
+                // Keep on resetting window in this case
+                window_reset(&s_data_window);
             }
 
             // Bit of smoothing

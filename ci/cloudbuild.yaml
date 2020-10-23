@@ -24,6 +24,7 @@ steps:
       - name: 'ssh'
         path: /root/.ssh
 
+  # git config pull.ff only
   # checkout git submodules
   - name: 'gcr.io/cloud-builders/git'
     entrypoint: 'bash'
@@ -31,8 +32,7 @@ steps:
       - '-c'
       - |
         # get the .git directory only
-        git config pull.ff only
-        git clone --no-checkout --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME.git /tmp/repo
+        git clone --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME.git /tmp/repo
         mv /tmp/repo/.git .
         git pull --tags
         git tag --list

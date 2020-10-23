@@ -24,9 +24,16 @@ steps:
       - name: 'ssh'
         path: /root/.ssh
 
-  # We are not on a branch per say and this is somewhat of a hack to always go to a branch
-  - name: 'gcr.io/cloud-builders/git'
-    args: [fetch, --depth=1000]
+  - id: Get the .git directory
+    name: git
+    args:
+      - bash
+      - -c
+      - |-
+        # get the .git directory only
+        git clone --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME /tmp/repo ;
+        # move it to the workspace
+        mv /tmp/repo/.git .
 
   - name: 'gcr.io/cloud-builders/git'
     args: [branch, --set-upstream-to=origin/$BRANCH_NAME, $BRANCH_NAME]

@@ -40,7 +40,6 @@ steps:
         git clone --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME.git /tmp/repo
         mv /tmp/repo/.git .
         git pull --tags
-        git tag --list
         git submodule update --init --recursive
     volumes:
       - name: 'ssh'

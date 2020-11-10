@@ -12,9 +12,9 @@
 
 const char *TAG = "HK";
 
-#define ACCESSORY_NAME  "Rebel Opener"
+#define ACCESSORY_NAME  "Rebel Espresso"
 #define MANUFACTURER_NAME   "LeRebel"
-#define MODEL_NAME  "RebelOpener r" HARDWARE_REVISION
+#define MODEL_NAME THING_TYPE " r" HARDWARE_REVISION
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 
 static void* s_acc;
@@ -131,7 +131,7 @@ void hap_object_init(void *arg) {
 
     // Ambient temperature
     ESP_LOGI(TAG, "Adding characteristics");
-    struct hap_characteristic ambient_temperature[] = {
+    struct hap_characteristic switches[] = {
             {
                     HAP_CHARACTER_NAME,
                     (void *) "DoorOpener",
@@ -171,8 +171,8 @@ void hap_object_init(void *arg) {
                     NO_VALUE_SPECIFICS
             },
     };
-    hap_service_and_characteristics_add(s_acc, accessory_object, HAP_SERVICE_GARAGE_DOOR_OPENER, ambient_temperature,
-                                        ARRAY_SIZE(ambient_temperature));
+    hap_service_and_characteristics_add(s_acc, accessory_object, HAP_SERVICE_SWITCHS, switches,
+                                        ARRAY_SIZE(switches));
 
 }
 
@@ -191,7 +191,7 @@ void homekit_init() {
     callback.hap_object_init = hap_object_init;
     ESP_LOGI(TAG, "Home kit initialising with accessory_id %s", accessory_id);
     s_acc = hap_accessory_register((char *) ACCESSORY_NAME, accessory_id, (char *) "111-23-456",
-                                   (char *) MANUFACTURER_NAME, HAP_ACCESSORY_CATEGORY_GARAGE, 1, nullptr,
+                                   (char *) MANUFACTURER_NAME, HAP_ACCESSORY_CATEGORY_SWITCH, 1, nullptr,
                                    &callback);
 
     s_init = true;

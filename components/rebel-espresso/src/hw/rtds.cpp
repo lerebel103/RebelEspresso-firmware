@@ -112,7 +112,7 @@ int rtds_init(const rtds_cfg_t *cfg) {
     } else {
         ESP_LOGI(TAG, "RTD sensor initialised.");
         // Turn off logs from max RTD IC
-        esp_log_level_set("Max31865", ESP_LOG_NONE);
+        //esp_log_level_set("Max31865", ESP_LOG_NONE);
         return 0;
     }
 }

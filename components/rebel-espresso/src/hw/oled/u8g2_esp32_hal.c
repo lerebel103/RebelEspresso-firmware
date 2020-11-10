@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <sys/param.h>
 
 #include "sdkconfig.h"
 #include "esp_log.h"
@@ -52,8 +53,9 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             bus_config.miso_io_num   = u8g2_esp32_hal.miso;
             bus_config.quadwp_io_num = -1; // Not used
             bus_config.quadhd_io_num = -1; // Not used
+            bus_config.max_transfer_sz = 0;
             ESP_LOGI(TAG, "... Initializing bus clk=%d mosi=%d.", bus_config.sclk_io_num, bus_config.mosi_io_num);
-            esp_err_t err =spi_bus_initialize(HSPI_HOST, &bus_config, 0);
+            esp_err_t err = spi_bus_initialize(HSPI_HOST, &bus_config, 0);
             // INVALID_STATE means the host is already in use - that's OK
             if (err == ESP_ERR_INVALID_STATE) {
                 ESP_LOGD(TAG, "SPI bus already initialized");
@@ -70,7 +72,7 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             dev_config.duty_cycle_pos   = 0;
             dev_config.cs_ena_posttrans = 0;
             dev_config.cs_ena_pretrans  = 0;
-            dev_config.clock_speed_hz   = 15000000;
+            dev_config.clock_speed_hz   = 16000000;
             dev_config.spics_io_num     = u8g2_esp32_hal.cs;
             dev_config.flags            = SPI_DEVICE_HALFDUPLEX;
             dev_config.queue_size       = 200;
@@ -87,17 +89,33 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             trans_desc.addr      = 0;
             trans_desc.cmd   	 = 0;
             trans_desc.flags     = 0;
-            trans_desc.length    = 8 * arg_int; // Number of bits NOT number of bytes.
             trans_desc.rxlength  = 0;
-            trans_desc.tx_buffer = arg_ptr;
             trans_desc.rx_buffer = NULL;
 
-            spi_device_acquire_bus(handle_spi, portMAX_DELAY);
-            spi_device_transmit(handle_spi, &trans_desc);
-            spi_device_release_bus(handle_spi);
+            // We are not using DMA and are restricted to sending a max of 64-bits
+            // per transaction sadly. If DMA is enabled, it breaks the RTD sensor
+            int size = 8 * arg_int;
+            void* pointer = arg_ptr;
+            while (size > 0) {
+                int chunk = MIN(64, size);
+                trans_desc.length    = chunk; // Number of bits NOT number of bytes.
+                trans_desc.tx_buffer = pointer;
+
+                spi_device_transmit(handle_spi, &trans_desc);
+                size -= chunk;
+                pointer += chunk / 8;
+            }
 
             break;
         }
+        case U8X8_MSG_BYTE_START_TRANSFER:
+            //ESP_LOGW(TAG, "Start tx");
+            spi_device_acquire_bus(handle_spi, portMAX_DELAY);
+            break;
+        case U8X8_MSG_BYTE_END_TRANSFER:
+            //ESP_LOGW(TAG, "End tx");
+            spi_device_release_bus(handle_spi);
+            break;
     }
     return 0;
 } // u8g2_esp32_spi_byte_cb

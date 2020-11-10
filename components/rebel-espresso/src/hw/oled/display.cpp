@@ -40,7 +40,7 @@ static float temperature_to_unit(double celcius, units_enum_t unit) {
 }
 
 static void display_draw_frame(u8g2_t *u8g2, int xSeparator, int ySeparator) {
-    // H Line just below pit temp
+    // H Line just below boiler temp
     u8g2_DrawLine(u8g2, 0, ySeparator, xSeparator, ySeparator);
 
     // Right most separator
@@ -85,19 +85,19 @@ static void display_draw_unit(u8g2_t *u8g2, int yPos) {
     }
 }
 
-void display_draw_pit_temp(u8g2_t *u8g2, int *y) {
+void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     rtd_data_t result;
     rtds_get(&result, 0);
 
     char tempBuf[16];
-    char setPointBuf[7];
+    //char setPointBuf[7];
     auto temp_val = result.temperature;
 
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
 
-    sprintf(setPointBuf, "/%d", (int) temperature_to_unit(cfg.pid.setpoints[cfg.pid.active_setpoint], rtds_get_unit()));
+    //sprintf(setPointBuf, "/%d", (int) temperature_to_unit(cfg.pid.setpoints[cfg.pid.active_setpoint], rtds_get_unit()));
 
-    int width_of_set_point = 10 * strlen(setPointBuf);
+    int width_of_set_point = 0; //10 * strlen(setPointBuf);
 
     // Integral part of temperature, in larger font
     if (result.fault == Max31865Error::NoError) {
@@ -107,7 +107,7 @@ void display_draw_pit_temp(u8g2_t *u8g2, int *y) {
     }
 
 
-    auto width_of_intregral_temp = strlen(tempBuf) * 10;
+    auto width_of_intregral_temp = strlen(tempBuf) * 20;
     auto width_of_floating_point = 2 * 8;
 
     // Calculate offset from LHS edge
@@ -115,26 +115,27 @@ void display_draw_pit_temp(u8g2_t *u8g2, int *y) {
                      - width_of_intregral_temp
                      - width_of_set_point
                      - width_of_floating_point) / 2;
-    u8g2_SetFont(u8g2, u8g2_font_courB14_tf);
+    u8g2_SetFont(u8g2, u8g2_font_courB24_tf);
     u8g2_DrawStr(u8g2, x_offset, *y, tempBuf);
 
     // Draw floating point now, as '.x'
     int point = static_cast<int>(temp_val * 10 - static_cast<int>(temp_val) * 10);
     sprintf(tempBuf, ".%d", point);
-    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+    u8g2_SetFont(u8g2, u8g2_font_courR10_tf);
     u8g2_DrawStr(u8g2, x_offset + width_of_intregral_temp, *y, tempBuf);
 
     // And now Setpoint
-    auto x_setpoint = x_offset + width_of_intregral_temp + width_of_floating_point;
+    /*auto x_setpoint = x_offset + width_of_intregral_temp + width_of_floating_point;
     u8g2_SetFont(u8g2, u8g2_font_courR10_tf);
     u8g2_DrawStr(u8g2, x_setpoint, (*y), setPointBuf);
+     */
 
     // Duty
     double duty = boiler_temp_get_duty();
-    sprintf(tempBuf, "Duty: %d%%", (int)duty);
-    auto width_of_duty_temp = strlen(tempBuf) * 10;
+    sprintf(tempBuf, "%d%%", (int)duty);
+    auto width_of_duty_temp = strlen(tempBuf) * 8;
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2, 10 + (TEMPERATURE_PANEL_WIDTH - width_of_duty_temp) / 2, *y + 26, tempBuf);
+    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - width_of_duty_temp) + 3, 8, tempBuf);
 
 }
 
@@ -163,11 +164,11 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         u8g2_ClearBuffer(&u8g2);
 
         // Draw temps, flash them when lid is open
-        int y = 14;
-        display_draw_pit_temp(&u8g2, &y);
+        int y = 26;
+        display_draw_boiler_temp(&u8g2, &y);
 
         y+=6;
-        int yPitBottom = y;
+        int yboilerBottom = y;
 
         int yPosWifi = 14;
         int yPosOnOff = 54;
@@ -188,7 +189,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         }
 
         // Now draw frame separator
-        display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, yPitBottom);
+        display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, yboilerBottom);
 
         // WiFi symbol
         if (drawWifi) {
@@ -225,7 +226,8 @@ static void do_display(void* userData) {
     u8g2_esp32_hal_init(u8g2_esp32_hal);
 
     u8g2_t u8g2;
-    u8g2_Setup_ssd1322_nhd_256x64_f(&u8g2, U8G2_R0, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
+    //u8g2_Setup_ssd1322_nhd_256x64_f(&u8g2, U8G2_R0, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
+    u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
 
 
     u8g2_InitDisplay(&u8g2); // send init sequence to the display, display is in sleep mode after this,

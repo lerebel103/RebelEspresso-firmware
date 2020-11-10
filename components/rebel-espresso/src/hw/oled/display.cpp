@@ -135,7 +135,7 @@ void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     sprintf(tempBuf, "%d%%", (int)duty);
     auto width_of_duty_temp = strlen(tempBuf) * 8;
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - width_of_duty_temp) + 3, 8, tempBuf);
+    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - width_of_duty_temp) + 2, 8, tempBuf);
 
 }
 

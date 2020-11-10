@@ -38,7 +38,7 @@ steps:
         # get the .git directory
         git config pull.ff only
         git clone --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME.git /tmp/repo
-        cp /tmp/repo/.git . && rm -fr /tmp/repo/.git
+        cp -r /tmp/repo/.git . && rm -fr /tmp/repo/.git
         git pull --tags
         git submodule update --init --recursive
     volumes:

@@ -6,13 +6,14 @@
 #include <esp_interface.h>
 #include <esp_wifi.h>
 #include <events.h>
+#include <src/control/power.h>
 
 #include "thing_info.h"
 #include "version.h"
 
 const char *TAG = "HK";
 
-#define ACCESSORY_NAME  "Rebel Espresso"
+#define ACCESSORY_NAME  "RebelEspresso"
 #define MANUFACTURER_NAME   "LeRebel"
 #define MODEL_NAME THING_TYPE " r" HARDWARE_REVISION
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
@@ -21,78 +22,67 @@ static void* s_acc;
 static bool s_init = false;
 static hap_accessory_callback_t callback;
 
-static uint8_t s_current_state_last_sent = 254;
-static uint8_t s_obstruction_last_sent = 254;
-static uint8_t s_target_state_last_sent = 254;
+static uint8_t s_state_last_sent = 254;
+static uint8_t s_fault_last_sent = 254;
 
-static uint8_t s_target_state = 1;
-
-static void *_current_state_ev_handle;
-static void *_target_state_ev_handle;
-static void *_obstruction_ev_handle;
+static void *_state_ev_handle;
+static void *_fault_ev_handle;
 
 
 void* identify_read(void*) {
     return nullptr;
 }
 
-void *_current_state_read(void *arg) {
+static void *_state_read(void *arg) {
+    LWIP_UNUSED_ARG(arg);
+    static int val = 0;
+    if (power_is_active()) {
+        val = 1;
+    } else {
+        val = 0;
+    }
+
+    return (void *) &val;
+}
+
+static void _state_write(void *arg, void *value, int len) {
+    LWIP_UNUSED_ARG(arg);
+    LWIP_UNUSED_ARG(len);
+    LWIP_UNUSED_ARG(arg);
+
+    bool on = *(uint8_t*)value;
+    if (on) {
+        ESP_LOGW(TAG, "Got new target state ON");
+        power_active();
+    } else {
+        ESP_LOGW(TAG, "Got new target state OFF");
+        power_standby();
+    }
+}
+
+static void _state_notify(void *arg, void *ev_handle, bool enable) {
+    LWIP_UNUSED_ARG(arg);
+
+    if (enable) {
+        _state_ev_handle = ev_handle;
+    } else {
+        _state_ev_handle = nullptr;
+    }
+}
+
+static void *_fault_read(void *arg) {
     LWIP_UNUSED_ARG(arg);
     static int val = 0;
     return (void *) &val;
 }
 
-void _current_state_notify(void *arg, void *ev_handle, bool enable) {
+static void _fault_notify(void *arg, void *ev_handle, bool enable) {
     LWIP_UNUSED_ARG(arg);
 
     if (enable) {
-        _current_state_ev_handle = ev_handle;
+        _fault_ev_handle = ev_handle;
     } else {
-        _current_state_ev_handle = nullptr;
-    }
-}
-
-
-void *_target_state_read(void *arg) {
-    LWIP_UNUSED_ARG(arg);
-    return (void *) &s_target_state;
-}
-
-
-void _target_state_write(void *arg, void *value, int len) {
-    LWIP_UNUSED_ARG(arg);
-    LWIP_UNUSED_ARG(len);
-    LWIP_UNUSED_ARG(arg);
-
-    s_target_state = *(uint8_t*)value;
-    ESP_LOGW(TAG, "Got new target state %d", s_target_state);
-}
-
-void _target_state_notify(void *arg, void *ev_handle, bool enable) {
-    LWIP_UNUSED_ARG(arg);
-
-    if (enable) {
-        _target_state_ev_handle = ev_handle;
-    } else {
-        _target_state_ev_handle = nullptr;
-    }
-}
-
-void *_obstruction_read(void *arg) {
-    LWIP_UNUSED_ARG(arg);
-    static bool val = 0;
-
-    return (void *) &val;
-}
-
-
-void _obstruction_notify(void *arg, void *ev_handle, bool enable) {
-    LWIP_UNUSED_ARG(arg);
-
-    if (enable) {
-        _obstruction_ev_handle = ev_handle;
-    } else {
-        _obstruction_ev_handle = nullptr;
+        _fault_ev_handle = nullptr;
     }
 }
 
@@ -115,61 +105,28 @@ void hap_object_init(void *arg) {
     };
     hap_service_and_characteristics_add(s_acc, accessory_object, HAP_SERVICE_ACCESSORY_INFORMATION, cs, ARRAY_SIZE(cs));
 
-
-    /**
-     Defines that the accessory has control over the opening of a garage door.
-     Required Characteristics:
-     - CURRENT_DOOR_STATE
-     - current_state_DOOR_STATE
-     - OBSTRUCTION_DETECTED
-
-     Optional Characteristics:
-     - NAME
-     - LOCK_CURRENT_STATE
-     - LOCK_current_state_STATE
-     */
-
-    // Ambient temperature
     ESP_LOGI(TAG, "Adding characteristics");
     struct hap_characteristic switches[] = {
             {
-                    HAP_CHARACTER_NAME,
-                    (void *) "DoorOpener",
+                    HAP_CHARACTER_ON,
+                    _state_read(nullptr),
                     nullptr,
-                    nullptr,
-                    nullptr,
-                    nullptr,
-                    NO_VALUE_SPECIFICS
-            },
-            {
-                    HAP_CHARACTER_CURRENT_DOOR_STATE,
-                    _current_state_read(nullptr),
-                    nullptr,
-                    _current_state_read,
-                    nullptr,
-                    _current_state_notify,
+                    _state_read,
+                    _state_write,
+                    _state_notify,
                     NO_VALUE_SPECIFICS
 
-            },
+            }/*,
             {
-                    HAP_CHARACTER_TARGET_DOORSTATE,
-                    _target_state_read(nullptr),
+                    HAP_CHARACTER_STATUS_FAULT,
+                    _fault_read(nullptr),
                     nullptr,
-                    _target_state_read,
-                    _target_state_write,
-                    _target_state_notify,
+                    _fault_read,
+                    nullptr,
+                    _fault_notify,
                     NO_VALUE_SPECIFICS
 
-            },
-            {
-                    HAP_CHARACTER_OBSTRUCTION_DETECTED,
-                    _obstruction_read(nullptr),
-                    nullptr,
-                    _obstruction_read,
-                    nullptr,
-                    _obstruction_notify,
-                    NO_VALUE_SPECIFICS
-            },
+            }*/
     };
     hap_service_and_characteristics_add(s_acc, accessory_object, HAP_SERVICE_SWITCHS, switches,
                                         ARRAY_SIZE(switches));
@@ -208,30 +165,21 @@ void homekit_tick(TickType_t tickMS) {
         return;
     }
 
-
-    if (_target_state_ev_handle) {
-        auto target = (uint8_t*)_target_state_read(NULL);
-        if (s_target_state_last_sent != *target) {
-            hap_event_response(s_acc, _target_state_ev_handle, target);
-            s_target_state_last_sent = *(uint8_t*)target;
-        }
-    }
-    
-    if (_current_state_ev_handle) {
-        auto current_state = (uint8_t*)_current_state_read(NULL);
-        if (s_current_state_last_sent != *current_state) {
-            hap_event_response(s_acc, _current_state_ev_handle, current_state);
-            s_current_state_last_sent = *(uint8_t*)current_state;
+   if (_state_ev_handle) {
+        auto current_state = (uint8_t*) _state_read(NULL);
+        if (s_state_last_sent != *current_state) {
+            hap_event_response(s_acc, _state_ev_handle, current_state);
+            s_state_last_sent = *(uint8_t*)current_state;
         }
     }
 
-    if (_obstruction_ev_handle) {
-        auto obstruction = (bool*)_obstruction_read(NULL);
-        if (s_obstruction_last_sent != *obstruction) {
-            hap_event_response(s_acc, _obstruction_ev_handle, obstruction);
-            s_obstruction_last_sent = *(bool*)obstruction;
+    /*if (_fault_ev_handle) {
+        auto fault = (bool*)_fault_read(NULL);
+        if (s_fault_last_sent != *fault) {
+            hap_event_response(s_acc, _fault_ev_handle, fault);
+            s_fault_last_sent = *(bool*)fault;
         }
-    }
+    }*/
 
 
 }

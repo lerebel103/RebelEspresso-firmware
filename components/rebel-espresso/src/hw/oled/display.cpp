@@ -9,6 +9,8 @@
 #include <src/hw/rtds.h>
 #include <src/control/boiler_temp.h>
 #include <cmath>
+#include <src/control/power.h>
+#include <esp_event.h>
 
 #include "control/controller.h"
 
@@ -26,6 +28,7 @@ extern "C" {
 #define TEMPERATURE_PANEL_WIDTH 112
 #define PROBE_CELL_WIDTH (TEMPERATURE_PANEL_WIDTH / 2)
 
+static esp_event_loop_handle_t s_event_loop;
 const static char* TAG = "oled";
 static bool g_go = true;
 
@@ -93,7 +96,7 @@ void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     //char setPointBuf[7];
     auto temp_val = result.temperature;
 
-    boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
+    //boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
 
     //sprintf(setPointBuf, "/%d", (int) temperature_to_unit(cfg.pid.setpoints[cfg.pid.active_setpoint], rtds_get_unit()));
 
@@ -163,45 +166,51 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
     while (g_go) {
         u8g2_ClearBuffer(&u8g2);
 
-        // Draw temps, flash them when lid is open
-        int y = 26;
-        display_draw_boiler_temp(&u8g2, &y);
+        if (power_is_active()) {
+            u8g2_SetPowerSave(&u8g2, 0); // wake up display
+            // Draw temps, flash them when lid is open
+            int y = 26;
+            display_draw_boiler_temp(&u8g2, &y);
 
-        y+=6;
-        int yboilerBottom = y;
+            y+=6;
+            int yboilerBottom = y;
 
-        int yPosWifi = 14;
-        int yPosOnOff = 54;
+            int yPosWifi = 14;
+            int yPosOnOff = 54;
 
-        EventBits_t uxBits = xEventGroupWaitBits(
-                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT, false, true, 0);
+            EventBits_t uxBits = xEventGroupWaitBits(
+                    status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT, false, true, 0);
 
-        if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
-            drawWifi = !drawWifi;
-            delay = 500;
-        } else if ((WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
-            drawWifi = !drawWifi;
-            delay = 200;
+            if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
+                drawWifi = !drawWifi;
+                delay = 500;
+            } else if ((WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
+                drawWifi = !drawWifi;
+                delay = 200;
+            } else {
+                drawWifi = true;
+                // Then no need to go crazy, it's event triggered when changes are detected
+                delay = 5000;
+            }
+
+            // Now draw frame separator
+            display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, yboilerBottom);
+
+            // WiFi symbol
+            if (drawWifi) {
+                display_draw_wifi(&u8g2, yPosWifi);
+            }
+
+            // unit
+            display_draw_unit(&u8g2, yPosWifi + (yPosOnOff - yPosWifi) / 2);
+
+            // On / Off
+            toggle = !toggle;
+            display_draw_on_off(&u8g2, yPosOnOff, toggle);
+
         } else {
-            drawWifi = true;
-            // Then no need to go crazy, it's event triggered when changes are detected
-            delay = 5000;
+            u8g2_SetPowerSave(&u8g2, 1); // wake up display
         }
-
-        // Now draw frame separator
-        display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, yboilerBottom);
-
-        // WiFi symbol
-        if (drawWifi) {
-            display_draw_wifi(&u8g2, yPosWifi);
-        }
-
-        // unit
-        display_draw_unit(&u8g2, yPosWifi + (yPosOnOff - yPosWifi) / 2);
-
-        // On / Off
-        toggle = !toggle;
-        display_draw_on_off(&u8g2, yPosOnOff, toggle);
 
         u8g2_SendBuffer(&u8g2);
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
@@ -209,9 +218,19 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 }
 
 
+static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
+}
+
 
 static void do_display(void* userData) {
     ESP_LOGI(TAG, "Initialising display");
+
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, s_event_loop));
+
 
     u8g2_esp32_hal_t u8g2_esp32_hal = {};
     u8g2_esp32_hal.sda   = GPIO_NUM_NC;
@@ -249,6 +268,7 @@ static void do_display(void* userData) {
 
 }
 
-void display_init() {
+void display_init(esp_event_loop_handle_t event_loop) {
+    s_event_loop = event_loop;
     xTaskCreate(do_display, "do_display", 4596, NULL, 5, NULL);
 }

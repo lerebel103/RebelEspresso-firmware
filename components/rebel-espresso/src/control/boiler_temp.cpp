@@ -260,10 +260,10 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         boiler_temp_set_duty(0);
     } else {
         // Good to go
-        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs", data.temperature, deltaT);
-
+        //s_cfg.pid.active_setpoint = 1;
         double setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-        
+        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs, setpoiut=%f", data.temperature, deltaT, setpoint);
+
         // Accumulate
         window_accumulate(&s_data_window, time_us, &data, setpoint,s_cfg.pid.I_reset_sec * 1e3);
 

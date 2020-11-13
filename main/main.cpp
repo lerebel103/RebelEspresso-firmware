@@ -42,7 +42,7 @@ extern "C" void app_main() {
     store_inc_cycle_count(); // Record number of power cycles.
 
     thing_info_init();
-    display_init();
+    display_init(event_loop);
     state_print_system_info();
     controller_init(event_loop);
 

@@ -14,3 +14,5 @@ void power_standby();
  * Activates power
  */
 void power_active();
+
+bool power_is_active();

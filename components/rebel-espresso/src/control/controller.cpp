@@ -52,7 +52,7 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     boiler_refill_init(event_loop);
     boiler_temp_init(event_loop);
     pump_init(event_loop);
-    brew_temp_init(event_loop);
+    //brew_temp_init(event_loop);
     setpoint_selector_init(event_loop);
     rtds_init(&s_rtds_cfg);
     process_loop_init(event_loop);

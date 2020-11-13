@@ -12,6 +12,7 @@ const static char *TAG = "power";
 
 static esp_event_loop_handle_t s_event_loop;
 static bool s_is_low_power = false;
+static bool s_active_toggled = false;
 
 static void _standby() {
     if ((xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
@@ -42,7 +43,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     }
 
     if (gpio_get_level(GPIO_SW3) == 0) {
-        if (s_is_low_power) {
+        /*if (s_is_low_power) {
             // Enter normal power mode
             esp_pm_config_esp32_t pm_config = {
                     .max_freq_mhz = 240,
@@ -52,13 +53,16 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 
             ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
             s_is_low_power = false;
-        }
+        }*/
 
         _active();
-    } else {
+
+        // Always reset active toggle if we are forced on
+        s_active_toggled = false;
+    } else if (!s_active_toggled){
         _standby();
 
-        if (!s_is_low_power) {
+        /*if (!s_is_low_power) {
             // Enter lower power mode
             esp_pm_config_esp32_t pm_config = {
                     .max_freq_mhz = 160,
@@ -69,18 +73,26 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
             // Adjust Dynamic Frequency Scaling range and enter light sleep
             ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
             s_is_low_power = true;
-        }
+        }*/
     }
 }
 
 void power_standby() {
-    _standby();
+    s_active_toggled = false;
+    if (gpio_get_level(GPIO_SW3) != 0) {
+        _standby();
+    }
 }
 
 void power_active() {
+    s_active_toggled = true;
     _active();
 }
 
+bool power_is_active() {
+    bool is_on = xEventGroupGetBits(status_event_group) & POWER_ON_BIT;
+    return is_on;
+}
 
 void power_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;

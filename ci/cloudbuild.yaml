@@ -39,7 +39,7 @@ steps:
         git config pull.ff only
         git clone --branch $BRANCH_NAME git@github.com:lerebel103/$REPO_NAME.git /tmp/repo
         cp -r /tmp/repo/.git . && rm -fr /tmp/repo/.git
-        git pull --tags
+        git pull --unshallow
         git submodule update --init --recursive
     volumes:
       - name: 'ssh'

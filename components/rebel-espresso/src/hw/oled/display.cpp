@@ -167,7 +167,6 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         u8g2_ClearBuffer(&u8g2);
 
         if (power_is_active()) {
-            u8g2_SetPowerSave(&u8g2, 0); // wake up display
             // Draw temps, flash them when lid is open
             int y = 26;
             display_draw_boiler_temp(&u8g2, &y);
@@ -207,9 +206,6 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             // On / Off
             toggle = !toggle;
             display_draw_on_off(&u8g2, yPosOnOff, toggle);
-
-        } else {
-            u8g2_SetPowerSave(&u8g2, 1); // wake up display
         }
 
         u8g2_SendBuffer(&u8g2);
@@ -219,18 +215,20 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-    xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
+    u8g2_t* u8g2 = (u8g2_t*)handler_args;
+    if (id == POWER_STANDBY) {
+        u8g2_ClearDisplay(u8g2);
+        u8g2_SetPowerSave(u8g2, 1); // wake up display
+    } else if (id == POWER_ACTIVE) {
+        u8g2_SetPowerSave(u8g2, 0); // wake up display
+        xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
+    }
 }
 
 
 static void do_display(void* userData) {
     ESP_LOGI(TAG, "Initialising display");
-
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, s_event_loop));
-
+    u8g2_t u8g2;
 
     u8g2_esp32_hal_t u8g2_esp32_hal = {};
     u8g2_esp32_hal.sda   = GPIO_NUM_NC;
@@ -244,14 +242,17 @@ static void do_display(void* userData) {
 
     u8g2_esp32_hal_init(u8g2_esp32_hal);
 
-    u8g2_t u8g2;
     //u8g2_Setup_ssd1322_nhd_256x64_f(&u8g2, U8G2_R0, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
     u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
-
-
     u8g2_InitDisplay(&u8g2); // send init sequence to the display, display is in sleep mode after this,
     u8g2_ClearDisplay(&u8g2);
     u8g2_SetPowerSave(&u8g2, 0); // wake up display
+
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, &u8g2));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, &u8g2));
+
 
     ESP_LOGI(TAG, "Display initialised");
     bool drawWifi = true;

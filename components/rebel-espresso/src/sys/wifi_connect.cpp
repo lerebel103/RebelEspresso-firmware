@@ -152,7 +152,7 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_start());
 
     // Save power
-    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 
     uint32_t power;
     nvram_store_read_u32(NVRAM_WIFI_TX_POWER, &power, 87);

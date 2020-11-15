@@ -18,7 +18,6 @@ static u8g2_esp32_hal_t    u8g2_esp32_hal;  // HAL state data.
 
 #undef ESP_ERROR_CHECK
 #define ESP_ERROR_CHECK(x)   do { esp_err_t rc = (x); if (rc != ESP_OK) { ESP_LOGE("err", "esp_err_t = %d", rc); assert(0 && #x);} } while(0);
-static SemaphoreHandle_t s_semaphore = NULL;
 
 /*
  * Initialze the ESP32 HAL.
@@ -82,8 +81,6 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             ESP_LOGI(TAG, "... Adding device bus with cs %d.", dev_config.spics_io_num);
             ESP_ERROR_CHECK(spi_bus_add_device(HSPI_HOST, &dev_config, &handle_spi));
 
-            s_semaphore = xSemaphoreCreateRecursiveMutex();
-
             break;
         }
 
@@ -113,13 +110,11 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
         }
         case U8X8_MSG_BYTE_START_TRANSFER:
             //ESP_LOGW(TAG, "Start tx");
-            xSemaphoreTakeRecursive(s_semaphore, portMAX_DELAY);
             spi_device_acquire_bus(handle_spi, portMAX_DELAY);
             break;
         case U8X8_MSG_BYTE_END_TRANSFER:
             //ESP_LOGW(TAG, "End tx");
             spi_device_release_bus(handle_spi);
-            xSemaphoreGiveRecursive(s_semaphore);
             break;
     }
     return 0;

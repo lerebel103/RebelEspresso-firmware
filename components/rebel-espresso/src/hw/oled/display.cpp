@@ -180,6 +180,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         }
 
         if (power_is_active()) {
+            u8g2_SetPowerSave(&u8g2, 0);
             u8g2_ClearBuffer(&u8g2);
 
             // Draw temps, flash them when lid is open
@@ -208,6 +209,8 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             display_draw_on_off(&u8g2, yPosOnOff, toggle);
 
             u8g2_SendBuffer(&u8g2);
+        } else {
+            u8g2_SetPowerSave(&u8g2, 1);
         }
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
     }
@@ -216,12 +219,8 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     u8g2_t* u8g2 = (u8g2_t*)handler_args;
     if (id == POWER_STANDBY) {
-        u8g2_ClearDisplay(u8g2);
-        //u8g2_SetContrast(u8g2, 5);
-        u8g2_SetPowerSave(u8g2, 1); // wake up display
+        xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     } else if (id == POWER_ACTIVE) {
-        u8g2_SetPowerSave(u8g2, 0); // wake up display
-        //u8g2_SetContrast(u8g2, 255);
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     }
 }

@@ -164,33 +164,33 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
     bool toggle = true;
     while (g_go) {
-        u8g2_ClearBuffer(&u8g2);
+        EventBits_t uxBits = xEventGroupWaitBits(
+                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT, false, true, 0);
+
+        if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
+            drawWifi = !drawWifi;
+            delay = 500;
+        } else if ((WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
+            drawWifi = !drawWifi;
+            delay = 200;
+        } else {
+            drawWifi = true;
+            // Then no need to go crazy, it's event triggered when changes are detected
+            delay = 5000;
+        }
 
         if (power_is_active()) {
+            u8g2_ClearBuffer(&u8g2);
+
             // Draw temps, flash them when lid is open
             int y = 26;
             display_draw_boiler_temp(&u8g2, &y);
 
-            y+=6;
+            y += 6;
             int yboilerBottom = y;
 
             int yPosWifi = 14;
             int yPosOnOff = 54;
-
-            EventBits_t uxBits = xEventGroupWaitBits(
-                    status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT, false, true, 0);
-
-            if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
-                drawWifi = !drawWifi;
-                delay = 500;
-            } else if ((WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
-                drawWifi = !drawWifi;
-                delay = 200;
-            } else {
-                drawWifi = true;
-                // Then no need to go crazy, it's event triggered when changes are detected
-                delay = 5000;
-            }
 
             // Now draw frame separator
             display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, yboilerBottom);
@@ -206,21 +206,22 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             // On / Off
             toggle = !toggle;
             display_draw_on_off(&u8g2, yPosOnOff, toggle);
-        }
 
-        u8g2_SendBuffer(&u8g2);
+            u8g2_SendBuffer(&u8g2);
+        }
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
     }
 }
-
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     u8g2_t* u8g2 = (u8g2_t*)handler_args;
     if (id == POWER_STANDBY) {
         u8g2_ClearDisplay(u8g2);
+        //u8g2_SetContrast(u8g2, 5);
         u8g2_SetPowerSave(u8g2, 1); // wake up display
     } else if (id == POWER_ACTIVE) {
         u8g2_SetPowerSave(u8g2, 0); // wake up display
+        //u8g2_SetContrast(u8g2, 255);
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     }
 }

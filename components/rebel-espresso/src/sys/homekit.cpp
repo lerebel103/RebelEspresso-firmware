@@ -2,7 +2,6 @@
 
 #include <esp_log.h>
 #include <cstring>
-#include <hap.h>
 #include <esp_interface.h>
 #include <esp_wifi.h>
 #include <events.h>
@@ -20,7 +19,6 @@ const char *TAG = "HK";
 
 static void* s_acc;
 static bool s_init = false;
-static hap_accessory_callback_t callback;
 
 static uint8_t s_state_last_sent = 254;
 static uint8_t s_fault_last_sent = 254;
@@ -88,49 +86,6 @@ static void _fault_notify(void *arg, void *ev_handle, bool enable) {
 
 
 void hap_object_init(void *arg) {
-    void *accessory_object = hap_accessory_add(s_acc);
-    struct hap_characteristic cs[] = {
-            {HAP_CHARACTER_IDENTIFY,
-                    (void *) true,              nullptr, identify_read, nullptr, nullptr, NO_VALUE_SPECIFICS},
-            {HAP_CHARACTER_MANUFACTURER,
-                    (void *) MANUFACTURER_NAME, nullptr, nullptr,       nullptr, nullptr, NO_VALUE_SPECIFICS},
-            {HAP_CHARACTER_MODEL,
-                    (void *) MODEL_NAME,        nullptr, nullptr,       nullptr, nullptr, NO_VALUE_SPECIFICS},
-            {HAP_CHARACTER_NAME,
-                    (void *) ACCESSORY_NAME,    nullptr, nullptr,       nullptr, nullptr, NO_VALUE_SPECIFICS},
-            {HAP_CHARACTER_SERIAL_NUMBER,
-                    (void *) thing_info_id(),   nullptr, nullptr,       nullptr, nullptr, NO_VALUE_SPECIFICS},
-            {HAP_CHARACTER_FIRMWARE_REVISION,
-                    (void *) FIRMWARE_VERSION,  nullptr, nullptr,       nullptr, nullptr, NO_VALUE_SPECIFICS},
-    };
-    hap_service_and_characteristics_add(s_acc, accessory_object, HAP_SERVICE_ACCESSORY_INFORMATION, cs, ARRAY_SIZE(cs));
-
-    ESP_LOGI(TAG, "Adding characteristics");
-    struct hap_characteristic switches[] = {
-            {
-                    HAP_CHARACTER_ON,
-                    _state_read(nullptr),
-                    nullptr,
-                    _state_read,
-                    _state_write,
-                    _state_notify,
-                    NO_VALUE_SPECIFICS
-
-            }/*,
-            {
-                    HAP_CHARACTER_STATUS_FAULT,
-                    _fault_read(nullptr),
-                    nullptr,
-                    _fault_read,
-                    nullptr,
-                    _fault_notify,
-                    NO_VALUE_SPECIFICS
-
-            }*/
-    };
-    hap_service_and_characteristics_add(s_acc, accessory_object, HAP_SERVICE_SWITCHS, switches,
-                                        ARRAY_SIZE(switches));
-
 }
 
 
@@ -138,25 +93,12 @@ void homekit_init() {
     if (s_init) {
         return;
     }
-
-    hap_init(811);
-
-    uint8_t mac[6];
-    esp_wifi_get_mac(ESP_IF_WIFI_STA, mac);
-    char accessory_id[32] = {0,};
-    sprintf(accessory_id, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    callback.hap_object_init = hap_object_init;
-    ESP_LOGI(TAG, "Home kit initialising with accessory_id %s", accessory_id);
-    s_acc = hap_accessory_register((char *) ACCESSORY_NAME, accessory_id, (char *) "111-23-456",
-                                   (char *) MANUFACTURER_NAME, HAP_ACCESSORY_CATEGORY_SWITCH, 1, nullptr,
-                                   &callback);
-
     s_init = true;
     ESP_LOGI(TAG, "Home kit initialised");
 }
 
 void homekit_terminate() {
-    hap_terminate();
+
 }
 
 
@@ -168,7 +110,7 @@ void homekit_tick(TickType_t tickMS) {
    if (_state_ev_handle) {
         auto current_state = (uint8_t*) _state_read(NULL);
         if (s_state_last_sent != *current_state) {
-            hap_event_response(s_acc, _state_ev_handle, current_state);
+
             s_state_last_sent = *(uint8_t*)current_state;
         }
     }

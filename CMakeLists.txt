@@ -97,32 +97,6 @@ IF (NOT NVRAM_STORAGE_PARTITION)
     SET(NVRAM_STORAGE_PARTITION "storage" CACHE INTERNAL "NVS partition name"  FORCE)
 ENDIF()
 
-SET(WOLFSSL_DEFINITIONS " \
-    -DWOLFSSL_ESPIDF \
-    -DWOLFSSL_ESPWROOM32 \
-    -DWC_NO_HARDEN \
-    -DWOLFCRYPT_HAVE_SRP \
-    -DWOLFSSL_BASE64_ENCODE \
-    -DWOLFSSL_TLS13 \
-    -DWOLFSSL_SHA512 \
-    -DNO_OLD_TLS \
-    -DHAVE_ECC \
-    -DHAVE_HKDF \
-    -DHAVE_CHACHA \
-    -DHAVE_POLY1305 \
-    -DHAVE_ED25519 \
-    -DHAVE_CURVE25519 \
-    -DHAVE_SUPPORTED_CURVES \
-    -DHAVE_ONE_TIME_AUTH \
-    -DHAVE_TLS_EXTENSIONS \
-    -DNO_SESSION_CACHE \
-    -DRSA_LOW_MEM \
-    -DGCM_SMALL \
-    -DWC_RSA_PSS \
-    "
-    CACHE INTERNAL "" FORCE)
-
-
 add_definitions(
         ${WOLFSSL_DEFINITIONS}
         -DNVRAM_STORAGE_PARTITION="${NVRAM_STORAGE_PARTITION}"
@@ -131,9 +105,13 @@ add_definitions(
 # Set hardware revision dependent files
 file(COPY components/rebel-espresso/src/hw/r${HARDWARE_REVISION}/sdkconfig DESTINATION ${CMAKE_SOURCE_DIR}/)
 
+# Add homekit related stuff and what is needs
+set(EXTRA_COMPONENT_DIRS components/esp-apple-homekit-adk)
+
 set(PROJECT_NAME rebel-espresso-firmware)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
+
 
 # Rename target binary file with correct versioning
 set(FIRMWARE_TARGET_DIR ${CMAKE_BINARY_DIR}/firmware/${THING_TYPE}/r${HARDWARE_REVISION}/v${FIRMWARE_VERSION})

@@ -1,7 +1,7 @@
 #include <hal/gpio_types.h>
 
-#include <FreeRTOS.h>
-#include <task.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <hw_config.h>
 #include <esp_log.h>

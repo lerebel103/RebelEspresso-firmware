@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include <FreeRTOS.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <hw/r1.0/hw_config.h>
 #include <esp_log.h>

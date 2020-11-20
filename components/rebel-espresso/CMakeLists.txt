@@ -17,10 +17,11 @@ set(COMPONENT_SRCDIRS
         src/sys
         src/hw
         src/hw/oled
+        src/homekit
         )
 
 set(COMPONENT_REQUIRES
-        freertos
+        mbedtls
         json
         nvs_flash
 

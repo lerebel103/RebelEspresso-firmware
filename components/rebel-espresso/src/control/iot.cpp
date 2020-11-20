@@ -2,7 +2,7 @@
 #include <src/thing_info.h>
 #include <_generated/version.h>
 #include <src/sys/mqtt.h>
-#include <src/sys/homekit.h>
+#include <src/homekit/homekit.h>
 #include <src/sys/ota.h>
 #include <freertos/task.h>
 #include <src/events.h>

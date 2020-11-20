@@ -217,7 +217,6 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-    u8g2_t* u8g2 = (u8g2_t*)handler_args;
     if (id == POWER_STANDBY) {
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     } else if (id == POWER_ACTIVE) {

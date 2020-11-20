@@ -1427,9 +1427,7 @@
  *
  * Module:  library/chacha20.c
  */
-#ifdef MBEDTLS_CHACHA20_C
-#undef MBEDTLS_CHACHA20_C
-#endif
+#define MBEDTLS_CHACHA20_C
 
 /**
  * \def MBEDTLS_CHACHAPOLY_C
@@ -1440,9 +1438,7 @@
  *
  * This module requires: MBEDTLS_CHACHA20_C, MBEDTLS_POLY1305_C
  */
-#ifdef MBEDTLS_CHACHAPOLY_C
-#undef MBEDTLS_CHACHAPOLY_C
-#endif
+#define MBEDTLS_CHACHAPOLY_C
 
 /**
  * \def MBEDTLS_CIPHER_C
@@ -1665,9 +1661,7 @@
  * This module adds support for the Hashed Message Authentication Code
  * (HMAC)-based key derivation function (HKDF).
  */
-#ifdef MBEDTLS_HKDF_C
-#undef MBEDTLS_HKDF_C
-#endif
+#define MBEDTLS_HKDF_C
 
 /**
  * \def MBEDTLS_HMAC_DRBG_C
@@ -1904,9 +1898,7 @@
  * Module:  library/poly1305.c
  * Caller:  library/chachapoly.c
  */
-#ifdef MBEDTLS_POLY1305_C
-#undef MBEDTLS_POLY1305_C
-#endif
+#define MBEDTLS_POLY1305_C
 
 /**
  * \def MBEDTLS_RIPEMD160_C

@@ -5,7 +5,6 @@
 #include <esp_log.h>
 #include <driver/rmt.h>
 #include <esp_event.h>
-#include <nvs_handle.hpp>
 #include <src/sys/nvram_store.h>
 
 #include "control/boiler_temp.h"
@@ -510,7 +509,7 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     boiler_temp_process(1.3e6, data);
     TEST_ASSERT_EQUAL(1, boiler_temp_get_status().temp_read_error_count);
 
-    boiler_status_t stats;
+    boiler_temp_status_t stats;
     nvs_handle my_handle;
     uint32_t defaultVal = 0;
     ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));

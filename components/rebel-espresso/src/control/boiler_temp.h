@@ -12,7 +12,6 @@
 
 #define BOILER_SSR_PIN GPIO_TRIG1_SSR
 
-#define NVS_CFG_STORE "cfg.boiler"
 #define KEY_BOILER_PID_P "pid.P"
 #define KEY_BOILER_PID_I "pid.I"
 #define KEY_BOILER_PID_D "pid.D"
@@ -48,7 +47,7 @@ extern "C" const double BOILER_PID_SETPOINT0_DEFAULT;
 extern "C" const double BOILER_PID_SETPOINT1_DEFAULT;
 extern "C" const double BOILER_PID_OVER_SETPOINT_PERC_DEFAULT;
 extern "C" const uint8_t BOILER_MAINS_HZ_DEFAULT;
-extern "C" const uint16_t BOILER_TEMP_ERROR_RESTART_SEC;
+extern "C" const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT;
 
 
 /**
@@ -107,7 +106,7 @@ struct boiler_temp_cfg_t {
 
 };
 
-struct boiler_status_t {
+struct boiler_temp_status_t {
     uint32_t temp_read_error_count;
     uint32_t temp_over_limit_count;
     uint32_t temp_out_of_range_count;
@@ -171,10 +170,9 @@ void boiler_temp_update_cfg(const cJSON* json);
  */
 void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
 
-
 void boiler_temp_reset_cfg();
 
-const boiler_status_t& boiler_temp_get_status();
+const boiler_temp_status_t& boiler_temp_get_status();
 
 void boiler_temp_reset_stats();
 

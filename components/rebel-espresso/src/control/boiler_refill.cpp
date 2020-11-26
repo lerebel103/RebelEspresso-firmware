@@ -9,46 +9,25 @@
 #include <esp_adc_cal.h>
 #include <src/events.h>
 #include <esp_event.h>
+#include <src/sys/nvram_store.h>
 
 #define DEFAULT_VREF                1100
 
 const static char* TAG = "refill";
 
-struct boiler_refill_cfg_t {
+#define BOILER_REFILL_NVS_CFG_STORE     "cfg.b_refill"
 
-    /**
-     * Initial wait time before starting the check.
-     * This is needed as the system is still initialising and we get a false reading
-     */
-    uint16_t stabilise_ms = 10;
-
-    /**
-     * Readings are averaged, how many to take in succession.
-     */
-    uint16_t num_readings = 32;
-
-    /**
-     * Theshold over which we decice that the boiler is empty
-     */
-    uint16_t refill_voltage_threshold = 1500;
-
-    /**
-     * Cap refill time and raise error if time is exceeded
-     */
-    uint16_t max_refill_time = 5000;
-    
-    /**
-     * Elapsed time where level was observed as low, after which we start refilling 
-     */
-    uint16_t low_count_threshold_ms = 750;
-
-    /**
-     * Elapsed time where level was observed as high, after which we stopped refilling 
-     */
-    uint16_t ok_count_threshold_ms = 1000;
-};
+const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT = 1000;
+const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT = 10;
+const uint16_t BOILER_REFILL_ADC_NUM_READINGS_DEFAULT = 32;
+const uint16_t BOILER_REFILL_REFILL_VOLTAGE_THRESHOLD_DEFAULT = 1500;
+const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 8000;
+const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 750;
+const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 1000;
 
 static boiler_refill_cfg_t s_cfg;
+static boiler_refill_status_t s_status;
+
 static const adc_unit_t unit = ADC_UNIT_1;
 static esp_adc_cal_characteristics_t *adc_chars;
 static esp_event_loop_handle_t s_event_loop;
@@ -57,25 +36,28 @@ static TickType_t s_refill_start_ms = 0;
 static TickType_t s_begin_low_ms = 0;
 static TickType_t s_begin_ok_ms = 0;
 
-static void(*current_state_fn)(bool level_ok, TickType_t now_ms);
+typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 
-void _state_unknown(bool level_ok, TickType_t now_ms);
-void _state_not_filling(bool level_ok, TickType_t now_ms);
-void _state_filling(bool level_ok, TickType_t now_ms);
-void _state_error(bool level_ok, TickType_t now_ms);
+static state_fn current_state_fn;
+static check_level_fn check_level;
 
+static void _state_unknown(bool level_ok, TickType_t now_ms);
+static void _state_not_filling(bool level_ok, TickType_t now_ms);
+static void _state_filling(bool level_ok, TickType_t now_ms);
+static void _state_error(bool level_ok, TickType_t now_ms);
+static void _load_nvram();
 
-bool boiler_refill_read_state() {
+    bool boiler_check_level() {
     // Enable voltage on probe
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 1);
     vTaskDelay(pdMS_TO_TICKS(s_cfg.stabilise_ms));
 
     double level_voltage = 0;
-    for (int i=0; i< s_cfg.num_readings; i++) {
+    for (int i=0; i< s_cfg.adc_num_readings; i++) {
         auto raw = adc1_get_raw(PIN_WATER_LEVEL_SENSE);
         level_voltage += esp_adc_cal_raw_to_voltage(raw, adc_chars);
     }
-    level_voltage = level_voltage / s_cfg.num_readings;
+    level_voltage = level_voltage / s_cfg.adc_num_readings;
 
     ESP_LOGD(TAG, "Level voltage: %f", level_voltage);
 
@@ -88,6 +70,11 @@ bool boiler_refill_read_state() {
         return true;
     }
 }
+
+void boiler_set_check_level_fn(check_level_fn fn) {
+
+}
+
 
 static void _start_refill() {
     // Open solenoid valve
@@ -124,10 +111,11 @@ void _state_unknown(bool level_ok, TickType_t now_ms) {
         current_state_fn = _state_filling;
     }
 
-    // Invoke initial state immediately for eval
     s_refill_start_ms = 0;
     s_begin_ok_ms = 0;
     s_begin_low_ms = 0;
+
+    // Invoke new state
     current_state_fn(level_ok, now_ms);
 }
 
@@ -145,7 +133,7 @@ void _state_not_filling(bool level_ok, TickType_t now_ms) {
             s_begin_low_ms = now_ms;
         }
 
-        if ((now_ms - s_begin_low_ms) > s_cfg.low_count_threshold_ms) {
+        if ((now_ms - s_begin_low_ms) > s_cfg.level_low_hysteresis_ms) {
             current_state_fn = _state_filling;
         }
     } else {
@@ -162,7 +150,7 @@ void _state_filling(bool level_ok, TickType_t now_ms) {
     if (s_refill_start_ms == 0) {
         _start_refill();
         s_refill_start_ms = now_ms;
-    } else if (s_cfg.max_refill_time > 0 && now_ms - s_refill_start_ms > s_cfg.max_refill_time) {
+    } else if (s_cfg.max_refill_time_ms > 0 && now_ms - s_refill_start_ms > s_cfg.max_refill_time_ms) {
         // Uh... something is going wrong here...
         current_state_fn = _state_error;
     }
@@ -173,7 +161,7 @@ void _state_filling(bool level_ok, TickType_t now_ms) {
             s_begin_ok_ms = now_ms;
         }
 
-        if ((now_ms - s_begin_ok_ms) > s_cfg.ok_count_threshold_ms) {
+        if ((now_ms - s_begin_ok_ms) > s_cfg.level_ok_hysteresis_ms) {
             current_state_fn = _state_not_filling;
         }
     } else {
@@ -208,7 +196,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     }
 
     // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
-    if (pdTICKS_TO_MS(xTaskGetTickCount()) < 1000) {
+    if (pdTICKS_TO_MS(xTaskGetTickCount()) < s_cfg.start_delay_ms) {
         s_refill_start_ms = 0;
         return;
     }
@@ -216,7 +204,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     TickType_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
 
     // Read current boiler level but add hysteresis
-    bool level_ok = boiler_refill_read_state();
+    bool level_ok = check_level();
     current_state_fn(level_ok, now_ms);
 }
 
@@ -233,6 +221,9 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     current_state_fn = _state_unknown;
+    check_level = boiler_check_level;
+
+    _load_nvram();
 
     // Start with boiler not ok, until we can get a reading
     xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
@@ -278,5 +269,137 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
                                                     _power_events, s_event_loop));
 
     ESP_LOGI(TAG, "Initialised");
+}
+
+void boiler_refill_delete() {
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick));
+
+    free(adc_chars);
+}
+
+
+// -----------------------------------------------------------------------------------------
+// Config stuff
+// -----------------------------------------------------------------------------------------
+
+static void _load_nvram() {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+
+    nvram_store_get_u16(my_handle, KEY_start_delay_ms, (uint16_t *) &s_cfg.start_delay_ms,
+                        (void *) &BOILER_REFILL_START_DELAY_MS_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_stabilise_ms, (uint16_t *) &s_cfg.stabilise_ms,
+                        (void *) &BOILER_REFILL_STABILISE_MS_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_refill_voltage_threshold, (uint16_t *) &s_cfg.refill_voltage_threshold,
+                        (void *) &BOILER_REFILL_REFILL_VOLTAGE_THRESHOLD_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_max_refill_time_ms, (uint16_t *) &s_cfg.max_refill_time_ms,
+                        (void *) &BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_adc_num_readings, (uint16_t *) &s_cfg.adc_num_readings,
+                        (void *) &BOILER_REFILL_ADC_NUM_READINGS_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_level_low_hysteresis_ms, (uint16_t *) &s_cfg.level_low_hysteresis_ms,
+                        (void *) &BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_level_ok_hysteresis_ms, (uint16_t *) &s_cfg.level_ok_hysteresis_ms,
+                        (void *) &BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT);
+
+    nvs_close(my_handle);
+}
+
+static void _save_nvram() {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+
+    nvram_store_set_u16(my_handle, KEY_start_delay_ms , &s_cfg.start_delay_ms);
+    nvram_store_set_u16(my_handle, KEY_stabilise_ms , &s_cfg.stabilise_ms);
+    nvram_store_set_u16(my_handle, KEY_adc_num_readings , &s_cfg.adc_num_readings);
+    nvram_store_set_u16(my_handle, KEY_refill_voltage_threshold , &s_cfg.refill_voltage_threshold);
+    nvram_store_set_u16(my_handle, KEY_max_refill_time_ms , &s_cfg.max_refill_time_ms);
+    nvram_store_set_u16(my_handle, KEY_level_low_hysteresis_ms, &s_cfg.level_low_hysteresis_ms);
+    nvram_store_set_u16(my_handle, KEY_level_ok_hysteresis_ms, &s_cfg.level_ok_hysteresis_ms);
+
+    nvs_close(my_handle);
+}
+
+
+const boiler_refill_cfg_t &boiler_refill_get_cfg() {
+    return s_cfg;
+}
+
+void boiler_refill_update_cfg(const cJSON* json) {
+    boiler_refill_cfg_t new_config = s_cfg;
+    new_config.from_json(json);
+    boiler_refill_set_cfg(new_config);
+}
+
+void boiler_refill_set_cfg(boiler_refill_cfg_t config) {
+    if (config.start_delay_ms < 10000) {
+        s_cfg.start_delay_ms = config.start_delay_ms;
+    } else {
+        ESP_LOGE(TAG, "start_delay_ms is out of bounds: %d, ignoring.", config.start_delay_ms);
+    }
+
+    if (config.stabilise_ms < 150) {
+        s_cfg.stabilise_ms = config.stabilise_ms;
+    } else {
+        ESP_LOGE(TAG, "stabilise_ms is out of bounds: %d, ignoring.", config.stabilise_ms);
+    }
+
+    if (config.adc_num_readings < 128) {
+        s_cfg.adc_num_readings = config.adc_num_readings;
+    } else {
+        ESP_LOGE(TAG, "adc_num_readings is out of bounds: %d, ignoring.", config.adc_num_readings);
+    }
+
+    if (config.refill_voltage_threshold >= 150 && config.refill_voltage_threshold < 2800) {
+        s_cfg.refill_voltage_threshold = config.refill_voltage_threshold;
+    } else {
+        ESP_LOGE(TAG, "refill_voltage_threshold is out of bounds: %d, ignoring.", config.refill_voltage_threshold);
+    }
+
+    if (config.refill_voltage_threshold >= 150 && config.refill_voltage_threshold < 2800) {
+        s_cfg.refill_voltage_threshold = config.refill_voltage_threshold;
+    } else {
+        ESP_LOGE(TAG, "refill_voltage_threshold is out of bounds: %d, ignoring.", config.refill_voltage_threshold);
+    }
+
+    if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 10000) {
+        s_cfg.max_refill_time_ms = config.max_refill_time_ms;
+    } else {
+        ESP_LOGE(TAG, "max_refill_time_ms is out of bounds: %d, ignoring.", config.max_refill_time_ms);
+    }
+
+    if (config.level_low_hysteresis_ms < 2000) {
+        s_cfg.level_low_hysteresis_ms = config.level_low_hysteresis_ms;
+    } else {
+        ESP_LOGE(TAG, "level_low_hysteresis_ms is out of bounds: %d, ignoring.", config.level_low_hysteresis_ms);
+    }
+
+    if (config.level_ok_hysteresis_ms < 2000) {
+        s_cfg.level_ok_hysteresis_ms = config.level_ok_hysteresis_ms;
+    } else {
+        ESP_LOGE(TAG, "level_ok_hysteresis_ms is out of bounds: %d, ignoring.", config.level_ok_hysteresis_ms);
+    }
+
+    // Save what we can then
+    _save_nvram();
+}
+
+
+void boiler_refill_reset_cfg() {
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+    nvs_erase_all(my_handle);
+    nvs_close(my_handle);
+
+    _load_nvram();
+}
+
+const boiler_refill_status_t& boiler_refill_get_status() {
+    return s_status;
+}
+
+void boiler_refill_reset_stats() {
+    s_status.refill_error_count = 0;
 }
 

@@ -234,7 +234,6 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         if (s_last_time_us != 0 ) {
             s_boiler_error_sec += (time_us - s_last_time_us) * 1e-6;
         }
-        printf("elapsed %f\r\n", s_boiler_error_sec);
         if (s_cfg.temp_error_restart_time_sec != 0 && s_boiler_error_sec > s_cfg.temp_error_restart_time_sec) {
             ESP_LOGE(TAG, "Restarting, too many RTD errors received in succession.");
             esp_restart();
@@ -262,7 +261,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         // Good to go
         //s_cfg.pid.active_setpoint = 1;
         double setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs, setpoiut=%f", data.temperature, deltaT, setpoint);
+        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs, setpoint=%f", data.temperature, deltaT, setpoint);
 
         // Accumulate
         window_accumulate(&s_data_window, time_us, &data, setpoint,s_cfg.pid.I_reset_sec * 1e3);

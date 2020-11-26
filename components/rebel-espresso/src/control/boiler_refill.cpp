@@ -25,7 +25,7 @@ struct boiler_refill_cfg_t {
     /**
      * Readings are averaged, how many to take in succession.
      */
-    uint16_t num_readings = 24;
+    uint16_t num_readings = 32;
 
     /**
      * Theshold over which we decice that the boiler is empty
@@ -36,13 +36,34 @@ struct boiler_refill_cfg_t {
      * Cap refill time and raise error if time is exceeded
      */
     uint16_t max_refill_time = 5000;
+    
+    /**
+     * Elapsed time where level was observed as low, after which we start refilling 
+     */
+    uint16_t low_count_threshold_ms = 750;
+
+    /**
+     * Elapsed time where level was observed as high, after which we stopped refilling 
+     */
+    uint16_t ok_count_threshold_ms = 1000;
 };
 
 static boiler_refill_cfg_t s_cfg;
 static const adc_unit_t unit = ADC_UNIT_1;
 static esp_adc_cal_characteristics_t *adc_chars;
-TickType_t s_refill_start_ms = 0;
 static esp_event_loop_handle_t s_event_loop;
+
+static TickType_t s_refill_start_ms = 0;
+static TickType_t s_begin_low_ms = 0;
+static TickType_t s_begin_ok_ms = 0;
+
+static void(*current_state_fn)(bool level_ok, TickType_t now_ms);
+
+void _state_unknown(bool level_ok, TickType_t now_ms);
+void _state_not_filling(bool level_ok, TickType_t now_ms);
+void _state_filling(bool level_ok, TickType_t now_ms);
+void _state_error(bool level_ok, TickType_t now_ms);
+
 
 bool boiler_refill_read_state() {
     // Enable voltage on probe
@@ -96,6 +117,86 @@ static void _refill_error() {
     }
 }
 
+void _state_unknown(bool level_ok, TickType_t now_ms) {
+    if (level_ok) {
+        current_state_fn = _state_not_filling;
+    } else {
+        current_state_fn = _state_filling;
+    }
+
+    // Invoke initial state immediately for eval
+    s_refill_start_ms = 0;
+    s_begin_ok_ms = 0;
+    s_begin_low_ms = 0;
+    current_state_fn(level_ok, now_ms);
+}
+
+void _state_not_filling(bool level_ok, TickType_t now_ms) {
+    ESP_LOGI(TAG, "Not filling");
+    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    if(s_refill_start_ms != 0) {
+        _stop_refill();
+        s_refill_start_ms = 0;
+    }
+
+    // Check hysteresis threshold
+    if (!level_ok) {
+        if (s_begin_low_ms == 0) {
+            s_begin_low_ms = now_ms;
+        }
+
+        if ((now_ms - s_begin_low_ms) > s_cfg.low_count_threshold_ms) {
+            current_state_fn = _state_filling;
+        }
+    } else {
+        s_begin_low_ms = 0;
+    }
+    s_begin_ok_ms = 0;
+}
+
+void _state_filling(bool level_ok, TickType_t now_ms) {
+    ESP_LOGI(TAG, "Filling");
+
+    xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    // Turn on pump, but time it, cannot run forever
+    if (s_refill_start_ms == 0) {
+        _start_refill();
+        s_refill_start_ms = now_ms;
+    } else if (s_cfg.max_refill_time > 0 && now_ms - s_refill_start_ms > s_cfg.max_refill_time) {
+        // Uh... something is going wrong here...
+        current_state_fn = _state_error;
+    }
+
+    // Check hysteresis threshold
+    if (level_ok) {
+        if (s_begin_ok_ms == 0) {
+            s_begin_ok_ms = now_ms;
+        }
+
+        if ((now_ms - s_begin_ok_ms) > s_cfg.ok_count_threshold_ms) {
+            current_state_fn = _state_not_filling;
+        }
+    } else {
+        s_begin_ok_ms = 0;
+    }
+    s_begin_low_ms = 0;
+}
+
+void _state_error(bool level_ok, TickType_t now_ms) {
+    ESP_LOGE(TAG, "Refill error");
+
+    if (s_refill_start_ms > 0) {
+        _stop_refill();
+        s_refill_start_ms = 0;
+    }
+
+    if (level_ok) {
+        // Get out of error state, start over again
+        current_state_fn = _state_unknown;
+    }
+}
+
+
 static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id != TICK) {
         return;
@@ -112,29 +213,11 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-    // disable check for now
-    bool level_ok = true; //boiler_refill_read_state();
+    TickType_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
 
-    if (!level_ok) {
-        xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
-
-        // Turn on pump, but time it, cannot run forever
-        TickType_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
-        if (s_refill_start_ms == 0) {
-            _start_refill();
-            s_refill_start_ms = now_ms;
-        } else if (s_cfg.max_refill_time > 0 && now_ms - s_refill_start_ms > s_cfg.max_refill_time) {
-            // Uh... something is going wrong here...
-            _refill_error();
-        }
-    } else if (s_refill_start_ms > 0) {
-        xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        _stop_refill();
-        s_refill_start_ms = 0;
-    } else {
-        // All is well then
-        xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    }
+    // Read current boiler level but add hysteresis
+    bool level_ok = boiler_refill_read_state();
+    current_state_fn(level_ok, now_ms);
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -142,11 +225,14 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
         // Always stop refill
         _stop_refill();
     } else if (id == POWER_ACTIVE) {
+        // Start over again
+        current_state_fn = _state_unknown;
     }
 }
 
 void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
+    current_state_fn = _state_unknown;
 
     // Start with boiler not ok, until we can get a reading
     xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);

@@ -10,7 +10,10 @@ IF (NOT TEST_COMPONENTS)
 ENDIF ()
 MESSAGE(STATUS "Building test components ${TEST_COMPONENTS}")
 
-set(EXTRA_COMPONENT_DIRS "${CMAKE_SOURCE_DIR}/../components")
+set(EXTRA_COMPONENT_DIRS
+        "${CMAKE_SOURCE_DIR}/../components"
+        "${CMAKE_SOURCE_DIR}/../components/esp-apple-homekit-adk"
+        )
 
 # If the environment does not specify a build type, set to Debug
 IF (NOT CMAKE_BUILD_TYPE)

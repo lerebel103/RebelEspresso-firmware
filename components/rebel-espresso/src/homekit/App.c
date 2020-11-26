@@ -79,9 +79,9 @@ static const char* _get_serial() {
  */
 static HAPAccessory accessory = { .aid = 1,
         .category = kHAPAccessoryCategory_Switches,
-        .name = THING_TYPE,
+        .name = "RebelEspresso",
         .manufacturer = "LeRebel",
-        .model = "RebelEspresso1,1",
+        .model = THING_TYPE"1,1",
         .serialNumber = NULL,
         .firmwareVersion = FIRMWARE_VERSION,
         .hardwareVersion = HARDWARE_REVISION,
@@ -137,7 +137,7 @@ void HandleSwitchOnSubscribe(
         HAPAccessoryServerRef* server,
         const HAPBoolCharacteristicSubscriptionRequest* request,
         void* _Nullable context) {
-    printf("Subscribe request***********\r\n");
+
 }
 
 void HandleSwitchOnUnsubscribe(
@@ -145,7 +145,6 @@ void HandleSwitchOnUnsubscribe(
         const HAPBoolCharacteristicSubscriptionRequest* request,
         void* _Nullable context) {
 
-    printf("UnSubscribe request***********\r\n");
 }
 
 //----------------------------------------------------------------------------------------------------------------------

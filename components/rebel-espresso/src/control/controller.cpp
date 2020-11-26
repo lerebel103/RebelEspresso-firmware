@@ -69,8 +69,14 @@ void controller_init(esp_event_loop_handle_t event_loop) {
 void controller_enter_loop() {
     while (_go) {
         // Keeps going regardless of power state, emit event forever
+        TickType_t before = xTaskGetTickCount();
         ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
-        vTaskDelay(pdMS_TO_TICKS(250));
+        TickType_t after = xTaskGetTickCount();
+
+        auto delay_ms = 250 - pdMS_TO_TICKS(after - before);
+        if (delay_ms > 0) {
+            vTaskDelay(delay_ms);
+        }
     }
 
     vTaskDelete(nullptr);

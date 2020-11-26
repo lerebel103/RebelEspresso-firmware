@@ -1,5 +1,5 @@
-#include <FreeRTOS.h>
-#include <task.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <unity.h>
 
 #include <esp_log.h>
@@ -433,47 +433,50 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
             100,
             100,
             100,
-            98,
-            95,
-            92,
-            89,
-            86,
-            83,
-            80,
-            77,
-            74,
-            71,
-            68,
-            65,
-            62,
-            59,
-            56,
-            53,
-            50,
-            47,
-            44,
-            41,
-            38,
-            35,
-            32,
-            29,
-            26,
-            23,
-            20,
-            17,
-            14,
-            11,
+            100,
+            99,
+            96,
+            93,
+            90,
+            87,
+            84,
+            81,
+            78,
+            75,
+            72,
+            69,
+            66,
+            63,
+            60,
+            57,
+            54,
+            51,
+            48,
+            45,
+            42,
+            39,
+            36,
+            33,
+            30,
+            27,
+            24,
+            21,
+            18,
+            15,
+            12,
             8,
             5,
             4,
-    };
+            0,
+            };
 
     for (int i = 0; i < 150; i++) {
         data.temperature = 25 + i;
         boiler_temp_process(i * 1e6, data);
 
+        // printf("%d,\r\n", boiler_temp_get_duty());
         // Cuts off with these settings
-        if (data.temperature >= 88) {
+        if (data.temperature > 88) {
             TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
         } else {
             TEST_ASSERT_EQUAL(expectedDuties[i], boiler_temp_get_duty());
@@ -481,7 +484,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     }
 
     // Over temp got triggered this many times
-    TEST_ASSERT_EQUAL(18, boiler_temp_get_status().temp_over_limit_count);
+    TEST_ASSERT_EQUAL(17, boiler_temp_get_status().temp_over_limit_count);
 
     boiler_temp_delete();
 }

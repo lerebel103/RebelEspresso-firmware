@@ -5,7 +5,7 @@
 // See [CONTRIBUTORS.md] for the list of HomeKit ADK project authors.
 
 // This file contains the accessory attribute database that defines the accessory information service, HAP Protocol
-// Information Service, the Pairing service and finally the service signature exposed by the light bulb.
+// Information Service, the Pairing service and finally the service signature exposed by the Switch.
 
 #include "App.h"
 #include "DB.h"
@@ -416,7 +416,7 @@ static const HAPDataCharacteristic switchServiceSignatureCharacteristic = {
 };
 
 /**
- * The 'Name' characteristic of the Light Bulb service.
+ * The 'Name' characteristic of the Switch service.
  */
 static const HAPStringCharacteristic switchNameCharacteristic = {
     .format = kHAPCharacteristicFormat_String,
@@ -440,7 +440,7 @@ static const HAPStringCharacteristic switchNameCharacteristic = {
 };
 
 /**
- * The 'On' characteristic of the Light Bulb service.
+ * The 'On' characteristic of the Switch service.
  */
 const HAPBoolCharacteristic switchOnCharacteristic = {
     .format = kHAPCharacteristicFormat_Bool,
@@ -464,7 +464,7 @@ const HAPBoolCharacteristic switchOnCharacteristic = {
 };
 
 /**
- * The Light Bulb service that contains the 'On' characteristic.
+ * The Switch service that contains the 'On' characteristic.
  */
 const HAPService switchService = {
     .iid = kIID_Switch,

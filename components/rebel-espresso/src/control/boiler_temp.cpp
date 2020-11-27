@@ -210,8 +210,12 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
         return;
     }
 
+    uint64_t now = 0;
+    if (event_data != nullptr) {
+        now = *(uint64_t*)event_data;
+    }
+
     // See if we need to serialise stats, but pace it so we don't kill the flash
-    uint64_t now = esp_timer_get_time();
     if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t) 5e6)) {
         _save_stats(now);
     }

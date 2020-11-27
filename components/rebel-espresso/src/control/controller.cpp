@@ -63,18 +63,17 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
-
-
-
 void controller_enter_loop() {
+    static auto loop_interval_us = 250e3;
     while (_go) {
         // Keeps going regardless of power state, emit event forever
-        TickType_t before = xTaskGetTickCount();
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
-        TickType_t after = xTaskGetTickCount();
+        auto now_us = esp_timer_get_time();
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, (void*)&now_us, sizeof(uint64_t), portMAX_DELAY));
+        auto after_us = esp_timer_get_time();
 
-        auto delay_ms = 250 - pdMS_TO_TICKS(after - before);
+        auto delay_ms = (loop_interval_us - (double)(after_us - now_us)) / 1e3;
         if (delay_ms > 0) {
+            printf("Delay ms: %f\r\n", delay_ms);
             vTaskDelay(delay_ms);
         }
     }

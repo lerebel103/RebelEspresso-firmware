@@ -13,7 +13,7 @@ typedef bool(*check_level_fn)();
 #define KEY_start_delay_ms              "start_delay"
 #define KEY_stabilise_ms                "stabilise_ms"
 #define KEY_adc_num_readings            "adc_num_rdgs"
-#define KEY_refill_voltage_threshold    "refill_v_thr"
+#define KEY_refill_mv_threshold    "refill_v_thr"
 #define KEY_max_refill_time_ms          "max_r_time"
 #define KEY_level_low_hysteresis_ms     "level_low_ms"
 #define KEY_level_ok_hysteresis_ms      "level_ok_ms"
@@ -21,7 +21,7 @@ typedef bool(*check_level_fn)();
 extern "C" const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_ADC_NUM_READINGS_DEFAULT;
-extern "C" const uint16_t BOILER_REFILL_REFILL_VOLTAGE_THRESHOLD_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT;
@@ -46,7 +46,7 @@ struct boiler_refill_cfg_t {
     /**
      * Theshold over which we decice that the boiler is empty
      */
-    uint16_t refill_voltage_threshold;
+    uint16_t refill_mv_threshold;
 
     /**
      * Cap refill time and raise error if time is exceeded
@@ -75,8 +75,8 @@ struct boiler_refill_cfg_t {
                 stabilise_ms = item->valueint;
             } else if ( strend(item->string, BOILER_REFILL_CFG_JSON_KEY "adc_num_readings") ) {
                 adc_num_readings = item->valueint;
-            } else if ( strend(item->string, BOILER_REFILL_CFG_JSON_KEY "refill_voltage_threshold") ) {
-                refill_voltage_threshold = item->valueint;
+            } else if ( strend(item->string, BOILER_REFILL_CFG_JSON_KEY "refill_mv_threshold") ) {
+                refill_mv_threshold = item->valueint;
             } else if ( strend(item->string, BOILER_REFILL_CFG_JSON_KEY "max_refill_time_ms") ) {
                 max_refill_time_ms = item->valueint;
             } else if ( strend(item->string, BOILER_REFILL_CFG_JSON_KEY "level_low_hysteresis_ms") ) {
@@ -103,8 +103,8 @@ struct boiler_refill_cfg_t {
         sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "adc_num_readings", base_key);
         cJSON_AddNumberToObject(config, buf, adc_num_readings);
 
-        sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "refill_voltage_threshold", base_key);
-        cJSON_AddNumberToObject(config, buf, refill_voltage_threshold);
+        sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "refill_mv_threshold", base_key);
+        cJSON_AddNumberToObject(config, buf, refill_mv_threshold);
 
         sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "max_refill_time_ms", base_key);
         cJSON_AddNumberToObject(config, buf, max_refill_time_ms);

@@ -515,7 +515,8 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
 
     // First tick saves straight away (zero last save time)
-    ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
+    uint64_t time_us = 1e6;
+    ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, &time_us, sizeof(uint64_t), portMAX_DELAY));
     vTaskDelay(pdMS_TO_TICKS(100));
     nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &stats.temp_read_error_count,
                         (void *) &defaultVal);
@@ -525,17 +526,17 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     boiler_temp_process(1e6, data);
 
     for(int i=0; i<7; i++) {
-        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
+        time_us += 1e6;  // 1s
+        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, (void*)&time_us, sizeof(uint64_t), portMAX_DELAY));
         nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &stats.temp_read_error_count,
                             (void *) &defaultVal);
 
-        if ( i > 5) {
+        if ( i > 4) {
             TEST_ASSERT_EQUAL(2, stats.temp_read_error_count);
         } else {
             TEST_ASSERT_EQUAL(1, stats.temp_read_error_count);
         }
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(1);
     }
 
     nvs_close(my_handle);

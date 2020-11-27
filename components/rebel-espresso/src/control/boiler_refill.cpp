@@ -20,7 +20,7 @@ const static char* TAG = "refill";
 const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT = 1000;
 const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT = 10;
 const uint16_t BOILER_REFILL_ADC_NUM_READINGS_DEFAULT = 32;
-const uint16_t BOILER_REFILL_REFILL_VOLTAGE_THRESHOLD_DEFAULT = 1500;
+const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT = 1500;
 const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 8000;
 const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 750;
 const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 1000;
@@ -64,7 +64,7 @@ static void _load_nvram();
     // Done, disable to prevent electrolysis
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);
 
-    if (level_voltage > s_cfg.refill_voltage_threshold) {
+    if (level_voltage > s_cfg.refill_mv_threshold) {
         return false;
     } else {
         return true;
@@ -196,12 +196,16 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     }
 
     // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
-    if (pdTICKS_TO_MS(xTaskGetTickCount()) < s_cfg.start_delay_ms) {
+    uint64_t now_ms = 0;
+    if (event_data != nullptr) {
+        now_ms = *(uint64_t*)event_data;
+        now_ms = now_ms / 1e3;
+    }
+
+    if (now_ms < s_cfg.start_delay_ms) {
         s_refill_start_ms = 0;
         return;
     }
-
-    TickType_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
 
     // Read current boiler level but add hysteresis
     bool level_ok = check_level();
@@ -292,8 +296,8 @@ static void _load_nvram() {
                         (void *) &BOILER_REFILL_START_DELAY_MS_DEFAULT);
     nvram_store_get_u16(my_handle, KEY_stabilise_ms, (uint16_t *) &s_cfg.stabilise_ms,
                         (void *) &BOILER_REFILL_STABILISE_MS_DEFAULT);
-    nvram_store_get_u16(my_handle, KEY_refill_voltage_threshold, (uint16_t *) &s_cfg.refill_voltage_threshold,
-                        (void *) &BOILER_REFILL_REFILL_VOLTAGE_THRESHOLD_DEFAULT);
+    nvram_store_get_u16(my_handle, KEY_refill_mv_threshold, (uint16_t *) &s_cfg.refill_mv_threshold,
+                        (void *) &BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT);
     nvram_store_get_u16(my_handle, KEY_max_refill_time_ms, (uint16_t *) &s_cfg.max_refill_time_ms,
                         (void *) &BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT);
     nvram_store_get_u16(my_handle, KEY_adc_num_readings, (uint16_t *) &s_cfg.adc_num_readings,
@@ -313,7 +317,7 @@ static void _save_nvram() {
     nvram_store_set_u16(my_handle, KEY_start_delay_ms , &s_cfg.start_delay_ms);
     nvram_store_set_u16(my_handle, KEY_stabilise_ms , &s_cfg.stabilise_ms);
     nvram_store_set_u16(my_handle, KEY_adc_num_readings , &s_cfg.adc_num_readings);
-    nvram_store_set_u16(my_handle, KEY_refill_voltage_threshold , &s_cfg.refill_voltage_threshold);
+    nvram_store_set_u16(my_handle, KEY_refill_mv_threshold , &s_cfg.refill_mv_threshold);
     nvram_store_set_u16(my_handle, KEY_max_refill_time_ms , &s_cfg.max_refill_time_ms);
     nvram_store_set_u16(my_handle, KEY_level_low_hysteresis_ms, &s_cfg.level_low_hysteresis_ms);
     nvram_store_set_u16(my_handle, KEY_level_ok_hysteresis_ms, &s_cfg.level_ok_hysteresis_ms);
@@ -351,16 +355,16 @@ void boiler_refill_set_cfg(boiler_refill_cfg_t config) {
         ESP_LOGE(TAG, "adc_num_readings is out of bounds: %d, ignoring.", config.adc_num_readings);
     }
 
-    if (config.refill_voltage_threshold >= 150 && config.refill_voltage_threshold < 2800) {
-        s_cfg.refill_voltage_threshold = config.refill_voltage_threshold;
+    if (config.refill_mv_threshold >= 150 && config.refill_mv_threshold < 2800) {
+        s_cfg.refill_mv_threshold = config.refill_mv_threshold;
     } else {
-        ESP_LOGE(TAG, "refill_voltage_threshold is out of bounds: %d, ignoring.", config.refill_voltage_threshold);
+        ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
     }
 
-    if (config.refill_voltage_threshold >= 150 && config.refill_voltage_threshold < 2800) {
-        s_cfg.refill_voltage_threshold = config.refill_voltage_threshold;
+    if (config.refill_mv_threshold >= 150 && config.refill_mv_threshold < 2800) {
+        s_cfg.refill_mv_threshold = config.refill_mv_threshold;
     } else {
-        ESP_LOGE(TAG, "refill_voltage_threshold is out of bounds: %d, ignoring.", config.refill_voltage_threshold);
+        ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
     }
 
     if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 10000) {

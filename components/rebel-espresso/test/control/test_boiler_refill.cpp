@@ -6,6 +6,8 @@
 
 #include <esp_event_base.h>
 #include <src/control/boiler_refill.h>
+#include <events.h>
+#include <esp_event.h>
 
 extern esp_event_loop_handle_t g_event_loop;
 
@@ -110,6 +112,62 @@ TEST_CASE("[boiler_refill:test_cfg_json]", "Test JSON serialisation") {
     cJSON_free(new_json);
     cJSON_Delete(root);
     cJSON_Delete(new_cfg);
+}
+
+static bool s_level_ok = false;
+static int s_level_check_count = 0;
+bool mock_check_level() {
+    s_level_check_count++;
+    return s_level_ok;
+}
+
+TEST_CASE("[boiler_refill:test_when_standby]", "Ensure boiler refill doesn't work in standby") {
+    xEventGroupClearBits(status_event_group, POWER_ON_BIT);
+    boiler_refill_init(g_event_loop);
+    boiler_set_check_level_fn(mock_check_level);
+    auto cfg = boiler_refill_get_cfg();
+
+    // Zero delay
+    s_level_ok = true;
+    s_level_check_count = 0;
+    cfg.start_delay_ms = 0;
+    boiler_refill_set_cfg(cfg);
+
+    uint64_t time_us = 0;
+    for(int i=0; i<10; i++) {
+        time_us += 100e3;
+        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, (void *) &time_us, sizeof(uint64_t),
+                                          portMAX_DELAY));
+    }
+    vTaskDelay(10);
+    TEST_ASSERT_EQUAL(0, s_level_check_count);
+
+    boiler_refill_reset_cfg();
+    boiler_refill_delete();
+}
+
+TEST_CASE("[boiler_refill:test_power_on]", "Test works when powered on") {
+    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
+    boiler_refill_init(g_event_loop);
+    boiler_set_check_level_fn(mock_check_level);
+
+    // -----------------------------------------
+    // Zero delay
+    s_level_ok = true;
+    s_level_check_count = 0;
+
+    uint64_t time_us = 0;
+    for(int i=0; i<10; i++) {
+        time_us += 100e3;
+        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, (void *) &time_us, sizeof(uint64_t),
+                                          portMAX_DELAY));
+    }
+    vTaskDelay(50);
+    TEST_ASSERT_EQUAL(10, s_level_check_count);
+
+
+    boiler_refill_reset_cfg();
+    boiler_refill_delete();
 }
 
 

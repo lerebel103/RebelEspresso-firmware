@@ -15,6 +15,7 @@
 #include "DB.h"
 
 #define IP 1
+
 #include "HAP.h"
 #include "HAPPlatform+Init.h"
 #include "HAPPlatformAccessorySetup+Init.h"
@@ -23,9 +24,12 @@
 #include "HAPPlatformMFiHWAuth+Init.h"
 #include "HAPPlatformMFiTokenAuth+Init.h"
 #include "HAPPlatformRunLoop+Init.h"
+
 #if IP
+
 #include "HAPPlatformServiceDiscovery+Init.h"
 #include "HAPPlatformTCPStreamManager+Init.h"
+
 #endif
 
 #include <signal.h>
@@ -35,6 +39,7 @@
 static bool requestedFactoryReset = false;
 static bool clearPairings = false;
 static esp_event_loop_handle_t s_event_loop;
+static bool s_init = false;
 
 
 #define PREFERRED_ADVERTISING_INTERVAL (HAPBLEAdvertisingIntervalCreateFromMilliseconds(417.5f))
@@ -67,20 +72,25 @@ static struct {
  */
 static HAPAccessoryServerRef accessoryServer;
 
-void HandleUpdatedState(HAPAccessoryServerRef* _Nonnull server, void* _Nullable context);
+void HandleUpdatedState(HAPAccessoryServerRef *_Nonnull server, void *_Nullable context);
 
 /**
  * Functions provided by App.c for each accessory application.
  */
 extern void AppRelease(void);
-extern void AppCreate(HAPAccessoryServerRef* server, HAPPlatformKeyValueStoreRef keyValueStore);
+
+extern void AppCreate(HAPAccessoryServerRef *server, HAPPlatformKeyValueStoreRef keyValueStore);
+
 extern void AppInitialize(
-        HAPAccessoryServerOptions* hapAccessoryServerOptions,
-        HAPPlatform* hapPlatform,
-        HAPAccessoryServerCallbacks* hapAccessoryServerCallbacks);
+        HAPAccessoryServerOptions *hapAccessoryServerOptions,
+        HAPPlatform *hapPlatform,
+        HAPAccessoryServerCallbacks *hapAccessoryServerCallbacks);
+
 extern void AppDeinitialize();
+
 extern void AppAccessoryServerStart(void);
-extern void AccessoryServerHandleUpdatedState(HAPAccessoryServerRef* server, void* _Nullable context);
+
+extern void AccessoryServerHandleUpdatedState(HAPAccessoryServerRef *server, void *_Nullable context);
 
 /**
  * Initialize global platform objects.
@@ -103,7 +113,8 @@ static void InitializePlatform() {
     // Accessory setup manager. Depends on key-value store.
     static HAPPlatformAccessorySetup accessorySetup;
     HAPPlatformAccessorySetupCreate(
-            &accessorySetup, &(const HAPPlatformAccessorySetupOptions) { .keyValueStore = &platform.factoryKeyValueStore });
+            &accessorySetup,
+            &(const HAPPlatformAccessorySetupOptions) {.keyValueStore = &platform.factoryKeyValueStore});
     platform.hapPlatform.accessorySetup = &accessorySetup;
 
 #if IP
@@ -144,10 +155,10 @@ static void InitializePlatform() {
     // Software Token provider. Depends on key-value store.
     HAPPlatformMFiTokenAuthCreate(
             &platform.mfiTokenAuth,
-            &(const HAPPlatformMFiTokenAuthOptions) { .keyValueStore = &platform.keyValueStore });
+            &(const HAPPlatformMFiTokenAuthOptions) {.keyValueStore = &platform.keyValueStore});
 
     // Run loop.
-    HAPPlatformRunLoopCreate(&(const HAPPlatformRunLoopOptions) { .keyValueStore = &platform.keyValueStore });
+    HAPPlatformRunLoopCreate(&(const HAPPlatformRunLoopOptions) {.keyValueStore = &platform.keyValueStore});
 
     platform.hapAccessoryServerOptions.maxPairings = kHAPPairingStorage_MinElements;
 
@@ -186,7 +197,7 @@ void RestorePlatformFactorySettings(void) {
 /**
  * Either simply passes State handling to app, or processes Factory Reset
  */
-void HandleUpdatedState(HAPAccessoryServerRef* _Nonnull server, void* _Nullable context) {
+void HandleUpdatedState(HAPAccessoryServerRef *_Nonnull server, void *_Nullable context) {
     if (HAPAccessoryServerGetState(server) == kHAPAccessoryServerState_Idle && requestedFactoryReset) {
         HAPPrecondition(server);
 
@@ -236,6 +247,7 @@ void HandleUpdatedState(HAPAccessoryServerRef* _Nonnull server, void* _Nullable 
 }
 
 #if IP
+
 static void InitializeIP() {
     // Prepare accessory server storage.
     static HAPIPSession ipSessions[kHAPIPSessionStorage_MinimumNumElements];
@@ -260,7 +272,7 @@ static void InitializeIP() {
             .numReadContexts = HAPArrayCount(ipReadContexts),
             .writeContexts = ipWriteContexts,
             .numWriteContexts = HAPArrayCount(ipWriteContexts),
-            .scratchBuffer = { .bytes = ipScratchBuffer, .numBytes = sizeof ipScratchBuffer }
+            .scratchBuffer = {.bytes = ipScratchBuffer, .numBytes = sizeof ipScratchBuffer}
     };
 
     platform.hapAccessoryServerOptions.ip.transport = &kHAPAccessoryServerTransport_IP;
@@ -269,6 +281,7 @@ static void InitializeIP() {
     platform.hapPlatform.ip.tcpStreamManager = &platform.tcpStreamManager;
 
 }
+
 #endif
 
 #if BLE
@@ -297,8 +310,7 @@ static void InitializeBLE() {
 }
 #endif
 
-void homekit_task()
-{
+void homekit_task() {
     HAPAssert(HAPGetCompatibilityVersion() == HAP_COMPATIBILITY_VERSION);
 
     // Initialize global platform objects.
@@ -336,17 +348,21 @@ void homekit_task()
 
     // Run main loop until explicitly stopped.
     HAPPlatformRunLoopRun();
-    // Run loop stopped explicitly by calling function HAPPlatformRunLoopStop.
+    HAPLogInfo(&kHAPLog_Default, "Run loop has stopped.");
 
     // Cleanup.
     AppRelease();
+    HAPLogInfo(&kHAPLog_Default, "App released.");
 
     HAPAccessoryServerRelease(&accessoryServer);
+    HAPLogInfo(&kHAPLog_Default, "Server released.");
 
     DeinitializePlatform();
+    s_init = false;
+    vTaskDelete(NULL);
 }
 
-void _send_power_state(void* _Nullable context, size_t contextSize) {
+void _send_power_state(void *_Nullable context, size_t contextSize) {
     HandleSendPowerState();
 }
 
@@ -369,6 +385,15 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 }
 
 void homekit_terminate() {
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+
+    HAPPlatformRunLoopStop();
+
+    // Wait for HAP to terminate - gah this is bad coding indeed
+    while(s_init) {
+        vTaskDelay(10);
+    }
 }
 
 void homekit_init(esp_event_loop_handle_t event_loop) {
@@ -381,4 +406,9 @@ void homekit_init(esp_event_loop_handle_t event_loop) {
                                                     _power_events, s_event_loop));
 
     xTaskCreate(homekit_task, "homekit_task", 6 * 1024, NULL, 6, NULL);
+    s_init = true;
+}
+
+bool homekit_is_initialised() {
+    return s_init;
 }

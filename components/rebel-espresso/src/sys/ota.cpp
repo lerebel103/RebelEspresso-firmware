@@ -574,3 +574,6 @@ int ota_get_duration() {
     return g_ota_duration;
 }
 
+bool ota_is_running() {
+    return g_ota_task_handle != nullptr;
+}

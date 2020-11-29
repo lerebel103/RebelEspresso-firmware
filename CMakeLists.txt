@@ -83,6 +83,11 @@ execute_process(
 )
 STRING(STRIP ${PROJECT_VERSION_PATCH} PROJECT_VERSION_PATCH)
 
+# Fix missing headers for homekit
+file(COPY "${CMAKE_SOURCE_DIR}/patch/include/"
+        DESTINATION "${CMAKE_SOURCE_DIR}/components/esp-apple-homekit-adk/port/include/"
+)
+
 # Not ussing this
 set(PROJECT_VERSION_TWEAK "0" CACHE INTERNAL "" FORCE)
 

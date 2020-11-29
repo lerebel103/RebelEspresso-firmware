@@ -31,12 +31,11 @@ static void send_iot_events(TickType_t tick) {
     }
 }
 
-void _iot_task(void*) {
+void _iot_task(void *) {
     while (_go) {
         time_t time_millis = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         wifi_tick(time_millis);
-        homekit_tick(time_millis);
 
         // Send MQTT stuff as required
         if (xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
@@ -96,7 +95,7 @@ void iot_init(esp_event_loop_handle_t event_loop) {
 
     mqtt_set_cfg_cb(controller_handle_new_cfg);
     mqtt_init();
-    homekit_init();
+    homekit_init(s_event_loop);
 
     // We also start a secondary tick loop, which for a machine wide tick that is not realtime based
     xTaskCreate(_iot_task, "iot task", configMINIMAL_STACK_SIZE + 2048, nullptr, 5, nullptr);

@@ -64,7 +64,7 @@ void controller_init(esp_event_loop_handle_t event_loop) {
 }
 
 void controller_enter_loop() {
-    static auto loop_interval_us = 250e3;
+    static auto loop_interval_us = 100e3;
     while (_go) {
         // Keeps going regardless of power state, emit event forever
         auto now_us = esp_timer_get_time();
@@ -73,8 +73,7 @@ void controller_enter_loop() {
 
         auto delay_ms = (loop_interval_us - (double)(after_us - now_us)) / 1e3;
         if (delay_ms > 0) {
-            printf("Delay ms: %f\r\n", delay_ms);
-            vTaskDelay(delay_ms);
+            vTaskDelay(pdMS_TO_TICKS(delay_ms));
         }
     }
 

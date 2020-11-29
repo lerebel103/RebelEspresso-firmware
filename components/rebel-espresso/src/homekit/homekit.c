@@ -29,13 +29,16 @@
 #endif
 
 #include <signal.h>
+#include <esp_event.h>
+#include <src/events.h>
+
 static bool requestedFactoryReset = false;
 static bool clearPairings = false;
-static bool s_init = false;
+static esp_event_loop_handle_t s_event_loop;
+
 
 #define PREFERRED_ADVERTISING_INTERVAL (HAPBLEAdvertisingIntervalCreateFromMilliseconds(417.5f))
-void app_wifi_init(void);
-esp_err_t app_wifi_connect(void);
+
 /**
  * Global platform objects.
  * Only tracks objects that will be released in DeinitializePlatform.
@@ -78,7 +81,6 @@ extern void AppInitialize(
 extern void AppDeinitialize();
 extern void AppAccessoryServerStart(void);
 extern void AccessoryServerHandleUpdatedState(HAPAccessoryServerRef* server, void* _Nullable context);
-extern const HAPAccessory* AppGetAccessoryInfo();
 
 /**
  * Initialize global platform objects.
@@ -310,6 +312,10 @@ void homekit_task()
     InitializeBLE();
 #endif
 
+    // Reset HomeKit state.
+    //int err = HAPPlatformKeyValueStorePurgeDomain(&platform.keyValueStore, ((HAPPlatformKeyValueStoreDomain) 0x00));
+    //err = HAPRestoreFactorySettings(&platform.keyValueStore);
+
     // Perform Application-specific initalizations such as setting up callbacks
     // and configure any additional unique platform dependencies
     AppInitialize(&platform.hapAccessoryServerOptions, &platform.hapPlatform, &platform.hapAccessoryServerCallbacks);
@@ -340,17 +346,39 @@ void homekit_task()
     DeinitializePlatform();
 }
 
-void homekit_terminate() {
-    s_init = false;
+void _send_power_state(void* _Nullable context, size_t contextSize) {
+    HandleSendPowerState();
 }
 
-void homekit_tick(TickType_t tickMS) {
-    if (!s_init) {
-        return;
+static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    HAPError err;
+    if (id == POWER_STANDBY) {
+        err = HAPPlatformRunLoopScheduleCallback(_send_power_state, NULL, 0);
+        if (err) {
+            HAPAssert(err == kHAPError_Unknown);
+            HAPFatalError();
+        }
+
+    } else if (id == POWER_ACTIVE) {
+        err = HAPPlatformRunLoopScheduleCallback(_send_power_state, NULL, 0);
+        if (err) {
+            HAPAssert(err == kHAPError_Unknown);
+            HAPFatalError();
+        }
     }
 }
 
-void homekit_init() {
+void homekit_terminate() {
+}
+
+void homekit_init(esp_event_loop_handle_t event_loop) {
+    s_event_loop = event_loop;
+
+    // Register power events so we can send to home kit
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, s_event_loop));
+
     xTaskCreate(homekit_task, "homekit_task", 6 * 1024, NULL, 6, NULL);
-    s_init = true;
 }

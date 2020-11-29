@@ -1,4 +1,8 @@
 #pragma once
+
+#include <freertos/FreeRTOS.h>
+#include <esp_event_base.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -6,9 +10,8 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 
-void homekit_init();
+void homekit_init(esp_event_loop_handle_t event_loop);
 
-void homekit_tick(TickType_t timestamp);
 
 #ifdef __cplusplus
 }

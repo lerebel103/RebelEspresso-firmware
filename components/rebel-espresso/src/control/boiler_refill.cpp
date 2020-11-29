@@ -49,6 +49,7 @@ bool boiler_check_level() {
     for (int i = 0; i < s_cfg.adc_num_readings; i++) {
         auto raw = adc1_get_raw(PIN_WATER_LEVEL_SENSE);
         level_voltage += esp_adc_cal_raw_to_voltage(raw, adc_chars);
+        ets_delay_us(500);
     }
     level_voltage = level_voltage / s_cfg.adc_num_readings;
 

@@ -61,6 +61,11 @@ typedef struct {
 
 static AccessoryConfiguration accessoryConfiguration;
 
+static bool s_subscribed = false;
+static const HAPAccessory* _accessory = NULL;
+static const HAPService* _service = NULL;
+static const HAPBoolCharacteristic* _characteristic = NULL;
+
 //----------------------------------------------------------------------------------------------------------------------
 
 
@@ -137,15 +142,29 @@ void HandleSwitchOnSubscribe(
         HAPAccessoryServerRef* server,
         const HAPBoolCharacteristicSubscriptionRequest* request,
         void* _Nullable context) {
-
+    // We only have a single subscription, so easy, not need to worry about characteristic instance
+    s_subscribed = true;
+    _accessory = request->accessory;
+    _service = request->service;
+    _characteristic = request->characteristic;
 }
 
 void HandleSwitchOnUnsubscribe(
         HAPAccessoryServerRef* server,
         const HAPBoolCharacteristicSubscriptionRequest* request,
         void* _Nullable context) {
-
+    s_subscribed = false;
+    _service = NULL;
+    _characteristic = NULL;
+    _accessory = NULL;
 }
+
+void HandleSendPowerState() {
+    if (s_subscribed) {
+        HAPAccessoryServerRaiseEvent(accessoryConfiguration.server, _characteristic, _service, _accessory);
+    }
+}
+
 
 //----------------------------------------------------------------------------------------------------------------------
 

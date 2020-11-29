@@ -62,6 +62,7 @@ void HandleSwitchOnUnsubscribe(
         const HAPBoolCharacteristicSubscriptionRequest* request,
         void* _Nullable context);
 
+void HandleSendPowerState();
 
 /**
  * Initialize the application.

@@ -68,8 +68,6 @@ void boiler_set_check_level_fn(check_level_fn fn) {
     check_level = fn;
 }
 
-
-
 static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id != TICK) {
         return;

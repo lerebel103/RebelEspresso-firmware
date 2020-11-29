@@ -11,7 +11,7 @@
 const static char *TAG = "power";
 
 static esp_event_loop_handle_t s_event_loop;
-static bool s_is_low_power = false;
+//static bool s_is_low_power = false;
 static bool s_active_toggled = false;
 
 static void _standby() {
@@ -77,6 +77,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     }
 }
 
+extern "C"
 void power_standby() {
     s_active_toggled = false;
     if (gpio_get_level(GPIO_SW3) != 0) {
@@ -84,11 +85,13 @@ void power_standby() {
     }
 }
 
+extern "C"
 void power_active() {
     s_active_toggled = true;
     _active();
 }
 
+extern "C"
 bool power_is_active() {
     bool is_on = xEventGroupGetBits(status_event_group) & POWER_ON_BIT;
     return is_on;

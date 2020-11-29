@@ -1,6 +1,10 @@
 #pragma once
-#include <FreeRTOS.h>
-#include <task.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <esp_event_base.h>
 
 void power_init(esp_event_loop_handle_t event_loop);
@@ -16,3 +20,7 @@ void power_standby();
 void power_active();
 
 bool power_is_active();
+
+#ifdef __cplusplus
+}
+#endif

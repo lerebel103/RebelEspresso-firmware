@@ -33,6 +33,10 @@ bool ota_is_enabled();
  */
 void ota_run();
 
+/**
+ * Are we running OTA right now already?
+ */
+bool ota_is_running();
 
 int ota_get_duration();
 

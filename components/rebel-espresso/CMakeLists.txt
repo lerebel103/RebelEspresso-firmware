@@ -17,9 +17,11 @@ set(COMPONENT_SRCDIRS
         src/sys
         src/hw
         src/hw/oled
+        src/homekit
         )
 
 set(COMPONENT_REQUIRES
+        mbedtls
         json
         nvs_flash
 
@@ -27,9 +29,9 @@ set(COMPONENT_REQUIRES
         esp-tls
         esp-google-iot
         esp_adc_cal
-        esp32-homekit
         ESP32-MAX31865
         u8g2
+        port
         )
 
 set(COMPONENT_ADD_INCLUDEDIRS

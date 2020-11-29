@@ -1,11 +1,10 @@
-#include <FreeRTOS.h>
-#include <task.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <unity.h>
 
 #include <esp_log.h>
 #include <driver/rmt.h>
 #include <esp_event.h>
-#include <nvs_handle.hpp>
 #include <src/sys/nvram_store.h>
 
 #include "control/boiler_temp.h"
@@ -433,47 +432,50 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
             100,
             100,
             100,
-            98,
-            95,
-            92,
-            89,
-            86,
-            83,
-            80,
-            77,
-            74,
-            71,
-            68,
-            65,
-            62,
-            59,
-            56,
-            53,
-            50,
-            47,
-            44,
-            41,
-            38,
-            35,
-            32,
-            29,
-            26,
-            23,
-            20,
-            17,
-            14,
-            11,
+            100,
+            99,
+            96,
+            93,
+            90,
+            87,
+            84,
+            81,
+            78,
+            75,
+            72,
+            69,
+            66,
+            63,
+            60,
+            57,
+            54,
+            51,
+            48,
+            45,
+            42,
+            39,
+            36,
+            33,
+            30,
+            27,
+            24,
+            21,
+            18,
+            15,
+            12,
             8,
             5,
             4,
-    };
+            0,
+            };
 
     for (int i = 0; i < 150; i++) {
         data.temperature = 25 + i;
         boiler_temp_process(i * 1e6, data);
 
+        // printf("%d,\r\n", boiler_temp_get_duty());
         // Cuts off with these settings
-        if (data.temperature >= 88) {
+        if (data.temperature > 88) {
             TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
         } else {
             TEST_ASSERT_EQUAL(expectedDuties[i], boiler_temp_get_duty());
@@ -481,7 +483,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     }
 
     // Over temp got triggered this many times
-    TEST_ASSERT_EQUAL(18, boiler_temp_get_status().temp_over_limit_count);
+    TEST_ASSERT_EQUAL(17, boiler_temp_get_status().temp_over_limit_count);
 
     boiler_temp_delete();
 }
@@ -507,13 +509,14 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     boiler_temp_process(1.3e6, data);
     TEST_ASSERT_EQUAL(1, boiler_temp_get_status().temp_read_error_count);
 
-    boiler_status_t stats;
+    boiler_temp_status_t stats;
     nvs_handle my_handle;
     uint32_t defaultVal = 0;
     ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
 
     // First tick saves straight away (zero last save time)
-    ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
+    uint64_t time_us = 1e6;
+    ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, &time_us, sizeof(uint64_t), portMAX_DELAY));
     vTaskDelay(pdMS_TO_TICKS(100));
     nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &stats.temp_read_error_count,
                         (void *) &defaultVal);
@@ -523,17 +526,17 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     boiler_temp_process(1e6, data);
 
     for(int i=0; i<7; i++) {
-        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
+        time_us += 1e6;  // 1s
+        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, (void*)&time_us, sizeof(uint64_t), portMAX_DELAY));
         nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &stats.temp_read_error_count,
                             (void *) &defaultVal);
 
-        if ( i > 5) {
+        if ( i > 4) {
             TEST_ASSERT_EQUAL(2, stats.temp_read_error_count);
         } else {
             TEST_ASSERT_EQUAL(1, stats.temp_read_error_count);
         }
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(1);
     }
 
     nvs_close(my_handle);

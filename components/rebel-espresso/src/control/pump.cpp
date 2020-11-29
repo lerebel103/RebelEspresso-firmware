@@ -1,5 +1,5 @@
-#include <FreeRTOS.h>
-#include <task.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <hal/gpio_types.h>
 #include <hw_config.h>
@@ -29,7 +29,7 @@ static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id
         _boiler_refilling = true;
         ESP_LOGI(TAG, "Refill started, turning pump on");
         _pump_on();
-    } else if (id == BOILER_REFILL_STOPPED) {
+    } else if (id == BOILER_REFILL_STOPPED || id == BOILER_REFILL_ERROR) {
         _boiler_refilling = false;
         if (!_pump_sw_on) {
             ESP_LOGI(TAG, "Refill stopped, turning off pump");
@@ -116,6 +116,9 @@ void pump_init(esp_event_loop_handle_t event_loop) {
                                                     _refill_events, s_event_loop));
 
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BOILER_REFILL_STOPPED,
+                                                    _refill_events, s_event_loop));
+
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BOILER_REFILL_ERROR,
                                                     _refill_events, s_event_loop));
 
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,

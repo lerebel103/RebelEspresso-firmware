@@ -1,0 +1,414 @@
+// Copyright (c) 2015-2019 The HomeKit ADK Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the “License”);
+// you may not use this file except in compliance with the License.
+// See [CONTRIBUTORS.md] for the list of HomeKit ADK project authors.
+// This example code is in the Public Domain (or CC0 licensed, at your option.)
+//
+// Unless required by applicable law or agreed to in writing, this
+// software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied.
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include "App.h"
+#include "DB.h"
+
+#define IP 1
+
+#include "HAP.h"
+#include "HAPPlatform+Init.h"
+#include "HAPPlatformAccessorySetup+Init.h"
+#include "HAPPlatformBLEPeripheralManager+Init.h"
+#include "HAPPlatformKeyValueStore+Init.h"
+#include "HAPPlatformMFiHWAuth+Init.h"
+#include "HAPPlatformMFiTokenAuth+Init.h"
+#include "HAPPlatformRunLoop+Init.h"
+
+#if IP
+
+#include "HAPPlatformServiceDiscovery+Init.h"
+#include "HAPPlatformTCPStreamManager+Init.h"
+
+#endif
+
+#include <signal.h>
+#include <esp_event.h>
+#include <src/events.h>
+
+static bool requestedFactoryReset = false;
+static bool clearPairings = false;
+static esp_event_loop_handle_t s_event_loop;
+static bool s_init = false;
+
+
+#define PREFERRED_ADVERTISING_INTERVAL (HAPBLEAdvertisingIntervalCreateFromMilliseconds(417.5f))
+
+/**
+ * Global platform objects.
+ * Only tracks objects that will be released in DeinitializePlatform.
+ */
+static struct {
+    HAPPlatformKeyValueStore keyValueStore;
+    HAPPlatformKeyValueStore factoryKeyValueStore;
+    HAPAccessoryServerOptions hapAccessoryServerOptions;
+    HAPPlatform hapPlatform;
+    HAPAccessoryServerCallbacks hapAccessoryServerCallbacks;
+
+#if HAVE_NFC
+    HAPPlatformAccessorySetupNFC setupNFC;
+#endif
+
+#if IP
+    HAPPlatformTCPStreamManager tcpStreamManager;
+#endif
+
+    HAPPlatformMFiHWAuth mfiHWAuth;
+    HAPPlatformMFiTokenAuth mfiTokenAuth;
+} platform;
+
+/**
+ * HomeKit accessory server that hosts the accessory.
+ */
+static HAPAccessoryServerRef accessoryServer;
+
+void HandleUpdatedState(HAPAccessoryServerRef *_Nonnull server, void *_Nullable context);
+
+/**
+ * Functions provided by App.c for each accessory application.
+ */
+extern void AppRelease(void);
+
+extern void AppCreate(HAPAccessoryServerRef *server, HAPPlatformKeyValueStoreRef keyValueStore);
+
+extern void AppInitialize(
+        HAPAccessoryServerOptions *hapAccessoryServerOptions,
+        HAPPlatform *hapPlatform,
+        HAPAccessoryServerCallbacks *hapAccessoryServerCallbacks);
+
+extern void AppDeinitialize();
+
+extern void AppAccessoryServerStart(void);
+
+extern void AccessoryServerHandleUpdatedState(HAPAccessoryServerRef *server, void *_Nullable context);
+
+/**
+ * Initialize global platform objects.
+ */
+static void InitializePlatform() {
+    // Key-value store.
+    HAPPlatformKeyValueStoreCreate(&platform.keyValueStore, &(const HAPPlatformKeyValueStoreOptions) {
+            .part_name = "nvs",
+            .namespace_prefix = "hap",
+            .read_only = false
+    });
+    platform.hapPlatform.keyValueStore = &platform.keyValueStore;
+
+    HAPPlatformKeyValueStoreCreate(&platform.factoryKeyValueStore, &(const HAPPlatformKeyValueStoreOptions) {
+            .part_name = "nvs_factory",
+            .namespace_prefix = "hap",
+            .read_only = true
+    });
+
+    // Accessory setup manager. Depends on key-value store.
+    static HAPPlatformAccessorySetup accessorySetup;
+    HAPPlatformAccessorySetupCreate(
+            &accessorySetup,
+            &(const HAPPlatformAccessorySetupOptions) {.keyValueStore = &platform.factoryKeyValueStore});
+    platform.hapPlatform.accessorySetup = &accessorySetup;
+
+#if IP
+    // TCP stream manager.
+    HAPPlatformTCPStreamManagerCreate(&platform.tcpStreamManager, &(const HAPPlatformTCPStreamManagerOptions) {
+            /* Listen on all available network interfaces. */
+            .port = 0 /* Listen on unused port number from the ephemeral port range. */,
+            .maxConcurrentTCPStreams = 9
+    });
+
+    // Service discovery.
+    static HAPPlatformServiceDiscovery serviceDiscovery;
+    HAPPlatformServiceDiscoveryCreate(&serviceDiscovery, &(const HAPPlatformServiceDiscoveryOptions) {
+            0, /* Register services on all available network interfaces. */
+    });
+    platform.hapPlatform.ip.serviceDiscovery = &serviceDiscovery;
+#endif
+
+#if (BLE)
+    // BLE peripheral manager. Depends on key-value store.
+    static HAPPlatformBLEPeripheralManagerOptions blePMOptions = { 0 };
+    blePMOptions.keyValueStore = &platform.keyValueStore;
+
+    static HAPPlatformBLEPeripheralManager blePeripheralManager;
+    HAPPlatformBLEPeripheralManagerCreate(&blePeripheralManager, &blePMOptions);
+    platform.hapPlatform.ble.blePeripheralManager = &blePeripheralManager;
+#endif
+
+#if HAVE_MFI_HW_AUTH
+    // Apple Authentication Coprocessor provider.
+    HAPPlatformMFiHWAuthCreate(&platform.mfiHWAuth);
+#endif
+
+#if HAVE_MFI_HW_AUTH
+    platform.hapPlatform.authentication.mfiHWAuth = &platform.mfiHWAuth;
+#endif
+
+    // Software Token provider. Depends on key-value store.
+    HAPPlatformMFiTokenAuthCreate(
+            &platform.mfiTokenAuth,
+            &(const HAPPlatformMFiTokenAuthOptions) {.keyValueStore = &platform.keyValueStore});
+
+    // Run loop.
+    HAPPlatformRunLoopCreate(&(const HAPPlatformRunLoopOptions) {.keyValueStore = &platform.keyValueStore});
+
+    platform.hapAccessoryServerOptions.maxPairings = kHAPPairingStorage_MinElements;
+
+    platform.hapPlatform.authentication.mfiTokenAuth =
+            HAPPlatformMFiTokenAuthIsProvisioned(&platform.mfiTokenAuth) ? &platform.mfiTokenAuth : NULL;
+
+    platform.hapAccessoryServerCallbacks.handleUpdatedState = HandleUpdatedState;
+}
+
+/**
+ * Deinitialize global platform objects.
+ */
+static void DeinitializePlatform() {
+#if HAVE_MFI_HW_AUTH
+    // Apple Authentication Coprocessor provider.
+    HAPPlatformMFiHWAuthRelease(&platform.mfiHWAuth);
+#endif
+
+#if IP
+    // TCP stream manager.
+    HAPPlatformTCPStreamManagerRelease(&platform.tcpStreamManager);
+#endif
+
+    AppDeinitialize();
+
+    // Run loop.
+    HAPPlatformRunLoopRelease();
+}
+
+/**
+ * Restore platform specific factory settings.
+ */
+void RestorePlatformFactorySettings(void) {
+}
+
+/**
+ * Either simply passes State handling to app, or processes Factory Reset
+ */
+void HandleUpdatedState(HAPAccessoryServerRef *_Nonnull server, void *_Nullable context) {
+    if (HAPAccessoryServerGetState(server) == kHAPAccessoryServerState_Idle && requestedFactoryReset) {
+        HAPPrecondition(server);
+
+        HAPError err;
+
+        HAPLogInfo(&kHAPLog_Default, "A factory reset has been requested.");
+
+        // Purge app state.
+        err = HAPPlatformKeyValueStorePurgeDomain(&platform.keyValueStore, ((HAPPlatformKeyValueStoreDomain) 0x00));
+        if (err) {
+            HAPAssert(err == kHAPError_Unknown);
+            HAPFatalError();
+        }
+
+        // Reset HomeKit state.
+        err = HAPRestoreFactorySettings(&platform.keyValueStore);
+        if (err) {
+            HAPAssert(err == kHAPError_Unknown);
+            HAPFatalError();
+        }
+
+        // Restore platform specific factory settings.
+        RestorePlatformFactorySettings();
+
+        // De-initialize App.
+        AppRelease();
+
+        requestedFactoryReset = false;
+
+        // Re-initialize App.
+        AppCreate(server, &platform.keyValueStore);
+
+        // Restart accessory server.
+        AppAccessoryServerStart();
+        return;
+    } else if (HAPAccessoryServerGetState(server) == kHAPAccessoryServerState_Idle && clearPairings) {
+        HAPError err;
+        err = HAPRemoveAllPairings(&platform.keyValueStore);
+        if (err) {
+            HAPAssert(err == kHAPError_Unknown);
+            HAPFatalError();
+        }
+        AppAccessoryServerStart();
+    } else {
+        AccessoryServerHandleUpdatedState(server, context);
+    }
+}
+
+#if IP
+
+static void InitializeIP() {
+    // Prepare accessory server storage.
+    static HAPIPSession ipSessions[kHAPIPSessionStorage_MinimumNumElements];
+    static uint8_t ipInboundBuffers[HAPArrayCount(ipSessions)][kHAPIPSession_MinimumInboundBufferSize];
+    static uint8_t ipOutboundBuffers[HAPArrayCount(ipSessions)][kHAPIPSession_MinimumOutboundBufferSize];
+    static HAPIPEventNotificationRef ipEventNotifications[HAPArrayCount(ipSessions)][kAttributeCount];
+    for (size_t i = 0; i < HAPArrayCount(ipSessions); i++) {
+        ipSessions[i].inboundBuffer.bytes = ipInboundBuffers[i];
+        ipSessions[i].inboundBuffer.numBytes = sizeof ipInboundBuffers[i];
+        ipSessions[i].outboundBuffer.bytes = ipOutboundBuffers[i];
+        ipSessions[i].outboundBuffer.numBytes = sizeof ipOutboundBuffers[i];
+        ipSessions[i].eventNotifications = ipEventNotifications[i];
+        ipSessions[i].numEventNotifications = HAPArrayCount(ipEventNotifications[i]);
+    }
+    static HAPIPReadContextRef ipReadContexts[kAttributeCount];
+    static HAPIPWriteContextRef ipWriteContexts[kAttributeCount];
+    static uint8_t ipScratchBuffer[kHAPIPSession_MinimumScratchBufferSize];
+    static HAPIPAccessoryServerStorage ipAccessoryServerStorage = {
+            .sessions = ipSessions,
+            .numSessions = HAPArrayCount(ipSessions),
+            .readContexts = ipReadContexts,
+            .numReadContexts = HAPArrayCount(ipReadContexts),
+            .writeContexts = ipWriteContexts,
+            .numWriteContexts = HAPArrayCount(ipWriteContexts),
+            .scratchBuffer = {.bytes = ipScratchBuffer, .numBytes = sizeof ipScratchBuffer}
+    };
+
+    platform.hapAccessoryServerOptions.ip.transport = &kHAPAccessoryServerTransport_IP;
+    platform.hapAccessoryServerOptions.ip.accessoryServerStorage = &ipAccessoryServerStorage;
+
+    platform.hapPlatform.ip.tcpStreamManager = &platform.tcpStreamManager;
+
+}
+
+#endif
+
+#if BLE
+static void InitializeBLE() {
+    static HAPBLEGATTTableElementRef gattTableElements[kAttributeCount];
+    static HAPBLESessionCacheElementRef sessionCacheElements[kHAPBLESessionCache_MinElements];
+    static HAPSessionRef session;
+    static uint8_t procedureBytes[2048];
+    static HAPBLEProcedureRef procedures[1];
+
+    static HAPBLEAccessoryServerStorage bleAccessoryServerStorage = {
+        .gattTableElements = gattTableElements,
+        .numGATTTableElements = HAPArrayCount(gattTableElements),
+        .sessionCacheElements = sessionCacheElements,
+        .numSessionCacheElements = HAPArrayCount(sessionCacheElements),
+        .session = &session,
+        .procedures = procedures,
+        .numProcedures = HAPArrayCount(procedures),
+        .procedureBuffer = { .bytes = procedureBytes, .numBytes = sizeof procedureBytes }
+    };
+
+    platform.hapAccessoryServerOptions.ble.transport = &kHAPAccessoryServerTransport_BLE;
+    platform.hapAccessoryServerOptions.ble.accessoryServerStorage = &bleAccessoryServerStorage;
+    platform.hapAccessoryServerOptions.ble.preferredAdvertisingInterval = PREFERRED_ADVERTISING_INTERVAL;
+    platform.hapAccessoryServerOptions.ble.preferredNotificationDuration = kHAPBLENotification_MinDuration;
+}
+#endif
+
+void homekit_task() {
+    HAPAssert(HAPGetCompatibilityVersion() == HAP_COMPATIBILITY_VERSION);
+
+    // Initialize global platform objects.
+    InitializePlatform();
+
+#if IP
+    InitializeIP();
+#endif
+
+#if BLE
+    InitializeBLE();
+#endif
+
+    // Reset HomeKit state.
+    //int err = HAPPlatformKeyValueStorePurgeDomain(&platform.keyValueStore, ((HAPPlatformKeyValueStoreDomain) 0x00));
+    //err = HAPRestoreFactorySettings(&platform.keyValueStore);
+
+    // Perform Application-specific initalizations such as setting up callbacks
+    // and configure any additional unique platform dependencies
+    AppInitialize(&platform.hapAccessoryServerOptions, &platform.hapPlatform, &platform.hapAccessoryServerCallbacks);
+
+    // Initialize accessory server.
+    HAPAccessoryServerCreate(
+            &accessoryServer,
+            &platform.hapAccessoryServerOptions,
+            &platform.hapPlatform,
+            &platform.hapAccessoryServerCallbacks,
+            /* context: */ NULL);
+
+    // Create app object.
+    AppCreate(&accessoryServer, &platform.keyValueStore);
+
+    // Start accessory server for App.
+    AppAccessoryServerStart();
+
+    // Run main loop until explicitly stopped.
+    HAPPlatformRunLoopRun();
+    HAPLogInfo(&kHAPLog_Default, "Run loop has stopped.");
+
+    // Cleanup.
+    AppRelease();
+    HAPLogInfo(&kHAPLog_Default, "App released.");
+
+    HAPAccessoryServerRelease(&accessoryServer);
+    HAPLogInfo(&kHAPLog_Default, "Server released.");
+
+    DeinitializePlatform();
+    s_init = false;
+    vTaskDelete(NULL);
+}
+
+void _send_power_state(void *_Nullable context, size_t contextSize) {
+    HandleSendPowerState();
+}
+
+static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    HAPError err;
+    if (id == POWER_STANDBY) {
+        err = HAPPlatformRunLoopScheduleCallback(_send_power_state, NULL, 0);
+        if (err) {
+            HAPAssert(err == kHAPError_Unknown);
+            HAPFatalError();
+        }
+
+    } else if (id == POWER_ACTIVE) {
+        err = HAPPlatformRunLoopScheduleCallback(_send_power_state, NULL, 0);
+        if (err) {
+            HAPAssert(err == kHAPError_Unknown);
+            HAPFatalError();
+        }
+    }
+}
+
+void homekit_terminate() {
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+
+    HAPPlatformRunLoopStop();
+
+    // Wait for HAP to terminate - gah this is bad coding indeed
+    while(s_init) {
+        vTaskDelay(10);
+    }
+}
+
+void homekit_init(esp_event_loop_handle_t event_loop) {
+    s_event_loop = event_loop;
+
+    // Register power events so we can send to home kit
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, s_event_loop));
+
+    xTaskCreate(homekit_task, "homekit_task", 6 * 1024, NULL, 6, NULL);
+    s_init = true;
+}
+
+bool homekit_is_initialised() {
+    return s_init;
+}

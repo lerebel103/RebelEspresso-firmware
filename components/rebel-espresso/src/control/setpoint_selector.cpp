@@ -1,5 +1,5 @@
-#include <FreeRTOS.h>
-#include <task.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <hal/gpio_types.h>
 #include <hw_config.h>
@@ -49,11 +49,9 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 
     // maintain setpoint_selector state with switch
     if(gpio_get_level(GPIO_SW2) == 0) {
-        ESP_LOGE(TAG, "steam ON");
         _setpoint_selector_sw_on = true;
         _setpoint_selector_on();
     } else {
-        ESP_LOGE(TAG, "steam OFF");
         _selector_switch_off(nullptr);
     }
 }

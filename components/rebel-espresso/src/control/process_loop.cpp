@@ -27,7 +27,6 @@
 static timer_idx_t s_timer_idx = TIMER_0;
 static timer_group_t s_timer_group = TIMER_GROUP_0;
 static TaskHandle_t _process_task_handle = nullptr;
-static TaskHandle_t _tick_task_handle = nullptr;
 static bool _go = false;
 static SemaphoreHandle_t s_semaphore = NULL;
 static esp_event_loop_handle_t s_event_loop;

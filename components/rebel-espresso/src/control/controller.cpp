@@ -63,14 +63,18 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
-
-
-
 void controller_enter_loop() {
+    static auto loop_interval_us = 100e3;
     while (_go) {
         // Keeps going regardless of power state, emit event forever
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, nullptr, 0, portMAX_DELAY));
-        vTaskDelay(pdMS_TO_TICKS(250));
+        auto now_us = esp_timer_get_time();
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, (void*)&now_us, sizeof(uint64_t), portMAX_DELAY));
+        auto after_us = esp_timer_get_time();
+
+        auto delay_ms = (loop_interval_us - (double)(after_us - now_us)) / 1e3;
+        if (delay_ms > 0) {
+            vTaskDelay(pdMS_TO_TICKS(delay_ms));
+        }
     }
 
     vTaskDelete(nullptr);
@@ -83,12 +87,19 @@ void controller_enter_loop() {
 void controller_cfg_to_json(cJSON *root, const char* base_key) {
     auto boiler_cfg = boiler_temp_get_cfg();
     boiler_cfg.to_json(root, base_key);
+
+    auto boiler_refill_cfg = boiler_refill_get_cfg();
+    boiler_refill_cfg.to_json(root, base_key);
+
     ota_cfg_to_json(root, base_key);
 }
 
 void controller_status_to_json(cJSON *root, const char* base_key) {
     auto boiler_status = boiler_temp_get_status();
     boiler_status.to_json(root, base_key);
+
+    auto refill_status = boiler_refill_get_status();
+    refill_status.to_json(root, base_key);
 }
 
 void controller_handle_new_cfg(const cJSON* cfg) {
@@ -98,6 +109,7 @@ void controller_handle_new_cfg(const cJSON* cfg) {
 
     // Pass down to each component, they will deal with it - it's a bit lazy really
     boiler_temp_update_cfg(cfg);
+    boiler_refill_update_cfg(cfg);
     ota_update_cfg(cfg);
 
     // Trigger status send

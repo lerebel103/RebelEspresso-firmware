@@ -32,6 +32,7 @@ static boiler_refill_status_t s_status;
 static const adc_unit_t unit = ADC_UNIT_1;
 static esp_adc_cal_characteristics_t *adc_chars;
 static esp_event_loop_handle_t s_event_loop;
+static double s_level_voltage = 0;
 
 typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 
@@ -45,24 +46,19 @@ bool boiler_check_level() {
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 1);
     vTaskDelay(pdMS_TO_TICKS(s_cfg.stabilise_ms));
 
-    double level_voltage = 0;
+    auto level_voltage = 0;
     for (int i = 0; i < s_cfg.adc_num_readings; i++) {
         auto raw = adc1_get_raw(PIN_WATER_LEVEL_SENSE);
         level_voltage += esp_adc_cal_raw_to_voltage(raw, adc_chars);
         ets_delay_us(500);
     }
-    level_voltage = level_voltage / s_cfg.adc_num_readings;
+    s_level_voltage = level_voltage / s_cfg.adc_num_readings;
 
-    ESP_LOGD(TAG, "Level voltage: %f", level_voltage);
+    ESP_LOGD(TAG, "Level voltage: %f", s_level_voltage);
 
     // Done, disable to prevent electrolysis
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);
-
-    if (level_voltage > s_cfg.refill_mv_threshold) {
-        return false;
-    } else {
-        return true;
-    }
+    return s_level_voltage <= s_cfg.refill_mv_threshold;
 }
 
 void boiler_set_check_level_fn(check_level_fn fn) {
@@ -86,7 +82,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         now_ms = now_ms / 1e3;
     }
 
-    // Read current boiler level but add hysteresis
+    // Read current boiler level and work out what state we need to be in
     boiler_refill_states_process(now_ms, check_level());
 }
 
@@ -160,6 +156,11 @@ void boiler_refill_delete() {
 
     free(adc_chars);
 }
+
+double boiler_refill_level_mv() {
+    return s_level_voltage;
+}
+
 
 
 // -----------------------------------------------------------------------------------------

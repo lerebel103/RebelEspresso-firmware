@@ -35,7 +35,7 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
 
 
     // Calculate new value if we can, otherwise leave the old one there.
-    if (_rtd_array[idx].fault == Max31865Error::NoError && idx == RTD_BOILER_IDX) {
+    if (_rtd_array[idx].fault == Max31865Error::NoError) {
         _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
     }
 

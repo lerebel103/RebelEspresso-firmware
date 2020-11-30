@@ -30,6 +30,9 @@ static void _set_duty(int duty) {
     ESP_LOGI("Hbridge", "Duty set to %d", duty);
 }
 
+int brew_temp_get_duty() {
+    return duty;
+}
 
 void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
     _set_duty(35);
@@ -43,13 +46,13 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
     if (data.fault == Max31865Error::NoError) {
         // Good to go
         //uint64_t deltaT = time_us - s_last_time_us;
+        ESP_LOGI(TAG, "BrewHead Temp=%f", data.temperature);
 
         if (!(xEventGroupGetBits(status_event_group) &  BOILER_LEVEL_OK_BIT)) {
             ESP_LOGE(TAG, "Not running, boiler level low");
             return;
         }
 
-        ESP_LOGI(TAG, "BrewHead Temp=%f", data.temperature);
 
         s_last_time_us = time_us;
     } else {

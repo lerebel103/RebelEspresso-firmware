@@ -142,6 +142,11 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop);
 void boiler_refill_delete();
 
 /**
+ * Last reading, in millivolts
+ */
+double boiler_refill_level_mv();
+
+/**
  * Used for testing, where we can inject a mocked function for level checking
  * @param fn
  */

@@ -144,9 +144,6 @@ extern "C" void boiler_temp_set_duty(int duty) {
     s_last_duty = duty;
 }
 
-/**
- * Used for testing
- */
 int boiler_temp_get_duty() {
     return s_last_duty;
 }

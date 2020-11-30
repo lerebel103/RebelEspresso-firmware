@@ -11,6 +11,8 @@
 #include <cmath>
 #include <src/control/power.h>
 #include <esp_event.h>
+#include <src/control/brew_temp.h>
+#include <src/control/boiler_refill.h>
 
 #include "control/controller.h"
 
@@ -21,12 +23,9 @@ extern "C" {
     #include "u8g2_esp32_hal.h"
 }
 
-#define PIN_SDA GPIO_NUM_4
-#define PIN_SCL GPIO_NUM_15
-#define PIN_RST GPIO_NUM_16
+#define TEMP_ERROR_STR "---"
 
 #define TEMPERATURE_PANEL_WIDTH 112
-#define PROBE_CELL_WIDTH (TEMPERATURE_PANEL_WIDTH / 2)
 
 static esp_event_loop_handle_t s_event_loop;
 const static char* TAG = "oled";
@@ -88,37 +87,35 @@ static void display_draw_unit(u8g2_t *u8g2, int yPos) {
     }
 }
 
-void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
+void _render_tec(u8g2_t *u8g2, char *tempBuf, int xpad, int yOffset, int idx) {
+    rtd_data_t tec;
+    rtds_get(&tec, idx);
+    if (tec.fault == Max31865Error::NoError) {
+        sprintf(tempBuf, "%.1f", tec.temperature);
+    } else {
+        sprintf(tempBuf,"%s", TEMP_ERROR_STR);
+    }
+    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
+}
+
+void display_draw_brew_temp(u8g2_t *u8g2, int *y) {
     rtd_data_t result;
-    rtds_get(&result, 0);
+    rtds_get(&result, 1);
 
     char tempBuf[16];
-    //char setPointBuf[7];
     auto temp_val = result.temperature;
-
-    //boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
-
-    //sprintf(setPointBuf, "/%d", (int) temperature_to_unit(cfg.pid.setpoints[cfg.pid.active_setpoint], rtds_get_unit()));
-
-    int width_of_set_point = 0; //10 * strlen(setPointBuf);
 
     // Integral part of temperature, in larger font
     if (result.fault == Max31865Error::NoError) {
         sprintf(tempBuf, "%d", (int) temp_val);
     } else {
-        sprintf(tempBuf, "---");
+        sprintf(tempBuf, TEMP_ERROR_STR);
     }
 
-
-    auto width_of_intregral_temp = strlen(tempBuf) * 20;
-    auto width_of_floating_point = 2 * 8;
-
-    // Calculate offset from LHS edge
-    auto x_offset = (TEMPERATURE_PANEL_WIDTH
-                     - width_of_intregral_temp
-                     - width_of_set_point
-                     - width_of_floating_point) / 2;
     u8g2_SetFont(u8g2, u8g2_font_courB24_tf);
+    auto width_of_intregral_temp = u8g2_GetStrWidth(u8g2, tempBuf);
+    auto x_offset = 0;
     u8g2_DrawStr(u8g2, x_offset, *y, tempBuf);
 
     // Draw floating point now, as '.x'
@@ -127,32 +124,79 @@ void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     u8g2_SetFont(u8g2, u8g2_font_courR10_tf);
     u8g2_DrawStr(u8g2, x_offset + width_of_intregral_temp, *y, tempBuf);
 
-    // And now Setpoint
-    /*auto x_setpoint = x_offset + width_of_intregral_temp + width_of_floating_point;
+    // Duty
+    auto xpad = 3;
+    auto yOffset = 8;
+    double duty = brew_temp_get_duty();
+    sprintf(tempBuf, "%d%%", (int)duty);
+    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
+    yOffset += 8 + 2;
+
+    // TEC side 1
+    auto idx = 2;
+    _render_tec(u8g2, tempBuf, xpad, yOffset, idx);
+
+    // TEC side 2
+    yOffset += 8 + 2;
+    idx = 3;
+    _render_tec(u8g2, tempBuf, xpad, yOffset, idx);
+}
+
+void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
+    rtd_data_t result;
+    rtds_get(&result, 0);
+
+    char tempBuf[16];
+    auto temp_val = result.temperature;
+
+    // Integral part of temperature, in larger font
+    if (result.fault == Max31865Error::NoError) {
+        sprintf(tempBuf, "%d", (int) temp_val);
+    } else {
+        sprintf(tempBuf, TEMP_ERROR_STR);
+    }
+
+
+    u8g2_SetFont(u8g2, u8g2_font_courB24_tf);
+    auto width_of_intregral_temp = u8g2_GetStrWidth(u8g2, tempBuf);
+
+    auto x_offset = 0;
+    u8g2_DrawStr(u8g2, x_offset, *y, tempBuf);
+
+    // Draw floating point now, as '.x'
+    int point = static_cast<int>(temp_val * 10 - static_cast<int>(temp_val) * 10);
+    sprintf(tempBuf, ".%d", point);
     u8g2_SetFont(u8g2, u8g2_font_courR10_tf);
-    u8g2_DrawStr(u8g2, x_setpoint, (*y), setPointBuf);
-     */
+    u8g2_DrawStr(u8g2, x_offset + width_of_intregral_temp, *y, tempBuf);
 
     // Duty
+    auto xpad = 3;
+    auto yOffset = *y - 16;
     double duty = boiler_temp_get_duty();
     sprintf(tempBuf, "%d%%", (int)duty);
-    auto width_of_duty_temp = strlen(tempBuf) * 8;
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - width_of_duty_temp) + 2, 8, tempBuf);
+    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 
+    // Water level voltage
+    yOffset += 12;
+    double level_voltage = boiler_refill_level_mv() / 1e3;
+    sprintf(tempBuf, "%.1fV", level_voltage);
+    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 }
 
 
 static void display_draw_info(u8g2_t &u8g2) {
     u8g2_ClearBuffer(&u8g2);
 
-    u8g2_SetFont(&u8g2, u8g2_font_fur14_tr);
-    u8g2_DrawStr(&u8g2, 10, 16, "Rebel Espresso");
+    u8g2_SetFont(&u8g2, u8g2_font_fur11_tf);
+    u8g2_DrawStr(&u8g2, 14, 16, "RebelEspresso");
 
-    u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, 25, 36, "v" FIRMWARE_VERSION);
+    u8g2_SetFont(&u8g2, u8g2_font_fur11_tf);
+    u8g2_DrawStr(&u8g2, 34, 36, "v" FIRMWARE_VERSION);
 
-    u8g2_SetFont(&u8g2, u8g2_font_courB10_tf);
+    u8g2_SetFont(&u8g2, u8g2_font_fur11_tf);
     u8g2_DrawStr(&u8g2, 10, 56, thing_info_id());
 
     u8g2_SendBuffer(&u8g2);
@@ -184,17 +228,20 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             u8g2_ClearBuffer(&u8g2);
 
             // Draw temps, flash them when lid is open
-            int y = 26;
+            int y = 24;
+            display_draw_brew_temp(&u8g2, &y);
+
+            // Now draw frame separator
+            y = 32;
+            display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, y);
+
+            y += 32;
             display_draw_boiler_temp(&u8g2, &y);
 
-            y += 6;
-            int yboilerBottom = y;
 
             int yPosWifi = 14;
             int yPosOnOff = 54;
 
-            // Now draw frame separator
-            display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, yboilerBottom);
 
             // WiFi symbol
             if (drawWifi) {

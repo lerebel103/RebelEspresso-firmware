@@ -114,8 +114,8 @@ MESSAGE(STATUS "Firmware version is ${PROJECT_VERSION}")
 SET(BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE INTERNAL "" FORCE)
 
 # Fix missing headers for homekit
-file(COPY "${CMAKE_SOURCE_DIR}/patch/include/"
-        DESTINATION "${CMAKE_SOURCE_DIR}/components/esp-apple-homekit-adk/port/include/"
+file(COPY "${CMAKE_SOURCE_DIR}/../patch/include/"
+        DESTINATION "${CMAKE_SOURCE_DIR}/../components/esp-apple-homekit-adk/port/include/"
         )
 
 # Rename target binary file with correct versioning info in its file name

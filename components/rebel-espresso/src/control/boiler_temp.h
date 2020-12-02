@@ -12,40 +12,20 @@
 
 #define BOILER_SSR_PIN GPIO_TRIG1_SSR
 
-#define KEY_BOILER_PID_P "pid.P"
-#define KEY_BOILER_PID_I "pid.I"
-#define KEY_BOILER_PID_D "pid.D"
-#define KEY_BOILER_PID_I_RESET_SEC "pid.i_reset_sec"
-#define KEY_BOILER_PID_I_RESET_TEMP "pid.i_reset_tem"
-#define KEY_BOILER_PID_SETPOINT0 "pid.sp0"
-#define KEY_BOILER_PID_SETPOINT1 "pid.sp1"
-#define KEY_BOILER_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
-#define KEY_BOILER_PID_MIN_DUTY_BAND "pid.min_d_band"
-#define KEY_BOILER_MAINS_HZ "pid.mains_hz"
-#define KEY_BOILER_TEMP_ERROR_RESTART_SEC "pid.t_err_rest"
+#define NVS_BOILER_CFG_STORE                "cfg.boiler"
+#define NVS_BOILER_STATS_STORE              "stats.boiler"
 
-#define NVS_STATS_STORE "stats.boiler"
-#define KEY_BOILER_STATS_OVER_TEMP        "t_over_limit"
-#define KEY_BOILER_STATS_TEMP_ERROR       "t_read_error"
-#define KEY_BOILER_STATS_TEMP_RANGE_ERROR "t_range_error"
+#define KEY_BOILER_MAINS_HZ                 "pid.mains_hz"
+#define KEY_BOILER_TEMP_ERROR_RESTART_SEC   "pid.t_err_rest"
 
+#define KEY_BOILER_STATS_OVER_TEMP          "t_over_limit"
+#define KEY_BOILER_STATS_TEMP_ERROR         "t_read_error"
+#define KEY_BOILER_STATS_TEMP_RANGE_ERROR   "t_range_error"
 
-#define BOILER_SETPOINT0_MIN 50
-#define BOILER_SETPOINT0_MAX 125
-#define BOILER_SETPOINT1_MIN 110
-#define BOILER_SETPOINT1_MAX 140
 
 #define BOILER_CFG_JSON_KEY "boiler."
 
 // Defined here so unit tests can find these
-extern "C" const double BOILER_PID_P_DEFAULT;
-extern "C" const double BOILER_PID_I_DEFAULT;
-extern "C" const double BOILER_PID_D_DEFAULT;
-extern "C" const int32_t BOILER_PID_I_RESET_SEC_DEFAULT;
-extern "C" const double BOILER_PID_I_RESET_TEMP_DEFAULT;
-extern "C" const double BOILER_PID_SETPOINT0_DEFAULT;
-extern "C" const double BOILER_PID_SETPOINT1_DEFAULT;
-extern "C" const double BOILER_PID_OVER_SETPOINT_PERC_DEFAULT;
 extern "C" const uint8_t BOILER_MAINS_HZ_DEFAULT;
 extern "C" const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT;
 
@@ -60,7 +40,7 @@ struct boiler_temp_cfg_t {
     pid_cfg_t pid;
 
     /**
-     * When non-zero, restart the MCU if we get successive erros for this long.
+     * When non-zero, restart the MCU if we get successive errors for this long.
      */
     uint16_t temp_error_restart_time_sec;
 

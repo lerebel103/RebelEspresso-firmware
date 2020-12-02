@@ -1,0 +1,99 @@
+#include "pid.h"
+
+#define KEY_PID_P "pid.P"
+#define KEY_PID_I "pid.I"
+#define KEY_PID_D "pid.D"
+#define KEY_PID_I_RESET_SEC "pid.i_reset_sec"
+#define KEY_PID_I_RESET_TEMP "pid.i_reset_tem"
+#define KEY_PID_SETPOINT0 "pid.sp0"
+#define KEY_PID_SETPOINT1 "pid.sp1"
+#define KEY_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
+#define KEY_PID_MIN_DUTY_BAND "pid.min_d_band"
+
+const double PID_P_DEFAULT = 7;
+const double PID_I_DEFAULT = 0.5;
+const double PID_D_DEFAULT = 170;
+const int32_t PID_I_RESET_SEC_DEFAULT = 60;
+const double PID_I_RESET_TEMP_DEFAULT = 5;
+const double PID_SETPOINT0_DEFAULT = 105;
+const double PID_SETPOINT1_DEFAULT = 140;
+const double PID_OVER_SETPOINT_PERC_DEFAULT = 8;
+const double PID_MIN_DUTY_BAND_DEFAULT = 4;
+
+
+void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
+
+    nvram_store_get_u64(my_handle, KEY_PID_P, (uint64_t *) &cfg.P,
+                        (void *) &PID_P_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_PID_I, (uint64_t *) &cfg.I,
+                        (void *) &PID_I_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_PID_D, (uint64_t *) &cfg.D,
+                        (void *) &PID_D_DEFAULT);
+    nvram_store_get_i32(my_handle, KEY_PID_I_RESET_SEC, (int32_t *) &cfg.I_reset_sec,
+                        (void *) &PID_I_RESET_SEC_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_PID_I_RESET_TEMP, (uint64_t *) &cfg.I_reset_temp,
+                        (void *) &PID_I_RESET_TEMP_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_PID_SETPOINT0, (uint64_t *) &cfg.setpoints[0],
+                        (void *) &PID_SETPOINT0_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_PID_SETPOINT1, (uint64_t *) &cfg.setpoints[1],
+                        (void *) &PID_SETPOINT1_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_PID_OVER_SETPOINT_PERC, (uint64_t *) &cfg.over_setpoint_perc,
+                        (void *) &PID_OVER_SETPOINT_PERC_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_PID_MIN_DUTY_BAND, (uint64_t *) &cfg.min_duty_band,
+                        (void *) &PID_MIN_DUTY_BAND_DEFAULT);
+
+}
+
+void pid_save_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
+
+    nvram_store_set_u64(my_handle, KEY_PID_P, (uint64_t *) &cfg.P);
+    nvram_store_set_u64(my_handle, KEY_PID_I, (uint64_t *) &cfg.I);
+    nvram_store_set_u64(my_handle, KEY_PID_D, (uint64_t *) &cfg.D);
+    nvram_store_set_i32(my_handle, KEY_PID_I_RESET_SEC, (int32_t *) &cfg.I_reset_sec);
+    nvram_store_set_u64(my_handle, KEY_PID_I_RESET_TEMP, (uint64_t *) &cfg.I_reset_temp);
+    nvram_store_set_u64(my_handle, KEY_PID_SETPOINT0, (uint64_t *) &cfg.setpoints[0]);
+    nvram_store_set_u64(my_handle, KEY_PID_SETPOINT1, (uint64_t *) &cfg.setpoints[1]);
+    nvram_store_set_u64(my_handle, KEY_PID_OVER_SETPOINT_PERC, (uint64_t *) &cfg.over_setpoint_perc);
+    nvram_store_set_u64(my_handle, KEY_PID_MIN_DUTY_BAND, (uint64_t *) &cfg.min_duty_band);
+}
+
+void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t& cfg) {
+    if (cfg.active_setpoint == 0) {
+        nvram_store_set_u64(my_handle, KEY_PID_SETPOINT0,
+                            (uint64_t *) &cfg.setpoints[cfg.active_setpoint]);
+    } else {
+        nvram_store_set_u64(my_handle, KEY_PID_SETPOINT1,
+                            (uint64_t *) &cfg.setpoints[cfg.active_setpoint]);
+    }
+}
+
+void pid_update(pid_cfg_t& dest, const pid_cfg_t& src) {
+    // validate all fields
+    if (src.P >= 0 && src.P < 20) {
+        dest.P = src.P;
+    }
+    if (src.I >= 0 && src.I < 10) {
+        dest.I = src.I;
+    }
+    if (src.D >= 0 && src.D < 300) {
+        dest.D = src.D;
+    }
+    if (src.I_reset_sec >= 0 && src.I_reset_sec < 60*10) {
+        dest.I_reset_sec = src.I_reset_sec;
+    }
+    if (src.I_reset_temp >= 0 && src.I_reset_temp < 30) {
+        dest.I_reset_temp = src.I_reset_temp;
+    }
+    if (src.setpoints[0] >= SETPOINT0_MIN && src.setpoints[0] <= SETPOINT0_MAX) {
+        dest.setpoints[0] = src.setpoints[0];
+    }
+    if (src.setpoints[1] >= SETPOINT1_MIN && src.setpoints[1] <= SETPOINT1_MAX) {
+        dest.setpoints[1] = src.setpoints[1];
+    }
+    if (src.over_setpoint_perc >= 0 && src.over_setpoint_perc < 40) {
+        dest.over_setpoint_perc = src.over_setpoint_perc;
+    }
+    if (src.min_duty_band >= 0 && src.min_duty_band <= 25) {
+        dest.min_duty_band = src.min_duty_band;
+    }
+}

@@ -50,7 +50,7 @@ TEST_CASE("[boiler_temp:test_standby_ssr_off]", "Ensure STANDBY cuts off power t
     boiler_temp_delete();
 }
 
-TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure tick cuts power when conditions not met") {
+TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when conditions not met") {
     boiler_temp_init(g_event_loop);
     boiler_temp_reset_stats();
 
@@ -338,21 +338,21 @@ TEST_CASE("[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setpo
     // go out of bounds
     inc = 1000;
     for (int i = 0; i < 10; i++) {
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MAX, boiler_setpoint_inc(inc));
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MAX, boiler_temp_get_cfg().pid.setpoints[0]);
+        TEST_ASSERT_EQUAL_DOUBLE(SETPOINT0_MAX, boiler_setpoint_inc(inc));
+        TEST_ASSERT_EQUAL_DOUBLE(SETPOINT0_MAX, boiler_temp_get_cfg().pid.setpoints[0]);
     }
     boiler_temp_delete();
     boiler_temp_init(g_event_loop);
-    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MAX, boiler_temp_get_cfg().pid.setpoints[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(SETPOINT0_MAX, boiler_temp_get_cfg().pid.setpoints[0]);
 
     inc = -1000;
     for (int i = 0; i < 10; i++) {
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MIN, boiler_setpoint_inc(inc));
-        TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MIN, boiler_temp_get_cfg().pid.setpoints[0]);
+        TEST_ASSERT_EQUAL_DOUBLE(SETPOINT0_MIN, boiler_setpoint_inc(inc));
+        TEST_ASSERT_EQUAL_DOUBLE(SETPOINT0_MIN, boiler_temp_get_cfg().pid.setpoints[0]);
     }
     boiler_temp_delete();
     boiler_temp_init(g_event_loop);
-    TEST_ASSERT_EQUAL_DOUBLE(BOILER_SETPOINT0_MIN, boiler_temp_get_cfg().pid.setpoints[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(SETPOINT0_MIN, boiler_temp_get_cfg().pid.setpoints[0]);
 
     boiler_temp_delete();
 }
@@ -467,7 +467,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
             5,
             4,
             0,
-            };
+    };
 
     for (int i = 0; i < 150; i++) {
         data.temperature = 25 + i;
@@ -512,7 +512,7 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     boiler_temp_status_t stats;
     nvs_handle my_handle;
     uint32_t defaultVal = 0;
-    ESP_ERROR_CHECK(nvs_open(NVS_STATS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BOILER_STATS_STORE, NVS_READWRITE, &my_handle));
 
     // First tick saves straight away (zero last save time)
     uint64_t time_us = 1e6;
@@ -525,18 +525,20 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
     // Now do it again, it takes 5s to register
     boiler_temp_process(1e6, data);
 
-    for(int i=0; i<7; i++) {
+    for (int i = 0; i < 7; i++) {
         time_us += 1e6;  // 1s
-        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, (void*)&time_us, sizeof(uint64_t), portMAX_DELAY));
+        ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, TICK, (void *) &time_us, sizeof(uint64_t),
+                                          portMAX_DELAY));
+
+        vTaskDelay(2);
         nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &stats.temp_read_error_count,
                             (void *) &defaultVal);
 
-        if ( i > 4) {
+        if (i >= 4) {
             TEST_ASSERT_EQUAL(2, stats.temp_read_error_count);
         } else {
             TEST_ASSERT_EQUAL(1, stats.temp_read_error_count);
         }
-        vTaskDelay(1);
     }
 
     nvs_close(my_handle);

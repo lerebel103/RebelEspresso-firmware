@@ -1,10 +1,27 @@
 #pragma once
 
 #include <cstring>
+#include <cJSON.h>
 #include "str_utils.h"
+#include "src/sys/nvram_store.h"
+
 
 #define PID_CFG_JSON_KEY "pid."
 #define MAX_SETPOINTS 2
+
+extern "C" const double PID_P_DEFAULT;
+extern "C" const double PID_I_DEFAULT;
+extern "C" const double PID_D_DEFAULT;
+extern "C" const int32_t PID_I_RESET_SEC_DEFAULT;
+extern "C" const double PID_I_RESET_TEMP_DEFAULT;
+extern "C" const double PID_SETPOINT0_DEFAULT;
+extern "C" const double PID_SETPOINT1_DEFAULT;
+extern "C" const double PID_OVER_SETPOINT_PERC_DEFAULT;
+
+#define SETPOINT0_MIN 50
+#define SETPOINT0_MAX 125
+#define SETPOINT1_MIN 110
+#define SETPOINT1_MAX 140
 
 struct pid_cfg_t {
 
@@ -96,3 +113,11 @@ struct pid_cfg_t {
     
 
 };
+
+void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg);
+
+void pid_save_nvram(nvs_handle my_handle, pid_cfg_t& cfg);
+
+void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t& cfg);
+
+void pid_update(pid_cfg_t& dest, const pid_cfg_t& src);

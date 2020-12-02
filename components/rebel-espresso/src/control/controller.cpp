@@ -88,6 +88,9 @@ void controller_cfg_to_json(cJSON *root, const char* base_key) {
     auto boiler_cfg = boiler_temp_get_cfg();
     boiler_cfg.to_json(root, base_key);
 
+    auto brew_cfg = brew_temp_get_cfg();
+    brew_cfg.to_json(root, base_key);
+
     auto boiler_refill_cfg = boiler_refill_get_cfg();
     boiler_refill_cfg.to_json(root, base_key);
 
@@ -97,6 +100,9 @@ void controller_cfg_to_json(cJSON *root, const char* base_key) {
 void controller_status_to_json(cJSON *root, const char* base_key) {
     auto boiler_status = boiler_temp_get_status();
     boiler_status.to_json(root, base_key);
+
+    auto brew_status = brew_temp_get_status();
+    brew_status.to_json(root, base_key);
 
     auto refill_status = boiler_refill_get_status();
     refill_status.to_json(root, base_key);
@@ -109,6 +115,7 @@ void controller_handle_new_cfg(const cJSON* cfg) {
 
     // Pass down to each component, they will deal with it - it's a bit lazy really
     boiler_temp_update_cfg(cfg);
+    brew_temp_update_cfg(cfg);
     boiler_refill_update_cfg(cfg);
     ota_update_cfg(cfg);
 

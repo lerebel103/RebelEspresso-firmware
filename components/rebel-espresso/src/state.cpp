@@ -91,7 +91,7 @@ void state_send(time_t timestamp) {
 
     controller_cfg_to_json(root, "config.");
 
-    char *json_unformatted = cJSON_PrintUnformatted(root);
+    char *json_unformatted = cJSON_Print(root);
     cJSON_Delete(root);
     mqtt_send_status(json_unformatted);
     free(json_unformatted);

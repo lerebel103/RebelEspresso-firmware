@@ -4,6 +4,7 @@
 #include <cJSON.h>
 #include "str_utils.h"
 #include "src/sys/nvram_store.h"
+#include "window.h"
 
 
 #define PID_CFG_JSON_KEY "pid."
@@ -20,7 +21,7 @@ extern "C" const double PID_OVER_SETPOINT_PERC_DEFAULT;
 
 #define SETPOINT0_MIN 50
 #define SETPOINT0_MAX 125
-#define SETPOINT1_MIN 110
+#define SETPOINT1_MIN 80
 #define SETPOINT1_MAX 140
 
 struct pid_cfg_t {
@@ -61,9 +62,15 @@ struct pid_cfg_t {
     /**
      * Parses the given JSON into this object
      */
-    void from_json(const cJSON* config) {
+    void from_json(const char* prefix, const cJSON* config) {
         cJSON *item = config->child;
         while( item ) {
+            // Check if this key is for us
+            if (strstr(item->string, prefix) == NULL) {
+                item = item->next;
+                continue;
+            }
+
             if ( strend(item->string, PID_CFG_JSON_KEY "P") ) {
                 P = item->valuedouble;
             } else if ( strend(item->string, PID_CFG_JSON_KEY "I") ) {
@@ -110,9 +117,33 @@ struct pid_cfg_t {
         cJSON_AddNumberToObject(config, buf, min_duty_band);
         free(buf);
     }
-    
-
 };
+
+struct pid_struct_t {
+    window_handle_t data_window;
+
+    uint64_t last_time_us = 0;
+
+    double smoothed_duty = 0;
+
+    double smoothed_temp = 0;
+
+    double last_pid_err = 0;
+};
+
+struct pid_result_t {
+    double duty;
+    int is_over_threshold;
+};
+
+void pid_init(pid_struct_t& pid);
+
+void pid_reset(pid_struct_t& pid);
+
+pid_result_t pid_process(
+        pid_struct_t& pid,
+        pid_cfg_t& cfg,
+        uint64_t time_us, const rtd_data_t& data);
 
 void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg);
 

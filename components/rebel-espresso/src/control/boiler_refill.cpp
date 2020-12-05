@@ -234,18 +234,12 @@ void boiler_refill_set_cfg(boiler_refill_cfg_t config) {
         ESP_LOGE(TAG, "adc_num_readings is out of bounds: %d, ignoring.", config.adc_num_readings);
     }
 
-    if (config.refill_mv_threshold >= 150 && config.refill_mv_threshold < 2800) {
+    if (config.refill_mv_threshold >= 150 && config.refill_mv_threshold <= 3100) {
         s_cfg.refill_mv_threshold = config.refill_mv_threshold;
     } else {
         ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
     }
-
-    if (config.refill_mv_threshold >= 150 && config.refill_mv_threshold < 2800) {
-        s_cfg.refill_mv_threshold = config.refill_mv_threshold;
-    } else {
-        ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
-    }
-
+    
     if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 10000) {
         s_cfg.max_refill_time_ms = config.max_refill_time_ms;
     } else {

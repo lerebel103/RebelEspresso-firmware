@@ -218,10 +218,10 @@ TEST_CASE("[boiler_temp:test_update_config_from_json]", "Ensures partial json up
 
     boiler_temp_update_cfg(root);
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
-    TEST_ASSERT_EQUAL(4.1, cfg.pid.P);
-    TEST_ASSERT_EQUAL(0.5, cfg.pid.I);
-    TEST_ASSERT_EQUAL(60.4, cfg.pid.D);
-    TEST_ASSERT_EQUAL(99.9, cfg.pid.setpoints[0]);
+    TEST_ASSERT_EQUAL_FLOAT(4.1, cfg.pid.P);
+    TEST_ASSERT_EQUAL_FLOAT(0.5, cfg.pid.I);
+    TEST_ASSERT_EQUAL_FLOAT(60.4, cfg.pid.D);
+    TEST_ASSERT_EQUAL_FLOAT(99.9, cfg.pid.setpoints[0]);
     TEST_ASSERT_EQUAL(1, cfg.temp_error_restart_time_sec);
 
     cJSON_Delete(root);

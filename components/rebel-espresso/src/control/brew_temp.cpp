@@ -23,6 +23,11 @@ static brew_temp_cfg_t s_cfg;
 static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
 static brew_temp_status_t s_stats;
+static pid_struct_t s_pid;
+
+// Keep track of TEC temps on both sides
+static rtd_data_t s_hot_data;
+static rtd_data_t s_cold_data;
 
 static void _load_stats() {
     nvs_handle my_handle;
@@ -108,6 +113,10 @@ int brew_temp_get_duty() {
 void _power_off_tec() {
     brew_temp_set_duty(0);
     gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+    
+    // Invalidate TEC temp records, new ones will come in
+    s_hot_data.fault = Max31865Error::RefHigh;
+    s_cold_data.fault = Max31865Error::RefHigh;
 }
 
 void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
@@ -120,17 +129,41 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
         _power_off_tec();
         return;
     } else if (data.fault != Max31865Error::NoError) {
-        ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(data.fault));
+        ESP_LOGE(TAG, "Brew sensor error %s", Max31865::errorToString(data.fault));
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
         _power_off_tec();
         s_last_time_us = time_us;
+        return;
+    } else if (s_hot_data.fault != Max31865Error::NoError) {
+        ESP_LOGE(TAG, "TEC hot side sensor error %s", Max31865::errorToString(s_hot_data.fault));
+        _power_off_tec();
+        s_last_time_us = time_us;
+        s_stats.tec_hot_side_error_count++;
+        s_stats_changed = true;
+        return;
+    } else if (s_cold_data.fault != Max31865Error::NoError) {
+        ESP_LOGE(TAG, "TEC cold side sensor error %s", Max31865::errorToString(s_cold_data.fault));
+        _power_off_tec();
+        s_last_time_us = time_us;
+        s_stats.tec_cold_side_error_count++;
+        s_stats_changed = true;
         return;
     } else if (data.temperature > 110 || data.temperature < 5) {
         ESP_LOGE(TAG, "Brew temperature out of range: %f", data.temperature);
         s_stats.temp_out_of_range_count++;
         s_stats_changed = true;
         _power_off_tec();
+        return;
+    }
+
+    // Ok, if we have a delta of more than 60 degree, we are stuffed, can't run control, quit
+    if (abs(s_hot_data.temperature - s_cold_data.temperature) > 60) {
+        ESP_LOGE(TAG, "TEC max delta exceeded: %f", abs(s_hot_data.temperature - s_cold_data.temperature));
+        _power_off_tec();
+        s_last_time_us = time_us;
+        s_stats.tec_temp_delta_error_count++;
+        s_stats_changed = true;
         return;
     }
 
@@ -141,18 +174,32 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
         ESP_LOGW(TAG, "Got error from h-bridge, turning off and on");
         gpio_set_level(GPIO_HBRIDGE_DIS, 0);
         vTaskDelay(pdMS_TO_TICKS(100));
+        s_stats.tec_ic_error++;
     }
 
+    // Run pid to get new duty
+    auto result = pid_process(s_pid, s_cfg.pid, time_us, data);
+    if (result.is_over_threshold) {
+        ESP_LOGW(TAG, "Over temp threshold exceeded");
+        s_stats.temp_over_limit_count++;
+        s_stats_changed = true;
+    }
 
-
+    if (result.duty == 0) {
+        _power_off_tec();
+    } else {
+        brew_temp_set_duty(result.duty);
+    }
+    ESP_LOGI(TAG, "Brew temp=%f, duty=%d, setpoint=%f",
+             data.temperature, s_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
 }
 
 void brew_temp_tec_hot_updated(uint64_t time_us, const rtd_data_t& data) {
-
+    s_hot_data = data;
 }
 
 void brew_temp_tec_cold_updated(uint64_t time_us, const rtd_data_t& data) {
-
+    s_cold_data = data;
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -163,6 +210,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     } else if (id == POWER_ACTIVE) {
         ESP_LOGI(TAG, "Resuming TEC");
         gpio_set_level(GPIO_HBRIDGE_DIS, 0);
+        pid_reset(s_pid);
     }
 }
 
@@ -208,6 +256,7 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     _load_nvram();
     _load_stats();
+    pid_init(s_pid);
 
     // Configure pins for H-Bridge
 
@@ -255,6 +304,7 @@ void brew_temp_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
+    pid_init(s_pid);
 }
 
 

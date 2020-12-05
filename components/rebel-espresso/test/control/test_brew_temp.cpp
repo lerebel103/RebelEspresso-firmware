@@ -314,6 +314,7 @@ TEST_CASE("[brew_temp:test_nvs_reset_default]", "Test resetting NVS to defaults"
 
 TEST_CASE("[brew_temp:test_brew_setpoint_inc]", "Test increment brew setpoint") {
     brew_temp_init(g_event_loop);
+    brew_temp_reset_cfg();
 
     auto cfg = brew_temp_get_cfg();
     double inc = -0.5;
@@ -350,8 +351,8 @@ TEST_CASE("[brew_temp:test_brew_setpoint_inc]", "Test increment brew setpoint") 
     brew_temp_delete();
 }
 
-/*
-TEST_CASE("[brew_temp:test_brew_duty_steady]", "Test duty when steady temp fed") {
+
+TEST_CASE("[brew_temp:test_brew_duty_steady_pos]", "Test duty when steady temp under setpoint fed") {
     xEventGroupSetBits(status_event_group, POWER_ON_BIT);
     xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
     brew_temp_init(g_event_loop);
@@ -359,16 +360,20 @@ TEST_CASE("[brew_temp:test_brew_duty_steady]", "Test duty when steady temp fed")
 
     // Turn off restart on RTD error
     auto cfg = brew_temp_get_cfg();
-    cfg.temp_error_restart_time_sec = 0;
-    cfg.pid.setpoints[0] = 120;
+    cfg.pid.active_setpoint = 0;
+    cfg.pid.setpoints[0] = 92;
     brew_temp_set_cfg(cfg);
 
     rtd_data_t data = {};
     data.fault = Max31865Error::NoError;
     data.temperature = 25;
 
+    // Feed in valid temps for TEC
+    brew_temp_tec_cold_updated(0, data);
+    brew_temp_tec_hot_updated(0, data);
+
     // Maxes out duty in this case
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 10; i++) {
         brew_temp_process(i * 1e6, data);
         TEST_ASSERT_EQUAL(100, brew_temp_get_duty());
     }
@@ -376,6 +381,37 @@ TEST_CASE("[brew_temp:test_brew_duty_steady]", "Test duty when steady temp fed")
     brew_temp_delete();
 }
 
+TEST_CASE("[brew_temp:test_brew_duty_steady_neg]", "Test duty when steady temp over setpoint fed") {
+    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
+    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    brew_temp_init(g_event_loop);
+    brew_temp_reset_cfg();
+
+    // Turn off restart on RTD error
+    auto cfg = brew_temp_get_cfg();
+    cfg.pid.over_setpoint_perc = 0;
+    cfg.pid.active_setpoint = 0;
+    cfg.pid.setpoints[0] = 50;
+    brew_temp_set_cfg(cfg);
+
+    rtd_data_t data = {};
+    data.fault = Max31865Error::NoError;
+    data.temperature = 92;
+
+    // Feed in valid temps for TEC
+    brew_temp_tec_cold_updated(0, data);
+    brew_temp_tec_hot_updated(0, data);
+
+    // Maxes out duty in this case
+    for (int i = 0; i < 10; i++) {
+        brew_temp_process(i * 1e6, data);
+        TEST_ASSERT_EQUAL(-100, brew_temp_get_duty());
+    }
+
+    brew_temp_delete();
+}
+
+/*
 TEST_CASE("[brew_temp:test_brew_duty_ramp_up]", "Test duty when temp ramp up") {
     xEventGroupSetBits(status_event_group, POWER_ON_BIT);
     xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);

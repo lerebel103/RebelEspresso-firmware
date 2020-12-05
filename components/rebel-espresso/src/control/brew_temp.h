@@ -36,7 +36,7 @@ struct brew_temp_cfg_t {
      * Apply new configuration
      */
     void from_json(const cJSON *config) {
-        pid.from_json(config);
+        pid.from_json(BREW_CFG_JSON_KEY, config);
 
         cJSON *item = config->child;
         while( item ) {
@@ -68,6 +68,10 @@ struct brew_temp_status_t {
     uint32_t temp_read_error_count;
     uint32_t temp_over_limit_count;
     uint32_t temp_out_of_range_count;
+    uint32_t tec_hot_side_error_count;
+    uint32_t tec_cold_side_error_count;
+    uint32_t tec_temp_delta_error_count;
+    uint32_t tec_ic_error;
 
     /**
      * Report current configuration
@@ -83,6 +87,18 @@ struct brew_temp_status_t {
 
         sprintf(buf, "%s" BREW_CFG_JSON_KEY "temp_out_of_range_count", base_key);
         cJSON_AddNumberToObject(config, buf, temp_out_of_range_count);
+
+        sprintf(buf, "%s" BREW_CFG_JSON_KEY "tec_hot_side_error_count", base_key);
+        cJSON_AddNumberToObject(config, buf, tec_hot_side_error_count);
+
+        sprintf(buf, "%s" BREW_CFG_JSON_KEY "tec_cold_side_error_count", base_key);
+        cJSON_AddNumberToObject(config, buf, tec_cold_side_error_count);
+
+        sprintf(buf, "%s" BREW_CFG_JSON_KEY "tec_temp_delta_error_count", base_key);
+        cJSON_AddNumberToObject(config, buf, tec_temp_delta_error_count);
+
+        sprintf(buf, "%s" BREW_CFG_JSON_KEY "tec_ic_error", base_key);
+        cJSON_AddNumberToObject(config, buf, tec_ic_error);
 
         free(buf);
     }

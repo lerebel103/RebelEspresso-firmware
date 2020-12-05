@@ -53,7 +53,7 @@ struct boiler_temp_cfg_t {
      * Apply new configuration
      */
     void from_json(const cJSON *config) {
-        pid.from_json(config);
+        pid.from_json(BOILER_CFG_JSON_KEY, config);
 
         cJSON *item = config->child;
         while( item ) {

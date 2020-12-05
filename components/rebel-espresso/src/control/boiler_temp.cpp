@@ -20,19 +20,13 @@ const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
 
 static esp_event_loop_handle_t s_event_loop;
 static boiler_temp_cfg_t s_cfg;
-static window_handle_t s_data_window;
-static double s_last_pid_err = 0;
 
 static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
 static boiler_temp_status_t s_stats = {};
-
-static uint64_t s_last_time_us = 0;
 static int s_last_duty = 0;
-
-static double s_smoothed_duty = 0;
-static double s_smoothed_temp = 0;
 static double s_boiler_error_sec = 0;
+static pid_struct_t s_pid;
 
 
 static void _load_stats() {
@@ -144,16 +138,6 @@ static void _rmt_tx_init() {
     rmt_set_tx_loop_mode(config.channel, true);
 }
 
-static void _pid_reset() {
-    ESP_LOGD(TAG, "Resetting...");
-    s_last_time_us = 0;
-    s_last_pid_err = 0;
-    s_smoothed_duty = 0;
-    s_smoothed_temp = 0;
-
-    window_reset(&s_data_window);
-    ESP_LOGD(TAG, "Reset done.");
-}
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
@@ -161,7 +145,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
         _power_off_ssr();
     } else if (id == POWER_ACTIVE) {
         ESP_LOGI(TAG, "Resuming Boiler SSR");
-        _pid_reset();
+        pid_reset(s_pid);
     }
 }
 
@@ -197,15 +181,15 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         _power_off_ssr();
 
         // If we get successive errors from the boiler restart
-        if (s_last_time_us != 0 ) {
-            s_boiler_error_sec += (time_us - s_last_time_us) * 1e-6;
+        if (s_pid.last_time_us != 0 ) {
+            s_boiler_error_sec += (time_us - s_pid.last_time_us) * 1e-6;
         }
         if (s_cfg.temp_error_restart_time_sec != 0 && s_boiler_error_sec > s_cfg.temp_error_restart_time_sec) {
             ESP_LOGE(TAG, "Restarting, too many RTD errors received in succession.");
             esp_restart();
         }
 
-        s_last_time_us = time_us;
+        s_pid.last_time_us = time_us;
         return;
     } else if (data.temperature > 150 || data.temperature < 5) {
         ESP_LOGE(TAG, "Boiler temperature out of range: %f", data.temperature);
@@ -218,96 +202,46 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
     // No errors from RTD, all good reset.
     s_boiler_error_sec = 0;
 
-    // If we've had a gap, reset the PID
-    double deltaT = (double) (time_us - s_last_time_us) / 1e6;
-    if (deltaT >= 5) {
-        _pid_reset();
-        boiler_temp_set_duty(0);
-    } else {
-        // Good to go
-        //s_cfg.pid.active_setpoint = 1;
-        double setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-        ESP_LOGI(TAG, "Boiler temp=%f, deltaT=%fs, setpoint=%f", data.temperature, deltaT, setpoint);
+    // Run pid to get new duty
+    auto result = pid_process(s_pid, s_cfg.pid, time_us, data);
+    if (result.is_over_threshold) {
+        ESP_LOGW(TAG, "Over temp threshold exceeded");
+        s_stats.temp_over_limit_count++;
+        s_stats_changed = true;
+    }
 
-        // Accumulate
-        window_accumulate(&s_data_window, time_us, &data, setpoint,s_cfg.pid.I_reset_sec * 1e3);
-
-        // Get window statistics
-        static window_data_t wdata = {};
-        window_data(&s_data_window, &wdata);
-
-        // Average with last value for stability
-        if (s_smoothed_temp == 0) {
-            s_smoothed_temp = data.temperature;
-        }
-        s_smoothed_temp = (data.temperature + s_smoothed_temp) / 2;
-
-        // delta from set-point, e.g. our error
-        double error = setpoint - s_smoothed_temp;
-
-        // Safety. If we are 10 degrees over set temperature, cut off
-        if (-error > s_cfg.pid.over_setpoint_perc * setpoint / 100) {
-            ESP_LOGW(TAG, "Over temp threshold exceeded");
-            _power_off_ssr();
-            s_stats.temp_over_limit_count++;
-            s_stats_changed = true;
-        } else {
-            double duty = 0;
-            // Then we can proceed
-            // Derivative part
-            double derivative = 0;
-            if (s_last_time_us != 0 && deltaT != 0) {
-                derivative = (error - s_last_pid_err) / deltaT;
+    // Clamp to min duty band
+    result.duty = ceil(result.duty);
+    if (result.duty > 0) {
+        if (fabs(s_pid.last_pid_err) > 0.5) {
+            if (result.duty < ABSOLUTE_MIN_DUTY) {
+                // Lower duties are far too slow in period (6s for 1%)
+                result.duty = ABSOLUTE_MIN_DUTY;
             }
-
-            // Calculate duty, start with P and D
-            duty = (s_cfg.pid.P * error) + (s_cfg.pid.D * derivative);
-
-            // Integral is added if we are below our delta error temp
-            if (fabs(error) < s_cfg.pid.I_reset_temp) {
-                ESP_LOGD(TAG, "I=%f, value=%f", s_cfg.pid.I, (s_cfg.pid.I * wdata.error_integral));
-                duty += (s_cfg.pid.I * wdata.error_integral);
-            } else {
-                // Keep on resetting window in this case
-                window_reset(&s_data_window);
-            }
-
-            // Bit of smoothing
-            s_smoothed_duty = (duty + s_smoothed_duty) / 2;
-
-            // Clamp to min duty band
-            int adjusted_duty = ceil(s_smoothed_duty);
-            if (adjusted_duty > 0) {
-                if (fabs(error) > 0.5) {
-                    if (adjusted_duty < ABSOLUTE_MIN_DUTY) {
-                        // Lower duties are far too slow in period (6s for 1%)
-                        adjusted_duty = ABSOLUTE_MIN_DUTY;
-                    }
-                } else if (adjusted_duty < s_cfg.pid.min_duty_band) {
-                    // Helps to maintain a tighter band by using more power
-                    adjusted_duty = s_cfg.pid.min_duty_band;
-                }
-            }
-
-            ESP_LOGD(TAG, "Adjusted PID duty %d", adjusted_duty);
-            boiler_temp_set_duty(adjusted_duty);
-            s_last_pid_err = error;
+        } else if (result.duty < s_cfg.pid.min_duty_band) {
+            // Helps to maintain a tighter band by using more power
+            result.duty = s_cfg.pid.min_duty_band;
         }
     }
 
-    s_last_time_us = time_us;
+    if (result.duty == 0) {
+        _power_off_ssr();
+    } else {
+        boiler_temp_set_duty(result.duty);
+    }
+    ESP_LOGI(TAG, "Boiler temp=%f, duty=%d, setpoint=%f",
+             data.temperature, s_last_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
 }
 
 
 void boiler_temp_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
-    window_init(&s_data_window);
 
     _load_nvram();
     _load_stats();
 
     _rmt_tx_init();
-    _pid_reset();
+    pid_init(s_pid);
 
     // Get our power events in place so we can run the process loop as needed
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
@@ -320,7 +254,7 @@ void boiler_temp_init(esp_event_loop_handle_t event_loop) {
 
 void boiler_temp_delete() {
     rmt_driver_uninstall(RMT_TX_CHANNEL);
-    window_reset(&s_data_window);
+    pid_reset(s_pid);
 
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
@@ -351,7 +285,6 @@ void boiler_temp_update_cfg(const cJSON *json) {
     new_config.from_json(json);
     boiler_temp_set_cfg(new_config);
 }
-
 
 void boiler_temp_reset_cfg() {
     nvs_handle my_handle;

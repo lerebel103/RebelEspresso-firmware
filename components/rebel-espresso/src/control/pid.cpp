@@ -1,4 +1,7 @@
+#include <esp_log.h>
+#include <cmath>
 #include "pid.h"
+#include "window.h"
 
 #define KEY_PID_P "pid.P"
 #define KEY_PID_I "pid.I"
@@ -10,6 +13,8 @@
 #define KEY_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
 #define KEY_PID_MIN_DUTY_BAND "pid.min_d_band"
 
+#define TAG "pid"
+
 const double PID_P_DEFAULT = 7;
 const double PID_I_DEFAULT = 0.5;
 const double PID_D_DEFAULT = 170;
@@ -20,8 +25,7 @@ const double PID_SETPOINT1_DEFAULT = 140;
 const double PID_OVER_SETPOINT_PERC_DEFAULT = 8;
 const double PID_MIN_DUTY_BAND_DEFAULT = 4;
 
-
-void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
+void pid_load_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
 
     nvram_store_get_u64(my_handle, KEY_PID_P, (uint64_t *) &cfg.P,
                         (void *) &PID_P_DEFAULT);
@@ -44,7 +48,7 @@ void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
 
 }
 
-void pid_save_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
+void pid_save_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
 
     nvram_store_set_u64(my_handle, KEY_PID_P, (uint64_t *) &cfg.P);
     nvram_store_set_u64(my_handle, KEY_PID_I, (uint64_t *) &cfg.I);
@@ -57,7 +61,7 @@ void pid_save_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
     nvram_store_set_u64(my_handle, KEY_PID_MIN_DUTY_BAND, (uint64_t *) &cfg.min_duty_band);
 }
 
-void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t& cfg) {
+void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t &cfg) {
     if (cfg.active_setpoint == 0) {
         nvram_store_set_u64(my_handle, KEY_PID_SETPOINT0,
                             (uint64_t *) &cfg.setpoints[cfg.active_setpoint]);
@@ -67,7 +71,7 @@ void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t& cfg) {
     }
 }
 
-void pid_update(pid_cfg_t& dest, const pid_cfg_t& src) {
+void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
     // validate all fields
     if (src.P >= 0 && src.P < 20) {
         dest.P = src.P;
@@ -78,7 +82,7 @@ void pid_update(pid_cfg_t& dest, const pid_cfg_t& src) {
     if (src.D >= 0 && src.D < 300) {
         dest.D = src.D;
     }
-    if (src.I_reset_sec >= 0 && src.I_reset_sec < 60*10) {
+    if (src.I_reset_sec >= 0 && src.I_reset_sec < 60 * 10) {
         dest.I_reset_sec = src.I_reset_sec;
     }
     if (src.I_reset_temp >= 0 && src.I_reset_temp < 30) {
@@ -96,4 +100,86 @@ void pid_update(pid_cfg_t& dest, const pid_cfg_t& src) {
     if (src.min_duty_band >= 0 && src.min_duty_band <= 25) {
         dest.min_duty_band = src.min_duty_band;
     }
+}
+
+void pid_reset(pid_struct_t &pid) {
+    ESP_LOGD(TAG, "Resetting...");
+    pid.last_time_us = 0;
+    pid.last_pid_err = 0;
+    pid.smoothed_duty = 0;
+    pid.smoothed_temp = 0;
+
+    window_reset(&pid.data_window);
+    ESP_LOGD(TAG, "Reset done.");
+}
+
+void pid_init(pid_struct_t &pid) {
+    pid_reset(pid);
+    window_init(&pid.data_window);
+}
+
+pid_result_t pid_process(
+        pid_struct_t &pid,
+        pid_cfg_t &cfg,
+        uint64_t time_us, const rtd_data_t &data) {
+    pid_result_t result = {
+            .duty = 0,
+            .is_over_threshold = false
+    };
+
+    // If we've had a gap, reset the PID
+    double deltaT = (double) (time_us - pid.last_time_us) / 1e6;
+    if (deltaT >= 5) {
+        pid_reset(pid);
+    } else {
+        double setpoint = cfg.setpoints[cfg.active_setpoint];
+
+        // Accumulate
+        window_accumulate(&pid.data_window, time_us, &data, setpoint, cfg.I_reset_sec * 1e3);
+
+        // Get window statistics
+        static window_data_t wdata = {};
+        window_data(&pid.data_window, &wdata);
+
+        // Average with last value for stability
+        if (pid.smoothed_temp == 0) {
+            pid.smoothed_temp = data.temperature;
+        }
+        pid.smoothed_temp = (data.temperature + pid.smoothed_temp) / 2;
+
+        // delta from set-point, e.g. our error
+        double error = setpoint - pid.smoothed_temp;
+
+        // Safety. If we are over set temperature by threshold, cut off
+        if (cfg.over_setpoint_perc != 0 && -error > cfg.over_setpoint_perc * setpoint / 100) {
+            result.is_over_threshold = true;
+        } else {
+            double duty = 0;
+            // Derivative part
+            double derivative = 0;
+            if (pid.last_time_us != 0 && deltaT != 0) {
+                derivative = (error - pid.last_pid_err) / deltaT;
+            }
+
+            // Calculate duty, start with P and D
+            duty = (cfg.P * error) + (cfg.D * derivative);
+
+            // Integral is added if we are below our delta error temp
+            if (fabs(error) < cfg.I_reset_temp) {
+                ESP_LOGD(TAG, "I=%f, value=%f", cfg.I, (cfg.I * wdata.error_integral));
+                duty += (cfg.I * wdata.error_integral);
+            } else {
+                // Keep on resetting window in this case
+                window_reset(&pid.data_window);
+            }
+
+            // Bit of smoothing
+            pid.smoothed_duty = (duty + pid.smoothed_duty) / 2;
+            result.duty = pid.smoothed_duty;
+            pid.last_pid_err = error;
+        }
+    }
+
+    pid.last_time_us = time_us;
+    return result;
 }

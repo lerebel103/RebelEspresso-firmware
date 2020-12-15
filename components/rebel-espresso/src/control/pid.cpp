@@ -76,7 +76,7 @@ void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
     if (src.P >= 0 && src.P < 20) {
         dest.P = src.P;
     }
-    if (src.I >= 0 && src.I < 10) {
+    if (src.I >= 0 && src.I < 30 ) {
         dest.I = src.I;
     }
     if (src.D >= 0 && src.D < 300) {

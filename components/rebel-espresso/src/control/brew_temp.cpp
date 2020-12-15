@@ -11,6 +11,7 @@
 #define TAG "BrewHead"
 
 const double BREW_HYSTERESIS_DEFAULT = 1.0;
+const double BREW_MAX_TEC_TEMP_DEFAULT = 130.0;
 
 
 static uint64_t s_last_time_us = 0;
@@ -66,7 +67,9 @@ static void _load_nvram() {
 
     pid_load_nvram(my_handle, s_cfg.pid);
     nvram_store_get_u64(my_handle, KEY_BREW_HYSTERESIS, (uint64_t *) &s_cfg.hysteresis,
-            (void *) &BREW_HYSTERESIS_DEFAULT);
+                        (void *) &BREW_HYSTERESIS_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BREW_MAX_TEC_TEMP, (uint64_t *) &s_cfg.max_tec_temp,
+                        (void *) &BREW_MAX_TEC_TEMP_DEFAULT);
     nvs_close(my_handle);
 }
 
@@ -76,6 +79,7 @@ static void _save_nvram() {
 
     pid_save_nvram(my_handle, s_cfg.pid);
     nvram_store_set_u64(my_handle, KEY_BREW_HYSTERESIS, (uint64_t *) &s_cfg.hysteresis);
+    nvram_store_set_u64(my_handle, KEY_BREW_MAX_TEC_TEMP, (uint64_t *) &s_cfg.max_tec_temp);
 
     nvs_close(my_handle);
 }
@@ -99,7 +103,7 @@ extern "C" void brew_temp_set_duty(int duty) {
     } else {
         gpio_set_level(GPIO_HBRIDGE_DIR, 0);
     }
-    
+
     ledc_set_duty(s_pwm_channel.speed_mode, s_pwm_channel.channel, (uint32_t) (1024 * abs(duty) / 100.0f));
     ledc_update_duty(s_pwm_channel.speed_mode, s_pwm_channel.channel);
     s_duty = duty;
@@ -113,14 +117,15 @@ int brew_temp_get_duty() {
 void _power_off_tec() {
     brew_temp_set_duty(0);
     gpio_set_level(GPIO_HBRIDGE_DIS, 1);
-    
+
     // Invalidate TEC temp records, new ones will come in
     s_hot_data.fault = Max31865Error::RefHigh;
     s_cold_data.fault = Max31865Error::RefHigh;
+    gpio_set_level(GPIO_TRIG2_REL3, 0);
 }
 
-void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
-    if (!(xEventGroupGetBits(status_event_group) &  POWER_ON_BIT)) {
+void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
+    if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         ESP_LOGW(TAG, "In standby, not running.");
         _power_off_tec();
         return;
@@ -158,11 +163,32 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
     }
 
     // Ok, if we have a delta of more than 60 degree, we are stuffed, can't run control, quit
-    if (abs(s_hot_data.temperature - s_cold_data.temperature) > 60) {
+    if (abs(s_hot_data.temperature - s_cold_data.temperature) > 55) {
         ESP_LOGE(TAG, "TEC max delta exceeded: %f", abs(s_hot_data.temperature - s_cold_data.temperature));
-        _power_off_tec();
+        brew_temp_set_duty(0);
+        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         s_last_time_us = time_us;
         s_stats.tec_temp_delta_error_count++;
+        s_stats_changed = true;
+        return;
+    }
+
+    if (s_hot_data.temperature > s_cfg.max_tec_temp) {
+        ESP_LOGE(TAG, "TEC hot side exceeded: %f", s_hot_data.temperature);
+        brew_temp_set_duty(0);
+        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+        s_last_time_us = time_us;
+        s_stats.tec_temp_hot_thres_error_count++;
+        s_stats_changed = true;
+        return;
+    }
+
+    if (s_cold_data.temperature > s_cfg.max_tec_temp) {
+        ESP_LOGE(TAG, "TEC cold side exceeded: %f", s_cold_data.temperature);
+        brew_temp_set_duty(0);
+        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+        s_last_time_us = time_us;
+        s_stats.tec_temp_cold_thres_error_count++;
         s_stats_changed = true;
         return;
     }
@@ -177,6 +203,14 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
         s_stats.tec_ic_error++;
     }
 
+    // Work out if we can light up the ready light, within range
+    auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
+    if ((data.temperature + 0.5) >= setpoint) {
+        gpio_set_level(GPIO_TRIG2_REL3, 1);
+    } else if ((data.temperature + 2.5) < setpoint) {
+        gpio_set_level(GPIO_TRIG2_REL3, 0);
+    }
+
     // Run pid to get new duty
     auto result = pid_process(s_pid, s_cfg.pid, time_us, data);
     if (result.is_over_threshold) {
@@ -186,19 +220,18 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t& data) {
     }
 
     if (result.duty == 0) {
-        _power_off_tec();
-    } else {
-        brew_temp_set_duty(result.duty);
+        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
     }
+    brew_temp_set_duty(result.duty);
     ESP_LOGI(TAG, "Brew temp=%f, duty=%d, setpoint=%f",
              data.temperature, s_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
 }
 
-void brew_temp_tec_hot_updated(uint64_t time_us, const rtd_data_t& data) {
+void brew_temp_tec_hot_updated(uint64_t time_us, const rtd_data_t &data) {
     s_hot_data = data;
 }
 
-void brew_temp_tec_cold_updated(uint64_t time_us, const rtd_data_t& data) {
+void brew_temp_tec_cold_updated(uint64_t time_us, const rtd_data_t &data) {
     s_cold_data = data;
 }
 
@@ -214,6 +247,14 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     }
 }
 
+static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    if (id == BREW_STARTED) {
+        ESP_LOGI(TAG, "Brew started");
+    } else if (id == BREW_STOPPED) {
+        ESP_LOGI(TAG, "Brew stopped");
+    }
+}
+
 static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id != TICK) {
         return;
@@ -221,7 +262,7 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
     uint64_t now = 0;
     if (event_data != nullptr) {
-        now = *(uint64_t*)event_data;
+        now = *(uint64_t *) event_data;
     }
 
     // See if we need to serialise stats, but pace it so we don't kill the flash
@@ -247,7 +288,7 @@ static void _init_h_bridge() {
     s_pwm_channel.hpoint = 0;
     s_pwm_channel.timer_sel = LEDC_TIMER_0;
     ledc_channel_config(&s_pwm_channel);
-    
+
     ESP_LOGI(TAG, "TEC initialised.");
 }
 
@@ -267,6 +308,7 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
     io_conf.pin_bit_mask = (
             (1ULL << GPIO_HBRIDGE_DIR) |
             (1ULL << GPIO_HBRIDGE_DIS) |
+            (1ULL << GPIO_TRIG2_REL3) |
             (1ULL << GPIO_HBRIDGE_PWM)
     );
 
@@ -285,6 +327,8 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
 
+    gpio_set_level(GPIO_TRIG2_REL3, 0);
+
     _init_h_bridge();
 
     // Get our power events in place so we can run the process loop as needed
@@ -292,6 +336,10 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
                                                     _power_events, s_event_loop));
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
                                                     _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, s_event_loop));
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
                                                     _tick_events, s_event_loop));
 
@@ -303,6 +351,8 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
 void brew_temp_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, _brew_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
     pid_init(s_pid);
 }
@@ -318,6 +368,10 @@ void brew_temp_set_cfg(brew_temp_cfg_t config) {
 
     if (config.hysteresis > 0 && config.hysteresis < 10) {
         s_cfg.hysteresis = config.hysteresis;
+    }
+
+    if (config.max_tec_temp > 0 && config.max_tec_temp < 180) {
+        s_cfg.max_tec_temp = config.max_tec_temp;
     }
 
     // Save what we can then

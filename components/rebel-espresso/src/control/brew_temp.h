@@ -10,6 +10,7 @@
 #define NVS_BREW_STATS_STORE            "stats.brew"
 
 #define KEY_BREW_HYSTERESIS             "hysteresis"
+#define KEY_BREW_MAX_TEC_TEMP           "max_tec_temp"
 
 #define KEY_BREW_STATS_OVER_TEMP        "t_over_limit"
 #define KEY_BREW_STATS_TEMP_ERROR       "t_read_error"
@@ -26,6 +27,11 @@ struct brew_temp_cfg_t {
      * Main PID settings
      */
     pid_cfg_t pid;
+
+    /**
+     * Max temperature the TEC can take
+     */
+    double max_tec_temp;
 
     /**
      * Hysteresis band
@@ -71,6 +77,8 @@ struct brew_temp_status_t {
     uint32_t tec_hot_side_error_count;
     uint32_t tec_cold_side_error_count;
     uint32_t tec_temp_delta_error_count;
+    uint32_t tec_temp_hot_thres_error_count;
+    uint32_t tec_temp_cold_thres_error_count;
     uint32_t tec_ic_error;
 
     /**

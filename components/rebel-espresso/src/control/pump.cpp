@@ -16,12 +16,10 @@ static bool _boiler_refilling = false;
 
 static void IRAM_ATTR _pump_on() {
     gpio_set_level(GPIO_TRIG2_REL1, 1);
-
 }
 
 static void IRAM_ATTR _pump_off() {
     gpio_set_level(GPIO_TRIG2_REL1, 0);
-
 }
 
 static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -39,6 +37,13 @@ static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id
 }
 
 static void IRAM_ATTR _brew_switch_off(void *arg) {
+    if (_pump_sw_on) {
+        // Only send end event if switch was previously on
+        auto now_us = esp_timer_get_time();
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, (void *) &now_us, 0,
+                                          portMAX_DELAY));
+    }
+
     _pump_sw_on = false;
     if (!_boiler_refilling) {
         _pump_off();
@@ -58,15 +63,22 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     }
 
     // Not running any of this in standby
-    if (!(xEventGroupGetBits(status_event_group) &  POWER_ON_BIT)) {
+    if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         return;
     }
 
     // maintain pump state with switch
-    if(gpio_get_level(GPIO_SW1) == 0) {
+    bool is_running = (GPIO_REG_READ(GPIO_OUT_REG) >> GPIO_TRIG2_REL1) & 1U;
+    if (gpio_get_level(GPIO_SW1) == 0 && !is_running) {
         _pump_sw_on = true;
+
+        // Send start event then
+        auto now_us = esp_timer_get_time();
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, 0,
+                                          portMAX_DELAY));
+
         _pump_on();
-    } else {
+    } else if (gpio_get_level(GPIO_SW1) == 1 && is_running) {
         _brew_switch_off(nullptr);
     }
 }

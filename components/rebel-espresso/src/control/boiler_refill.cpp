@@ -19,8 +19,8 @@ const static char *TAG = "refill";
 #define BOILER_REFILL_NVS_CFG_STORE     "cfg.b_refill"
 
 const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT = 1000;
-const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT = 10;
-const uint16_t BOILER_REFILL_ADC_NUM_READINGS_DEFAULT = 32;
+const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT = 5;
+const uint16_t BOILER_REFILL_ADC_NUM_READINGS_DEFAULT = 25;
 const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT = 1500;
 const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 8000;
 const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 500;
@@ -50,7 +50,7 @@ bool boiler_check_level() {
     for (int i = 0; i < s_cfg.adc_num_readings; i++) {
         auto raw = adc1_get_raw(PIN_WATER_LEVEL_SENSE);
         level_voltage += esp_adc_cal_raw_to_voltage(raw, adc_chars);
-        ets_delay_us(500);
+        ets_delay_us(250);
     }
     s_level_voltage = level_voltage / s_cfg.adc_num_readings;
 

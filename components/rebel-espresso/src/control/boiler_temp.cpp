@@ -8,6 +8,7 @@
 #include "boiler_temp.h"
 #include "rmt_duty_map.h"
 #include "window.h"
+#include "boiler_temp_damper.h"
 
 #define TAG "Boiler"
 
@@ -202,8 +203,16 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
     // No errors from RTD, all good reset.
     s_boiler_error_sec = 0;
 
+    // Add damping as needed to target setpoint
+    auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
+    setpoint = boiler_temp_damper_adjust_setpoint(setpoint);
+    // Make a copy of config to dampen setpoint
+    auto pid_cfg = s_cfg.pid;
+    pid_cfg.setpoints[pid_cfg.active_setpoint] = setpoint;
+    ESP_LOGI(TAG, "Boiler setpoint damping: %fC", setpoint - s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
+
     // Run pid to get new duty
-    auto result = pid_process(s_pid, s_cfg.pid, time_us, data);
+    auto result = pid_process(s_pid, pid_cfg, time_us, data);
     if (result.is_over_threshold) {
         ESP_LOGW(TAG, "Over temp threshold exceeded");
         s_stats.temp_over_limit_count++;
@@ -218,19 +227,19 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
                 // Lower duties are far too slow in period (6s for 1%)
                 result.duty = ABSOLUTE_MIN_DUTY;
             }
-        } else if (result.duty < s_cfg.pid.min_duty_band) {
+        } else if (result.duty < pid_cfg.min_duty_band) {
             // Helps to maintain a tighter band by using more power
-            result.duty = s_cfg.pid.min_duty_band;
+            result.duty = pid_cfg.min_duty_band;
         }
     }
-
+    
     if (result.duty == 0) {
         _power_off_ssr();
     } else {
         boiler_temp_set_duty(result.duty);
     }
     ESP_LOGI(TAG, "Boiler temp=%f, duty=%d, setpoint=%f",
-             data.temperature, s_last_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
+             data.temperature, s_last_duty, setpoint);
 }
 
 

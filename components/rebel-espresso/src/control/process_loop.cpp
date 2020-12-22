@@ -1,6 +1,6 @@
 #include "process_loop.h"
 #include "boiler_temp.h"
-#include "brew_temp.h"
+#include "brew_tec.h"
 #include "pump.h"
 
 #include <freertos/FreeRTOS.h>
@@ -17,6 +17,7 @@
 #include <hw/r1.0/hw_config.h>
 #include <esp_event.h>
 #include "events.h"
+#include "boiler_temp_damper.h"
 
 #define TAG "process"
 #define TIMER_DIVIDER         16  //  Hardware timer clock divider
@@ -63,13 +64,14 @@ static void _handle_new_temp(uint64_t time_us, const rtd_data_t &data, uint8_t i
             boiler_temp_process(time_us, data);
             break;
         case RTD_BREW_HEAD_IDX:
-            brew_temp_process(time_us, data);
+            brew_tec_process(time_us, data);
+            boiler_temp_damper_process(time_us, data);
             break;
         case RTD_TEC_HOT_IDX:
-            brew_temp_tec_hot_updated(time_us, data);
+            brew_tec_hot_updated(time_us, data);
             break;
         case RTD_TEC_COLD_IDX:
-            brew_temp_tec_cold_updated(time_us, data);
+            brew_tec_cold_updated(time_us, data);
             break;
     }
 }

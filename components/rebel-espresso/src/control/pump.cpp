@@ -74,8 +74,9 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 
         // Send start event then
         auto now_us = esp_timer_get_time();
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, 0,
-                                          portMAX_DELAY));
+        ESP_ERROR_CHECK(
+                esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, sizeof(uint64_t),
+                                  portMAX_DELAY));
 
         _pump_on();
     } else if (gpio_get_level(GPIO_SW1) == 1 && is_running) {

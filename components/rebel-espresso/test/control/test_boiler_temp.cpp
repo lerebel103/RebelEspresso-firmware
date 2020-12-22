@@ -6,6 +6,7 @@
 #include <driver/rmt.h>
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
+#include <src/control/boiler_temp_damper.h>
 
 #include "control/boiler_temp.h"
 #include "control/rmt_duty_map.h"
@@ -386,6 +387,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     xEventGroupSetBits(status_event_group, POWER_ON_BIT);
     xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
     boiler_temp_init(g_event_loop);
+    boiler_temp_damper_init(g_event_loop);
     boiler_temp_reset_cfg();
 
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
@@ -396,6 +398,10 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     cfg.pid.over_setpoint_perc = 10;
     cfg.temp_error_restart_time_sec = 0;
     boiler_temp_set_cfg(cfg);
+
+    boiler_temp_damper_cfg_t damper_cfg = boiler_temp_damper_get_cfg();
+    damper_cfg.enabled = false;
+    boiler_temp_damper_set_cfg(damper_cfg);
 
     rtd_data_t data;
     data.fault = Max31865Error::NoError;
@@ -486,6 +492,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     TEST_ASSERT_EQUAL(17, boiler_temp_get_status().temp_over_limit_count);
 
     boiler_temp_delete();
+    boiler_temp_damper_delete();
 }
 
 TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok") {
@@ -543,4 +550,54 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
 
     nvs_close(my_handle);
     boiler_temp_delete();
+}
+
+
+
+TEST_CASE("[boiler_temp:test_damper]", "Test that boiler damping works with target brew temp") {
+    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
+    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    boiler_temp_init(g_event_loop);
+    boiler_temp_damper_init(g_event_loop);
+
+    boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
+    cfg.pid.P = 3;
+    cfg.pid.I = 0.5;
+    cfg.pid.D = 100;
+    cfg.pid.setpoints[0] = 120;
+    cfg.pid.over_setpoint_perc = 10;
+    cfg.temp_error_restart_time_sec = 0;
+    boiler_temp_set_cfg(cfg);
+
+    rtd_data_t boiler_data;
+    boiler_data.fault = Max31865Error::NoError;
+    boiler_data.temperature = 25;
+
+    boiler_temp_damper_cfg_t damper_cfg = boiler_temp_damper_get_cfg();
+    damper_cfg.pid.P = 1.2;
+    damper_cfg.pid.I = 0.5;
+    damper_cfg.pid.D = 150;
+    damper_cfg.pid.setpoints[0] = 90;
+    damper_cfg.pid.over_setpoint_perc = 10;
+    damper_cfg.max_damping_perc = 50;
+    damper_cfg.reset_time_sec = 60;
+    damper_cfg.pid.I_reset_temp = 6;
+    boiler_temp_damper_set_cfg(damper_cfg);
+
+    rtd_data_t brew_data;
+    brew_data.fault = Max31865Error::NoError;
+    brew_data.temperature = 80;
+
+
+    for (int i = 0; i < 150; i++) {
+        boiler_data.temperature = 25 + i;
+        boiler_temp_process(i * 1e6, boiler_data);
+        boiler_temp_damper_process(i * 1e6, brew_data);
+    }
+
+
+    boiler_temp_damper_reset_cfg();
+    boiler_temp_reset_stats();
+    boiler_temp_delete();
+    boiler_temp_damper_delete();
 }

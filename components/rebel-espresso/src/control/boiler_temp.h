@@ -13,7 +13,7 @@
 #define BOILER_SSR_PIN GPIO_TRIG1_SSR
 
 #define NVS_BOILER_CFG_STORE                "cfg.boiler"
-#define NVS_BOILER_STATS_STORE              "stats.boiler"
+#define NVS_BOILER_STATS_STORE              "sts.boiler"
 
 #define KEY_BOILER_MAINS_HZ                 "pid.mains_hz"
 #define KEY_BOILER_TEMP_ERROR_RESTART_SEC   "pid.t_err_rest"
@@ -23,7 +23,7 @@
 #define KEY_BOILER_STATS_TEMP_RANGE_ERROR   "t_range_error"
 
 
-#define BOILER_CFG_JSON_KEY "boiler."
+#define BOILER_CFG_JSON_KEY "boiler_temp."
 
 // Defined here so unit tests can find these
 extern "C" const uint8_t BOILER_MAINS_HZ_DEFAULT;

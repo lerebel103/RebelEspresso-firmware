@@ -11,8 +11,9 @@
 #include <cmath>
 #include <src/control/power.h>
 #include <esp_event.h>
-#include <src/control/brew_temp.h>
+#include <src/control/brew_tec.h>
 #include <src/control/boiler_refill.h>
+#include <src/control/boiler_temp_damper.h>
 
 #include "control/controller.h"
 
@@ -99,7 +100,7 @@ void _render_tec(u8g2_t *u8g2, char *tempBuf, int xpad, int yOffset, int idx) {
     u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
 }
 
-void display_draw_brew_temp(u8g2_t *u8g2, int *y) {
+void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
     rtd_data_t result;
     rtds_get(&result, 1);
 
@@ -127,7 +128,7 @@ void display_draw_brew_temp(u8g2_t *u8g2, int *y) {
     // Duty
     auto xpad = 3;
     auto yOffset = 8;
-    double duty = brew_temp_get_duty();
+    double duty = brew_tec_get_duty();
     sprintf(tempBuf, "%d%%", (int)duty);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
     u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
@@ -172,14 +173,22 @@ void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
 
     // Duty
     auto xpad = 3;
-    auto yOffset = *y - 16;
+    auto yOffset = *y - 20;
     double duty = boiler_temp_get_duty();
     sprintf(tempBuf, "%d%%", (int)duty);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
     u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 
+    yOffset += 8 + 2;
+    auto cfg = boiler_temp_get_cfg();
+    auto setpoint = cfg.pid.setpoints[cfg.pid.active_setpoint];
+    double actual_setpoint = boiler_temp_damper_adjust_setpoint(setpoint);
+    sprintf(tempBuf, "%.1f", actual_setpoint);
+    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+
     // Water level voltage
-    yOffset += 12;
+    yOffset += 8 + 2;
     double level_voltage = boiler_refill_level_mv() / 1e3;
     sprintf(tempBuf, "%.1fV", level_voltage);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
@@ -229,7 +238,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
             // Draw temps, flash them when lid is open
             int y = 24;
-            display_draw_brew_temp(&u8g2, &y);
+            display_draw_brew_tec(&u8g2, &y);
 
             // Now draw frame separator
             y = 32;

@@ -13,7 +13,7 @@ typedef bool(*check_level_fn)();
 #define KEY_start_delay_ms              "start_delay"
 #define KEY_stabilise_ms                "stabilise_ms"
 #define KEY_adc_num_readings            "adc_num_rdgs"
-#define KEY_refill_mv_threshold    "refill_v_thr"
+#define KEY_refill_mv_threshold         "refill_v_thr"
 #define KEY_max_refill_time_ms          "max_r_time"
 #define KEY_level_low_hysteresis_ms     "level_low_ms"
 #define KEY_level_ok_hysteresis_ms      "level_ok_ms"

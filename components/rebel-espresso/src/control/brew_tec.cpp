@@ -6,24 +6,24 @@
 #include <freertos/task.h>
 #include <src/events.h>
 #include <esp_event.h>
-#include "brew_temp.h"
+#include "brew_tec.h"
 
 #define TAG "BrewHead"
 
-const double BREW_HYSTERESIS_DEFAULT = 1.0;
-const double BREW_MAX_TEC_TEMP_DEFAULT = 130.0;
+const uint8_t BREW_TEC_ENABLED_DEFAULT = 0;
+const double BREW_TEC_HYSTERESIS_DEFAULT = 1.0;
+const double BREW_TEC_MAX_TEMP_DEFAULT = 130.0;
 
 
-static uint64_t s_last_time_us = 0;
 static ledc_channel_config_t s_pwm_channel;
 static esp_event_loop_handle_t s_event_loop;
 static int s_duty = 0;
 
-static brew_temp_cfg_t s_cfg;
+static brew_tec_cfg_t s_cfg;
 
 static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
-static brew_temp_status_t s_stats;
+static brew_tec_status_t s_stats;
 static pid_struct_t s_pid;
 
 // Keep track of TEC temps on both sides
@@ -32,14 +32,14 @@ static rtd_data_t s_cold_data;
 
 static void _load_stats() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BREW_STATS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEC_STATS_STORE, NVS_READWRITE, &my_handle));
 
     uint32_t defaultVal = 0;
-    nvram_store_get_u32(my_handle, KEY_BREW_STATS_OVER_TEMP, (uint32_t *) &s_stats.temp_over_limit_count,
+    nvram_store_get_u32(my_handle, KEY_BREW_TEC_STATS_OVER_TEMP, (uint32_t *) &s_stats.temp_over_limit_count,
                         (void *) &defaultVal);
-    nvram_store_get_u32(my_handle, KEY_BREW_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count,
+    nvram_store_get_u32(my_handle, KEY_BREW_TEC_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count,
                         (void *) &defaultVal);
-    nvram_store_get_u32(my_handle, KEY_BREW_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.temp_out_of_range_count,
+    nvram_store_get_u32(my_handle, KEY_BREW_TEC_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.temp_out_of_range_count,
                         (void *) &defaultVal);
 
     nvs_close(my_handle);
@@ -50,11 +50,11 @@ static void _load_stats() {
 
 static void _save_stats(uint64_t time) {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BREW_STATS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEC_STATS_STORE, NVS_READWRITE, &my_handle));
 
-    nvram_store_set_u32(my_handle, KEY_BREW_STATS_OVER_TEMP, (uint32_t *) &s_stats.temp_over_limit_count);
-    nvram_store_set_u32(my_handle, KEY_BREW_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count);
-    nvram_store_set_u32(my_handle, KEY_BREW_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.temp_out_of_range_count);
+    nvram_store_set_u32(my_handle, KEY_BREW_TEC_STATS_OVER_TEMP, (uint32_t *) &s_stats.temp_over_limit_count);
+    nvram_store_set_u32(my_handle, KEY_BREW_TEC_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count);
+    nvram_store_set_u32(my_handle, KEY_BREW_TEC_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.temp_out_of_range_count);
 
     nvs_close(my_handle);
     s_last_stats_save = time;
@@ -63,23 +63,26 @@ static void _save_stats(uint64_t time) {
 
 static void _load_nvram() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BREW_CFG_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEC_CFG_STORE, NVS_READWRITE, &my_handle));
 
     pid_load_nvram(my_handle, s_cfg.pid);
-    nvram_store_get_u64(my_handle, KEY_BREW_HYSTERESIS, (uint64_t *) &s_cfg.hysteresis,
-                        (void *) &BREW_HYSTERESIS_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BREW_MAX_TEC_TEMP, (uint64_t *) &s_cfg.max_tec_temp,
-                        (void *) &BREW_MAX_TEC_TEMP_DEFAULT);
+    nvram_store_get_u8(my_handle, KEY_BREW_TEC_ENABLED, (uint8_t *) &s_cfg.enabled,
+                       (void *) &BREW_TEC_ENABLED_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BREW_TEC_HYSTERESIS, (uint64_t *) &s_cfg.hysteresis,
+                        (void *) &BREW_TEC_HYSTERESIS_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BREW_TEC_MAX_TEMP, (uint64_t *) &s_cfg.max_tec_temp,
+                        (void *) &BREW_TEC_MAX_TEMP_DEFAULT);
     nvs_close(my_handle);
 }
 
 static void _save_nvram() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BREW_CFG_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEC_CFG_STORE, NVS_READWRITE, &my_handle));
 
     pid_save_nvram(my_handle, s_cfg.pid);
-    nvram_store_set_u64(my_handle, KEY_BREW_HYSTERESIS, (uint64_t *) &s_cfg.hysteresis);
-    nvram_store_set_u64(my_handle, KEY_BREW_MAX_TEC_TEMP, (uint64_t *) &s_cfg.max_tec_temp);
+    nvram_store_set_u8(my_handle, KEY_BREW_TEC_ENABLED, (uint8_t *) &s_cfg.enabled);
+    nvram_store_set_u64(my_handle, KEY_BREW_TEC_HYSTERESIS, (uint64_t *) &s_cfg.hysteresis);
+    nvram_store_set_u64(my_handle, KEY_BREW_TEC_MAX_TEMP, (uint64_t *) &s_cfg.max_tec_temp);
 
     nvs_close(my_handle);
 }
@@ -90,7 +93,7 @@ static void _save_nvram() {
  *
  * @param duty integral [0-100]
  */
-extern "C" void brew_temp_set_duty(int duty) {
+extern "C" void brew_tec_set_duty(int duty) {
     if (duty > 100) {
         duty = 100;
     } else if (duty < -100) {
@@ -110,12 +113,12 @@ extern "C" void brew_temp_set_duty(int duty) {
     ESP_LOGI(TAG, "Duty set to %d", duty);
 }
 
-int brew_temp_get_duty() {
+int brew_tec_get_duty() {
     return s_duty;
 }
 
 void _power_off_tec() {
-    brew_temp_set_duty(0);
+    brew_tec_set_duty(0);
     gpio_set_level(GPIO_HBRIDGE_DIS, 1);
 
     // Invalidate TEC temp records, new ones will come in
@@ -124,8 +127,11 @@ void _power_off_tec() {
     gpio_set_level(GPIO_TRIG2_REL3, 0);
 }
 
-void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
-    if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
+void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
+    if (!s_cfg.enabled) {
+        _power_off_tec();
+        return;
+    } else if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         ESP_LOGW(TAG, "In standby, not running.");
         _power_off_tec();
         return;
@@ -138,19 +144,16 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
         _power_off_tec();
-        s_last_time_us = time_us;
         return;
     } else if (s_hot_data.fault != Max31865Error::NoError) {
         ESP_LOGE(TAG, "TEC hot side sensor error %s", Max31865::errorToString(s_hot_data.fault));
         _power_off_tec();
-        s_last_time_us = time_us;
         s_stats.tec_hot_side_error_count++;
         s_stats_changed = true;
         return;
     } else if (s_cold_data.fault != Max31865Error::NoError) {
         ESP_LOGE(TAG, "TEC cold side sensor error %s", Max31865::errorToString(s_cold_data.fault));
         _power_off_tec();
-        s_last_time_us = time_us;
         s_stats.tec_cold_side_error_count++;
         s_stats_changed = true;
         return;
@@ -165,9 +168,8 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
     // Ok, if we have a delta of more than 60 degree, we are stuffed, can't run control, quit
     if (abs(s_hot_data.temperature - s_cold_data.temperature) > 55) {
         ESP_LOGE(TAG, "TEC max delta exceeded: %f", abs(s_hot_data.temperature - s_cold_data.temperature));
-        brew_temp_set_duty(0);
+        brew_tec_set_duty(0);
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
-        s_last_time_us = time_us;
         s_stats.tec_temp_delta_error_count++;
         s_stats_changed = true;
         return;
@@ -175,9 +177,8 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
 
     if (s_hot_data.temperature > s_cfg.max_tec_temp) {
         ESP_LOGE(TAG, "TEC hot side exceeded: %f", s_hot_data.temperature);
-        brew_temp_set_duty(0);
+        brew_tec_set_duty(0);
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
-        s_last_time_us = time_us;
         s_stats.tec_temp_hot_thres_error_count++;
         s_stats_changed = true;
         return;
@@ -185,9 +186,8 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
 
     if (s_cold_data.temperature > s_cfg.max_tec_temp) {
         ESP_LOGE(TAG, "TEC cold side exceeded: %f", s_cold_data.temperature);
-        brew_temp_set_duty(0);
+        brew_tec_set_duty(0);
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
-        s_last_time_us = time_us;
         s_stats.tec_temp_cold_thres_error_count++;
         s_stats_changed = true;
         return;
@@ -203,14 +203,6 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
         s_stats.tec_ic_error++;
     }
 
-    // Work out if we can light up the ready light, within range
-    auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-    if ((data.temperature + 0.5) >= setpoint) {
-        gpio_set_level(GPIO_TRIG2_REL3, 1);
-    } else if ((data.temperature + 2.5) < setpoint) {
-        gpio_set_level(GPIO_TRIG2_REL3, 0);
-    }
-
     // Run pid to get new duty
     auto result = pid_process(s_pid, s_cfg.pid, time_us, data);
     if (result.is_over_threshold) {
@@ -222,28 +214,30 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &data) {
     if (result.duty == 0) {
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
     }
-    brew_temp_set_duty(result.duty);
+    brew_tec_set_duty(result.duty);
     ESP_LOGI(TAG, "Brew temp=%f, duty=%d, setpoint=%f",
              data.temperature, s_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
 }
 
-void brew_temp_tec_hot_updated(uint64_t time_us, const rtd_data_t &data) {
+void brew_tec_hot_updated(uint64_t time_us, const rtd_data_t &data) {
     s_hot_data = data;
 }
 
-void brew_temp_tec_cold_updated(uint64_t time_us, const rtd_data_t &data) {
+void brew_tec_cold_updated(uint64_t time_us, const rtd_data_t &data) {
     s_cold_data = data;
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
         ESP_LOGI(TAG, "Powering down TEC");
-        brew_temp_set_duty(0);
+        brew_tec_set_duty(0);
         _power_off_tec();
     } else if (id == POWER_ACTIVE) {
-        ESP_LOGI(TAG, "Resuming TEC");
-        gpio_set_level(GPIO_HBRIDGE_DIS, 0);
-        pid_reset(s_pid);
+        if (s_cfg.enabled) {
+            ESP_LOGI(TAG, "Resuming TEC");
+            gpio_set_level(GPIO_HBRIDGE_DIS, 0);
+            pid_reset(s_pid);
+        }
     }
 }
 
@@ -256,6 +250,9 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
 }
 
 static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    if (!s_cfg.enabled) {
+        return;
+    }
     if (id != TICK) {
         return;
     }
@@ -293,7 +290,7 @@ static void _init_h_bridge() {
 }
 
 
-void brew_temp_init(esp_event_loop_handle_t event_loop) {
+void brew_tec_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     _load_nvram();
     _load_stats();
@@ -348,7 +345,7 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
     gpio_set_level(GPIO_HBRIDGE_DIS, 1);
 }
 
-void brew_temp_delete() {
+void brew_tec_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
@@ -358,13 +355,15 @@ void brew_temp_delete() {
 }
 
 
-const brew_temp_cfg_t &brew_temp_get_cfg() {
+const brew_tec_cfg_t &brew_tec_get_cfg() {
     return s_cfg;
 }
 
-void brew_temp_set_cfg(brew_temp_cfg_t config) {
+void brew_tec_set_cfg(brew_tec_cfg_t config) {
     // validate all fields
     pid_update(s_cfg.pid, config.pid);
+
+    s_cfg.enabled = config.enabled;
 
     if (config.hysteresis > 0 && config.hysteresis < 10) {
         s_cfg.hysteresis = config.hysteresis;
@@ -378,36 +377,36 @@ void brew_temp_set_cfg(brew_temp_cfg_t config) {
     _save_nvram();
 }
 
-void brew_temp_update_cfg(const cJSON *json) {
-    brew_temp_cfg_t new_config = s_cfg;
+void brew_tec_update_cfg(const cJSON *json) {
+    brew_tec_cfg_t new_config = s_cfg;
     new_config.from_json(json);
-    brew_temp_set_cfg(new_config);
+    brew_tec_set_cfg(new_config);
 }
 
 
-void brew_temp_reset_cfg() {
+void brew_tec_reset_cfg() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BREW_CFG_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEC_CFG_STORE, NVS_READWRITE, &my_handle));
     nvs_erase_all(my_handle);
     nvs_close(my_handle);
 
     _load_nvram();
 }
 
-const brew_temp_status_t &brew_temp_get_status() {
+const brew_tec_status_t &brew_tec_get_status() {
     return s_stats;
 }
 
-void brew_temp_reset_stats() {
+void brew_tec_reset_stats() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BREW_STATS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEC_STATS_STORE, NVS_READWRITE, &my_handle));
     nvs_erase_all(my_handle);
     nvs_close(my_handle);
 
     _load_stats();
 }
 
-double brew_setpoint_inc(double inc) {
+double brew_tec_setpoint_inc(double inc) {
     auto new_val = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] + inc;
     if (s_cfg.pid.active_setpoint == 0) {
         if (new_val < SETPOINT0_MIN) {
@@ -429,7 +428,7 @@ double brew_setpoint_inc(double inc) {
         s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] = new_val;
 
         nvs_handle my_handle;
-        ESP_ERROR_CHECK(nvs_open(NVS_BREW_CFG_STORE, NVS_READWRITE, &my_handle));
+        ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEC_CFG_STORE, NVS_READWRITE, &my_handle));
         pid_save_setpoint(my_handle, s_cfg.pid);
         nvs_close(my_handle);
     }
@@ -437,7 +436,7 @@ double brew_setpoint_inc(double inc) {
     return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 }
 
-void brew_set_active_setpoint(int idx) {
+void brew_tec_set_active_setpoint(int idx) {
     if (idx >= 0 && idx < MAX_SETPOINTS) {
         s_cfg.pid.active_setpoint = idx;
     }

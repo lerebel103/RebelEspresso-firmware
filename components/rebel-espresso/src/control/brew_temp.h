@@ -3,9 +3,9 @@
 #include <malloc.h>
 #include "pid.h"
 
-#define BREW_TEMP_CFG_JSON_KEY            "brew."
-#define NVS_BREW_TEMP_CFG_STORE           "cfg.brew"
-#define NVS_BREW_TEMP_STATS_STORE         "sts.brew"
+#define BREW_TEMP_CFG_JSON_KEY            "brew_temp."
+#define NVS_BREW_TEMP_CFG_STORE           "cfg.brew_temp"
+#define NVS_BREW_TEMP_STATS_STORE         "sts.brew_temp"
 
 #define KEY_BREW_TEMP_ENABLED             "enabled"
 #define KEY_BREW_TEMP_PERC                "damping_perc"

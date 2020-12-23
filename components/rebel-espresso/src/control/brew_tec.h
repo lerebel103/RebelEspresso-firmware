@@ -5,9 +5,9 @@
 #include <src/hw/rtds.h>
 #include "pid.h"
 
-#define BREW_TEC_CFG_JSON_KEY               "brew.tec."
-#define NVS_BREW_TEC_CFG_STORE              "cfg.brew.tec"
-#define NVS_BREW_TEC_STATS_STORE            "stats.brew.tec"
+#define BREW_TEC_CFG_JSON_KEY               "brew_tec."
+#define NVS_BREW_TEC_CFG_STORE              "cfg.brew_tec"
+#define NVS_BREW_TEC_STATS_STORE            "stats.brew_tec"
 
 #define KEY_BREW_TEC_ENABLED                "enabled"
 #define KEY_BREW_TEC_HYSTERESIS             "hysteresis"

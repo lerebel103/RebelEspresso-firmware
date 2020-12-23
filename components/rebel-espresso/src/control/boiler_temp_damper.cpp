@@ -100,9 +100,9 @@ double boiler_temp_damper_adjust_setpoint(double setpoint) {
 void boiler_temp_damper_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
     // Work out if we can light up the ready light, within range
     auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-    if ((brew_head_data.temperature + 0.5) >= setpoint) {
+    if ((brew_head_data.temperature + 0.8) >= setpoint) {
         gpio_set_level(GPIO_TRIG2_REL3, 1);
-    } else if ((brew_head_data.temperature + 1.5) < setpoint) {
+    } else if ((brew_head_data.temperature + 2.0) < setpoint) {
         gpio_set_level(GPIO_TRIG2_REL3, 0);
     }
 

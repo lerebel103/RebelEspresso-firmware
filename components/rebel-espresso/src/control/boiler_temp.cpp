@@ -7,8 +7,7 @@
 #include <src/sys/nvram_store.h>
 #include "boiler_temp.h"
 #include "rmt_duty_map.h"
-#include "window.h"
-#include "boiler_temp_damper.h"
+#include "brew_temp.h"
 
 #define TAG "Boiler"
 
@@ -205,7 +204,7 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
 
     // Add damping as needed to target setpoint
     auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-    setpoint = boiler_temp_damper_adjust_setpoint(setpoint);
+    setpoint = brew_temp_dampen_boiler_setpoint(setpoint);
     // Make a copy of config to dampen setpoint
     auto pid_cfg = s_cfg.pid;
     pid_cfg.setpoints[pid_cfg.active_setpoint] = setpoint;

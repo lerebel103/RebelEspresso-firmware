@@ -6,7 +6,7 @@
 #include <driver/rmt.h>
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
-#include <src/control/boiler_temp_damper.h>
+#include <src/control/brew_temp.h>
 
 #include "control/boiler_temp.h"
 #include "control/rmt_duty_map.h"
@@ -322,6 +322,7 @@ TEST_CASE("[boiler_temp:test_nvs_reset_default]", "Test resetting NVS to default
 
 TEST_CASE("[boiler_temp:test_boiler_setpoint_inc]", "Test increment boiler setpoint") {
     boiler_temp_init(g_event_loop);
+    boiler_temp_reset_cfg();
 
     auto cfg = boiler_temp_get_cfg();
     double inc = -0.5;
@@ -387,7 +388,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     xEventGroupSetBits(status_event_group, POWER_ON_BIT);
     xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
     boiler_temp_init(g_event_loop);
-    boiler_temp_damper_init(g_event_loop);
+    brew_temp_init(g_event_loop);
     boiler_temp_reset_cfg();
 
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
@@ -399,9 +400,9 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     cfg.temp_error_restart_time_sec = 0;
     boiler_temp_set_cfg(cfg);
 
-    boiler_temp_damper_cfg_t damper_cfg = boiler_temp_damper_get_cfg();
+    brew_temp_cfg_t damper_cfg = brew_temp_get_cfg();
     damper_cfg.enabled = false;
-    boiler_temp_damper_set_cfg(damper_cfg);
+    brew_temp_set_cfg(damper_cfg);
 
     rtd_data_t data;
     data.fault = Max31865Error::NoError;
@@ -492,14 +493,20 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     TEST_ASSERT_EQUAL(17, boiler_temp_get_status().temp_over_limit_count);
 
     boiler_temp_delete();
-    boiler_temp_damper_delete();
+    brew_temp_delete();
 }
 
 TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok") {
     xEventGroupSetBits(status_event_group, POWER_ON_BIT);
     xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
     boiler_temp_init(g_event_loop);
+    boiler_temp_reset_cfg();
     boiler_temp_reset_stats();
+
+    boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
+    cfg.temp_error_restart_time_sec = 0;
+    boiler_temp_set_cfg(cfg);
+
 
     // Cause temp read error
     rtd_data_t data;
@@ -558,7 +565,7 @@ TEST_CASE("[boiler_temp:test_damper]", "Test that boiler damping works with targ
     xEventGroupSetBits(status_event_group, POWER_ON_BIT);
     xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
     boiler_temp_init(g_event_loop);
-    boiler_temp_damper_init(g_event_loop);
+    brew_temp_init(g_event_loop);
 
     boiler_temp_cfg_t cfg = boiler_temp_get_cfg();
     cfg.pid.P = 3;
@@ -573,7 +580,7 @@ TEST_CASE("[boiler_temp:test_damper]", "Test that boiler damping works with targ
     boiler_data.fault = Max31865Error::NoError;
     boiler_data.temperature = 25;
 
-    boiler_temp_damper_cfg_t damper_cfg = boiler_temp_damper_get_cfg();
+    brew_temp_cfg_t damper_cfg = brew_temp_get_cfg();
     damper_cfg.pid.P = 1.2;
     damper_cfg.pid.I = 0.5;
     damper_cfg.pid.D = 150;
@@ -582,7 +589,7 @@ TEST_CASE("[boiler_temp:test_damper]", "Test that boiler damping works with targ
     damper_cfg.max_damping_perc = 50;
     damper_cfg.reset_time_sec = 60;
     damper_cfg.pid.I_reset_temp = 6;
-    boiler_temp_damper_set_cfg(damper_cfg);
+    brew_temp_set_cfg(damper_cfg);
 
     rtd_data_t brew_data;
     brew_data.fault = Max31865Error::NoError;
@@ -592,12 +599,12 @@ TEST_CASE("[boiler_temp:test_damper]", "Test that boiler damping works with targ
     for (int i = 0; i < 150; i++) {
         boiler_data.temperature = 25 + i;
         boiler_temp_process(i * 1e6, boiler_data);
-        boiler_temp_damper_process(i * 1e6, brew_data);
+        brew_temp_process(i * 1e6, brew_data);
     }
 
 
-    boiler_temp_damper_reset_cfg();
+    brew_temp_reset_cfg();
     boiler_temp_reset_stats();
     boiler_temp_delete();
-    boiler_temp_damper_delete();
+    brew_temp_delete();
 }

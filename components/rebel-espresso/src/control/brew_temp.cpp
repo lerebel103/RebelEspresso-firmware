@@ -1,4 +1,4 @@
-#include "boiler_temp_damper.h"
+#include "brew_temp.h"
 
 #include <hw/rtds.h>
 #include <esp_log.h>
@@ -8,33 +8,33 @@
 #include <hw_config.h>
 #include "pid.h"
 
-#define TAG "BrewTempDamper"
+#define TAG "BrewTemp"
 
-const uint8_t BOILER_DAMPER_ENABLED_DEFAULT = 1;
-const double BOILER_DAMPER_PERC_DEFAULT = 10.0;
-const double BOILER_DAMPER_RESET_SEC_DEFAULT = 3 * 60;
+const uint8_t BREW_TEMP_ENABLED_DEFAULT = 1;
+const double BREW_TEMP_PERC_DEFAULT = 10.0;
+const double BREW_TEMP_RESET_SEC_DEFAULT = 3 * 60;
 
 static esp_event_loop_handle_t s_event_loop;
 static int s_duty = 0;
 static uint64_t s_last_brew_time = 0;
 
-static boiler_temp_damper_cfg_t s_cfg;
+static brew_temp_cfg_t s_cfg;
 
 static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
-static boiler_temp_damper_status_t s_stats;
+static brew_temp_status_t s_stats;
 static pid_struct_t s_pid;
 
 static void _load_stats() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BOILER_DAMPER_STATS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_STATS_STORE, NVS_READWRITE, &my_handle));
 
     uint32_t defaultVal = 0;
-    nvram_store_get_u32(my_handle, KEY_BOILER_DAMPER_STATS_OVER_TEMP, (uint32_t *) &s_stats.brew_temp_over_limit_count,
+    nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_OVER_TEMP, (uint32_t *) &s_stats.brew_temp_over_limit_count,
                         (void *) &defaultVal);
-    nvram_store_get_u32(my_handle, KEY_BOILER_DAMPER_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count,
+    nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count,
                         (void *) &defaultVal);
-    nvram_store_get_u32(my_handle, KEY_BOILER_DAMPER_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.brew_temp_out_of_range_count,
+    nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.brew_temp_out_of_range_count,
                         (void *) &defaultVal);
 
     nvs_close(my_handle);
@@ -45,11 +45,11 @@ static void _load_stats() {
 
 static void _save_stats(uint64_t time) {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BOILER_DAMPER_STATS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_STATS_STORE, NVS_READWRITE, &my_handle));
 
-    nvram_store_set_u32(my_handle, KEY_BOILER_DAMPER_STATS_OVER_TEMP, (uint32_t *) &s_stats.brew_temp_over_limit_count);
-    nvram_store_set_u32(my_handle, KEY_BOILER_DAMPER_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count);
-    nvram_store_set_u32(my_handle, KEY_BOILER_DAMPER_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.brew_temp_out_of_range_count);
+    nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_OVER_TEMP, (uint32_t *) &s_stats.brew_temp_over_limit_count);
+    nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count);
+    nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.brew_temp_out_of_range_count);
 
     nvs_close(my_handle);
     s_last_stats_save = time;
@@ -58,36 +58,36 @@ static void _save_stats(uint64_t time) {
 
 static void _load_nvram() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BOILER_DAMPER_CFG_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_CFG_STORE, NVS_READWRITE, &my_handle));
 
     pid_load_nvram(my_handle, s_cfg.pid);
 
-    nvram_store_get_u8(my_handle, KEY_BOILER_DAMPER_ENABLED, (uint8_t *) &s_cfg.enabled,
-                       (void *) &BOILER_DAMPER_ENABLED_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_DAMPER_PERC, (uint64_t *) &s_cfg.max_damping_perc,
-                        (void *) &BOILER_DAMPER_PERC_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BOILER_DAMPER_RESET_SEC, (uint64_t *) &s_cfg.reset_time_sec,
-                        (void *) &BOILER_DAMPER_RESET_SEC_DEFAULT);
+    nvram_store_get_u8(my_handle, KEY_BREW_TEMP_ENABLED, (uint8_t *) &s_cfg.enabled,
+                       (void *) &BREW_TEMP_ENABLED_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *) &s_cfg.max_damping_perc,
+                        (void *) &BREW_TEMP_PERC_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BREW_TEMP_RESET_SEC, (uint64_t *) &s_cfg.reset_time_sec,
+                        (void *) &BREW_TEMP_RESET_SEC_DEFAULT);
     nvs_close(my_handle);
 }
 
 static void _save_nvram() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BOILER_DAMPER_CFG_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_CFG_STORE, NVS_READWRITE, &my_handle));
 
     pid_save_nvram(my_handle, s_cfg.pid);
-    nvram_store_set_u8(my_handle, KEY_BOILER_DAMPER_ENABLED, (uint8_t *) &s_cfg.enabled);
-    nvram_store_set_u64(my_handle, KEY_BOILER_DAMPER_PERC, (uint64_t *) &s_cfg.max_damping_perc);
-    nvram_store_set_u64(my_handle, KEY_BOILER_DAMPER_RESET_SEC, (uint64_t *) &s_cfg.reset_time_sec);
+    nvram_store_set_u8(my_handle, KEY_BREW_TEMP_ENABLED, (uint8_t *) &s_cfg.enabled);
+    nvram_store_set_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *) &s_cfg.max_damping_perc);
+    nvram_store_set_u64(my_handle, KEY_BREW_TEMP_RESET_SEC, (uint64_t *) &s_cfg.reset_time_sec);
 
     nvs_close(my_handle);
 }
 
-int boiler_temp_damper_get_duty() {
+int brew_temp_get_duty() {
     return s_duty;
 }
 
-double boiler_temp_damper_adjust_setpoint(double setpoint) {
+double brew_temp_dampen_boiler_setpoint(double setpoint) {
     if (!s_cfg.enabled) {
         return setpoint;
     } else {
@@ -96,16 +96,11 @@ double boiler_temp_damper_adjust_setpoint(double setpoint) {
     }
 }
 
+double brew_temp_get_setpoint() {
+    return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
+}
 
-void boiler_temp_damper_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
-    // Work out if we can light up the ready light, within range
-    auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-    if ((brew_head_data.temperature + 0.8) >= setpoint) {
-        gpio_set_level(GPIO_TRIG2_REL3, 1);
-    } else if ((brew_head_data.temperature + 2.0) < setpoint) {
-        gpio_set_level(GPIO_TRIG2_REL3, 0);
-    }
-
+void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
     if (!s_cfg.enabled) {
         s_duty = s_cfg.max_damping_perc;
         return;
@@ -161,7 +156,6 @@ void boiler_temp_damper_process(uint64_t time_us, const rtd_data_t &brew_head_da
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
         s_duty = s_cfg.max_damping_perc;
-        gpio_set_level(GPIO_TRIG2_REL3, 0);
     } else if (id == POWER_ACTIVE) {
         pid_reset(s_pid);
         s_last_brew_time = 0;
@@ -199,7 +193,7 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 }
 
-void boiler_temp_damper_init(esp_event_loop_handle_t event_loop) {
+void brew_temp_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     _load_nvram();
     _load_stats();
@@ -220,7 +214,7 @@ void boiler_temp_damper_init(esp_event_loop_handle_t event_loop) {
                                                     _tick_events, s_event_loop));
 }
 
-void boiler_temp_damper_delete() {
+void brew_temp_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
@@ -230,15 +224,15 @@ void boiler_temp_damper_delete() {
 }
 
 // for testing purposes only
-extern "C" void boiler_temp_damper_set_duty(uint8_t duty) {
+extern "C" void brew_temp_set_duty(uint8_t duty) {
     s_duty = duty;
 }
 
-const boiler_temp_damper_cfg_t &boiler_temp_damper_get_cfg() {
+const brew_temp_cfg_t &brew_temp_get_cfg() {
     return s_cfg;
 }
 
-void boiler_temp_damper_set_cfg(boiler_temp_damper_cfg_t config) {
+void brew_temp_set_cfg(brew_temp_cfg_t config) {
     // validate all fields
     pid_update(s_cfg.pid, config.pid);
 
@@ -256,29 +250,29 @@ void boiler_temp_damper_set_cfg(boiler_temp_damper_cfg_t config) {
     _save_nvram();
 }
 
-void boiler_temp_damper_update_cfg(const cJSON *json) {
-    boiler_temp_damper_cfg_t new_config = s_cfg;
+void brew_temp_update_cfg(const cJSON *json) {
+    brew_temp_cfg_t new_config = s_cfg;
     new_config.from_json(json);
-    boiler_temp_damper_set_cfg(new_config);
+    brew_temp_set_cfg(new_config);
 }
 
 
-void boiler_temp_damper_reset_cfg() {
+void brew_temp_reset_cfg() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BOILER_DAMPER_CFG_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_CFG_STORE, NVS_READWRITE, &my_handle));
     nvs_erase_all(my_handle);
     nvs_close(my_handle);
 
     _load_nvram();
 }
 
-const boiler_temp_damper_status_t &boiler_temp_damper_get_status() {
+const brew_temp_status_t &brew_temp_get_status() {
     return s_stats;
 }
 
-void boiler_temp_damper_reset_stats() {
+void brew_temp_reset_stats() {
     nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_BOILER_DAMPER_STATS_STORE, NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_STATS_STORE, NVS_READWRITE, &my_handle));
     nvs_erase_all(my_handle);
     nvs_close(my_handle);
 

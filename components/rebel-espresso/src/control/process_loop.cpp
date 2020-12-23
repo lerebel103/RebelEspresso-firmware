@@ -17,7 +17,8 @@
 #include <hw/r1.0/hw_config.h>
 #include <esp_event.h>
 #include "events.h"
-#include "boiler_temp_damper.h"
+#include "brew_temp.h"
+#include "ready_indicator.h"
 
 #define TAG "process"
 #define TIMER_DIVIDER         16  //  Hardware timer clock divider
@@ -65,7 +66,8 @@ static void _handle_new_temp(uint64_t time_us, const rtd_data_t &data, uint8_t i
             break;
         case RTD_BREW_HEAD_IDX:
             brew_tec_process(time_us, data);
-            boiler_temp_damper_process(time_us, data);
+            brew_temp_process(time_us, data);
+            ready_indicator_process(time_us, data);
             break;
         case RTD_TEC_HOT_IDX:
             brew_tec_hot_updated(time_us, data);

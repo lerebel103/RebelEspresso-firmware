@@ -124,9 +124,6 @@ void _power_off_tec() {
     // Invalidate TEC temp records, new ones will come in
     s_hot_data.fault = Max31865Error::RefHigh;
     s_cold_data.fault = Max31865Error::RefHigh;
-    if (s_cfg.enabled) {
-        gpio_set_level(GPIO_TRIG2_REL3, 0);
-    }
 }
 
 void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
@@ -307,7 +304,6 @@ void brew_tec_init(esp_event_loop_handle_t event_loop) {
     io_conf.pin_bit_mask = (
             (1ULL << GPIO_HBRIDGE_DIR) |
             (1ULL << GPIO_HBRIDGE_DIS) |
-            (1ULL << GPIO_TRIG2_REL3) |
             (1ULL << GPIO_HBRIDGE_PWM)
     );
 
@@ -325,8 +321,6 @@ void brew_tec_init(esp_event_loop_handle_t event_loop) {
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
-
-    gpio_set_level(GPIO_TRIG2_REL3, 0);
 
     _init_h_bridge();
 

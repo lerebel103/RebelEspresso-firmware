@@ -21,7 +21,8 @@
 #include "power.h"
 #include "setpoint_selector.h"
 #include "iot.h"
-#include "boiler_temp_damper.h"
+#include "brew_temp.h"
+#include "ready_indicator.h"
 
 
 #define KEY_ENABLED "ctrl_enabled"
@@ -51,12 +52,13 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     nvram_store_read_u8(KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, g_controller_cfg.enabled);
 
     boiler_refill_init(event_loop);
-    boiler_temp_damper_init(s_event_loop);
+    brew_temp_init(s_event_loop);
     boiler_temp_init(event_loop);
     pump_init(event_loop);
     brew_tec_init(event_loop);
     setpoint_selector_init(event_loop);
     rtds_init(&s_rtds_cfg);
+    ready_indicator_init(event_loop);
     process_loop_init(event_loop);
     power_init(event_loop);
     iot_init(event_loop);
@@ -90,14 +92,17 @@ void controller_cfg_to_json(cJSON *root, const char* base_key) {
     auto boiler_cfg = boiler_temp_get_cfg();
     boiler_cfg.to_json(root, base_key);
 
-    auto boiler_damper_cfg = boiler_temp_damper_get_cfg();
-    boiler_damper_cfg.to_json(root, base_key);
+    auto BREW_TEMP_cfg = brew_temp_get_cfg();
+    BREW_TEMP_cfg.to_json(root, base_key);
 
     auto brew_cfg = brew_tec_get_cfg();
     brew_cfg.to_json(root, base_key);
 
     auto boiler_refill_cfg = boiler_refill_get_cfg();
     boiler_refill_cfg.to_json(root, base_key);
+
+    auto ready_indicator_cfg = ready_indicator_get_cfg();
+    ready_indicator_cfg.to_json(root, base_key);
 
     ota_cfg_to_json(root, base_key);
 }
@@ -106,11 +111,14 @@ void controller_status_to_json(cJSON *root, const char* base_key) {
     auto boiler_status = boiler_temp_get_status();
     boiler_status.to_json(root, base_key);
 
-    auto boiler_damper_status = boiler_temp_damper_get_status();
-    boiler_damper_status.to_json(root, base_key);
+    auto BREW_TEMP_status = brew_temp_get_status();
+    BREW_TEMP_status.to_json(root, base_key);
 
     auto brew_status = brew_tec_get_status();
     brew_status.to_json(root, base_key);
+
+    auto ready_indicator_status = ready_indicator_get_status();
+    ready_indicator_status.to_json(root, base_key);
 
     auto refill_status = boiler_refill_get_status();
     refill_status.to_json(root, base_key);
@@ -123,9 +131,10 @@ void controller_handle_new_cfg(const cJSON* cfg) {
 
     // Pass down to each component, they will deal with it - it's a bit lazy really
     boiler_temp_update_cfg(cfg);
-    boiler_temp_damper_update_cfg(cfg);
+    brew_temp_update_cfg(cfg);
     brew_tec_update_cfg(cfg);
     boiler_refill_update_cfg(cfg);
+    ready_indicator_update_cfg(cfg);
     ota_update_cfg(cfg);
 
     // Trigger status send

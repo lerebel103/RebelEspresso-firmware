@@ -13,7 +13,7 @@
 #include <esp_event.h>
 #include <src/control/brew_tec.h>
 #include <src/control/boiler_refill.h>
-#include <src/control/boiler_temp_damper.h>
+#include <src/control/brew_temp.h>
 
 #include "control/controller.h"
 
@@ -182,7 +182,7 @@ void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     yOffset += 8 + 2;
     auto cfg = boiler_temp_get_cfg();
     auto setpoint = cfg.pid.setpoints[cfg.pid.active_setpoint];
-    double actual_setpoint = boiler_temp_damper_adjust_setpoint(setpoint);
+    double actual_setpoint = brew_temp_dampen_boiler_setpoint(setpoint);
     sprintf(tempBuf, "%.1f", actual_setpoint);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
     u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);

@@ -124,7 +124,9 @@ void _power_off_tec() {
     // Invalidate TEC temp records, new ones will come in
     s_hot_data.fault = Max31865Error::RefHigh;
     s_cold_data.fault = Max31865Error::RefHigh;
-    gpio_set_level(GPIO_TRIG2_REL3, 0);
+    if (s_cfg.enabled) {
+        gpio_set_level(GPIO_TRIG2_REL3, 0);
+    }
 }
 
 void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {

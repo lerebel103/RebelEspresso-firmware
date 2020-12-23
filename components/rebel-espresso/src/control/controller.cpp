@@ -23,6 +23,7 @@
 #include "iot.h"
 #include "brew_temp.h"
 #include "ready_indicator.h"
+#include "schedules.h"
 
 
 #define KEY_ENABLED "ctrl_enabled"
@@ -61,6 +62,7 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     ready_indicator_init(event_loop);
     process_loop_init(event_loop);
     power_init(event_loop);
+    schedules_init(event_loop);
     iot_init(event_loop);
 
     // Causes initial state to be sent
@@ -104,6 +106,9 @@ void controller_cfg_to_json(cJSON *root, const char* base_key) {
     auto ready_indicator_cfg = ready_indicator_get_cfg();
     ready_indicator_cfg.to_json(root, base_key);
 
+    auto schedules_cfg = schedules_get_cfg();
+    schedules_cfg.to_json(root, base_key);
+
     ota_cfg_to_json(root, base_key);
 }
 
@@ -111,8 +116,8 @@ void controller_status_to_json(cJSON *root, const char* base_key) {
     auto boiler_status = boiler_temp_get_status();
     boiler_status.to_json(root, base_key);
 
-    auto BREW_TEMP_status = brew_temp_get_status();
-    BREW_TEMP_status.to_json(root, base_key);
+    auto brew_temp_status = brew_temp_get_status();
+    brew_temp_status.to_json(root, base_key);
 
     auto brew_status = brew_tec_get_status();
     brew_status.to_json(root, base_key);
@@ -122,6 +127,9 @@ void controller_status_to_json(cJSON *root, const char* base_key) {
 
     auto refill_status = boiler_refill_get_status();
     refill_status.to_json(root, base_key);
+
+    auto schedules_status = schedules_get_status();
+    schedules_status.to_json(root, base_key);
 }
 
 void controller_handle_new_cfg(const cJSON* cfg) {
@@ -135,6 +143,7 @@ void controller_handle_new_cfg(const cJSON* cfg) {
     brew_tec_update_cfg(cfg);
     boiler_refill_update_cfg(cfg);
     ready_indicator_update_cfg(cfg);
+    schedules_update_cfg(cfg);
     ota_update_cfg(cfg);
 
     // Trigger status send

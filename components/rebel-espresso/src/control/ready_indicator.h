@@ -4,8 +4,8 @@
 #include "pid.h"
 
 #define READY_INDICATOR_CFG_JSON_KEY            "ready_indicator."
-#define NVS_READY_INDICATOR_CFG_STORE           "cfg.ready.dpr"
-#define NVS_READY_INDICATOR_STATS_STORE         "sts.ready.dpr"
+#define NVS_READY_INDICATOR_CFG_STORE           "cfg.ready_ind"
+#define NVS_READY_INDICATOR_STATS_STORE         "sts.ready_ind"
 
 #define KEY_READY_INDICATOR_ENABLED             "enabled"
 #define KEY_READY_INDICATOR_DELTA               "delta"

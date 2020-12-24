@@ -6,6 +6,7 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <hw_config.h>
+#include <cmath>
 #include "pid.h"
 
 #define TAG "BrewTemp"
@@ -140,6 +141,15 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
         s_duty = 0;
     } else {
         auto duty = result.duty;
+
+        // Clamp to min duty band
+        result.duty = ceil(result.duty);
+        if (result.duty > 0) {
+            if (result.duty < s_cfg.pid.min_duty_band) {
+                // Helps to maintain a tighter band by using more power
+                result.duty = s_cfg.pid.min_duty_band;
+            }
+        }
 
         // Clamp duty always
         if (duty < 0) {

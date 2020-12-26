@@ -8,7 +8,7 @@
 #include <esp_event.h>
 #include "brew_tec.h"
 
-#define TAG "BrewHead"
+#define TAG "TEC"
 
 const uint8_t BREW_TEC_ENABLED_DEFAULT = 0;
 const double BREW_TEC_HYSTERESIS_DEFAULT = 1.0;
@@ -110,7 +110,7 @@ extern "C" void brew_tec_set_duty(int duty) {
     ledc_set_duty(s_pwm_channel.speed_mode, s_pwm_channel.channel, (uint32_t) (1024 * abs(duty) / 100.0f));
     ledc_update_duty(s_pwm_channel.speed_mode, s_pwm_channel.channel);
     s_duty = duty;
-    ESP_LOGI(TAG, "Duty set to %d", duty);
+    ESP_LOGD(TAG, "Duty set to %d", duty);
 }
 
 int brew_tec_get_duty() {

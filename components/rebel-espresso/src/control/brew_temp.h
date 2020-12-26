@@ -106,7 +106,11 @@ struct brew_temp_status_t {
 
         free(buf);
     }
+};
 
+struct brew_temp_trim_t {
+    bool active;
+    double value;
 };
 
 void brew_temp_init(esp_event_loop_handle_t event_loop);
@@ -115,20 +119,15 @@ void brew_temp_delete();
 
 void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data);
 
+double brew_temp_get_setpoint();
+
 /**
  * Get current duty value applied to the SSR
  * @return
  */
-int brew_temp_get_duty();
+double brew_temp_get_duty();
 
-/**
- * Takes the current boiler setpoint and dampens it
- * @param setpoint
- * @return
- */
-double brew_temp_dampen_boiler_setpoint(double setpoint);
-
-double brew_temp_get_setpoint();
+brew_temp_trim_t brew_temp_get_trim();
 
 /**
  * Get the underlying configuration set.

@@ -123,6 +123,12 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data);
  */
 int boiler_temp_get_duty();
 
+/**
+ * This is the effective setpoint, after trim has been applied to keep the brew head temp to target.
+ */
+double boiler_temp_get_trimmed_setpoint();
+
+
 void boiler_set_active_setpoint(int idx);
 
 /**

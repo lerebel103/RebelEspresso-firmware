@@ -19,6 +19,7 @@ struct window_data_t {
     double max;
 
     double error_integral;
+    double derivative;
     uint16_t count;
 };
 

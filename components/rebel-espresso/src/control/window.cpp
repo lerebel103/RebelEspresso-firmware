@@ -63,8 +63,10 @@ void window_data(window_handle_t *window, window_data_t *data) {
     data->min = INT32_MAX;
 
     data->error_integral = 0;
+    data->derivative = 0;
     window_entry_t *previous = NULL;
     window_entry_t *item = NULL;
+    double last_error = 0;
     STAILQ_FOREACH(item, &window->queue, entries) {
         if (item && item->data.fault == Max31865Error::NoError) {
             data->count++;
@@ -74,13 +76,23 @@ void window_data(window_handle_t *window, window_data_t *data) {
 
             if (previous != NULL) {
                 double dt = (double)((item->time_us - previous->time_us)) / 1e6;
-                data->error_integral += (item->setpoint - item->data.temperature) * dt;
+                double this_error = item->setpoint - item->data.temperature;
+                data->error_integral += this_error * dt;
+
+                if(data->count > 2) {
+                    data->derivative += (this_error - last_error) / dt;
+                }
+                last_error = this_error;
             }
             previous = item;
         }
     }
 
-    // Adjust mean and smoothed
+    // Adjust derivative
+    if(data->count > 2) {
+        data->derivative = data->derivative / (data->count - 2);
+    }
+        // Adjust mean and smoothed
     if (data->count != 0) {
         data->mean = data->mean / data->count;
     }

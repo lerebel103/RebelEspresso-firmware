@@ -124,8 +124,6 @@ struct pid_struct_t {
 
     uint64_t last_time_us = 0;
 
-    double smoothed_duty = 0;
-
     double smoothed_temp = 0;
 
     double last_pid_err = 0;

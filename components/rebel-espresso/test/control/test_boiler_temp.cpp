@@ -440,6 +440,37 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
             100,
             100,
             100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
             99,
             96,
             93,
@@ -470,9 +501,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
             18,
             15,
             12,
-            8,
-            5,
-            4,
+            11,
             0,
     };
 
@@ -480,9 +509,9 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
         data.temperature = 25 + i;
         boiler_temp_process(i * 1e6, data);
 
-        // printf("%d,\r\n", boiler_temp_get_duty());
+         //printf("%d, %f\r\n", boiler_temp_get_duty(), data.temperature);
         // Cuts off with these settings
-        if (data.temperature > 88) {
+        if (data.temperature > 118) {
             TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
         } else {
             TEST_ASSERT_EQUAL(expectedDuties[i], boiler_temp_get_duty());
@@ -490,7 +519,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     }
 
     // Over temp got triggered this many times
-    TEST_ASSERT_EQUAL(17, boiler_temp_get_status().temp_over_limit_count);
+    TEST_ASSERT_EQUAL(18, boiler_temp_get_status().temp_over_limit_count);
 
     boiler_temp_delete();
     brew_temp_delete();

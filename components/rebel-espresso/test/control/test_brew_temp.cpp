@@ -10,7 +10,7 @@
 #include "control/rmt_duty_map.h"
 #include "events.h"
 
-extern "C" void brew_temp_set_duty(uint8_t duty);
+extern "C" void brew_temp_fake_trim_active();
 
 extern esp_event_loop_handle_t g_event_loop;
 
@@ -23,20 +23,18 @@ TEST_CASE("[brew_temp:test_standby_duty_max]", "Ensure STANDBY cuts duty to zero
     brew_temp_set_cfg(cfg);
 
     // Not enabled by default, zero duty
-    TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+    TEST_ASSERT_FALSE( brew_temp_get_trim().active);
 
-    // Fake 100% duty to turn on HBRIDGE
-    uint8_t duty = 0;
-    brew_temp_set_duty(duty);
-    TEST_ASSERT_EQUAL(duty, brew_temp_get_duty());
-    vTaskDelay(pdMS_TO_TICKS(200));
-
+    // Fake 100% duty
+    brew_temp_fake_trim_active();
+    TEST_ASSERT_TRUE(brew_temp_get_trim().active);
 
     // Generate a standby event, we have zero power
     ESP_ERROR_CHECK(esp_event_post_to(g_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
+    vTaskDelay(pdMS_TO_TICKS(200));
 
-    // Now HBRIDGE must be powered off.
-    TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+    // Now Trim must be powered off.
+    TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
     brew_temp_delete();
 }
@@ -52,12 +50,11 @@ TEST_CASE("[brew_temp:test_error_conditions]", "Ensure process cuts power when c
     brew_temp_set_cfg(cfg);
 
     // Not enabled by default, duty maxed out
-    TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
-
+    TEST_ASSERT_FALSE( brew_temp_get_trim().active);
 
     // Observe that it is dropped back to 0 forcefully when brew_temp is disabled
     // + duty is set to zero
-    brew_temp_set_duty(0);
+    brew_temp_fake_trim_active();
 
     for (int i = 0; i < 10; i++) {
         // --  Standby
@@ -68,95 +65,96 @@ TEST_CASE("[brew_temp:test_error_conditions]", "Ensure process cuts power when c
         data.fault = Max31865Error::NoError;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  Brew level not good
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::NoError;
         brew_temp_process(esp_timer_get_time(), data);
 
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  RTD broken, High
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RTDHigh;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  RTD broken, Low
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RTDLow;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  RTD broken, RTDInLow
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RTDInLow;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  RTD broken, RefHigh
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RefHigh;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  RTD broken, RefLow
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RefLow;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  RTD broken, Ref high
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::RefHigh;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
 
         // --  RTD broken, voltage
         // Brew empty but power active
-        brew_temp_set_duty(0);
+        brew_temp_fake_trim_active();
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         data.fault = Max31865Error::Voltage;
         brew_temp_process(esp_timer_get_time(), data);
 
-        // Now HBRIDGE must be powered off.
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        // Trim expected to be off now
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
     }
 
     // With above tests we expected this many temp read erros
@@ -310,7 +308,8 @@ TEST_CASE("[brew_temp:test_brew_duty_steady_pos]", "Test duty when steady temp u
     // Maxes out duty in this case
     for (int i = 0; i < 10; i++) {
         brew_temp_process(i * 1e6, data);
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        TEST_ASSERT_TRUE(brew_temp_get_trim().active);
+        TEST_ASSERT_GREATER_THAN(0, brew_temp_get_trim().value);
     }
 
     brew_temp_delete();
@@ -338,7 +337,8 @@ TEST_CASE("[brew_temp:test_brew_duty_steady_neg]", "Test duty when steady temp o
     // Maxes out duty in this case
     for (int i = 0; i < 10; i++) {
         brew_temp_process(i * 1e6, data);
-        TEST_ASSERT_EQUAL(0, brew_temp_get_duty());
+        TEST_ASSERT_TRUE(brew_temp_get_trim().active);
+        TEST_ASSERT_LESS_THAN(0, brew_temp_get_trim().value);
     }
 
     brew_temp_delete();
@@ -425,7 +425,7 @@ TEST_CASE("[brew_temp:test_backoff_after_brew]", "Test damper off when brew star
     for (int i = 0; i < 10; i++) {
         time_us = i * 1e6;
         brew_temp_process(time_us, data);
-        TEST_ASSERT_EQUAL(0, brew_temp_get_duty());
+        TEST_ASSERT_EQUAL(1, brew_temp_get_trim().active);
     }
 
     // Start brew, goes to zero immediately
@@ -436,13 +436,13 @@ TEST_CASE("[brew_temp:test_backoff_after_brew]", "Test damper off when brew star
     for (int i = 0; i < 9; i++) {
         time_us += 1e6;
         brew_temp_process(time_us, data);
-        TEST_ASSERT_EQUAL(cfg.max_damping_perc, brew_temp_get_duty());
+        TEST_ASSERT_FALSE(brew_temp_get_trim().active);
     }
 
     // Ok, so now fast forward and we are back in business
     time_us += 1e6;
     brew_temp_process(time_us, data);
-    TEST_ASSERT_EQUAL(0, brew_temp_get_duty());
+    TEST_ASSERT_TRUE(brew_temp_get_trim().active);
 
 
     brew_temp_reset_cfg();

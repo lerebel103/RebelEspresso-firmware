@@ -27,6 +27,7 @@ static boiler_temp_status_t s_stats = {};
 static int s_last_duty = 0;
 static double s_boiler_error_sec = 0;
 static pid_struct_t s_pid;
+double s_trimmed_setpoint = 0;
 
 
 static void _load_stats() {
@@ -146,6 +147,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     } else if (id == POWER_ACTIVE) {
         ESP_LOGI(TAG, "Resuming Boiler SSR");
         pid_reset(s_pid);
+        s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
     }
 }
 
@@ -163,6 +165,10 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t) 5e6)) {
         _save_stats(now);
     }
+}
+
+double boiler_temp_get_trimmed_setpoint() {
+    return s_trimmed_setpoint;
 }
 
 void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
@@ -202,9 +208,29 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
     // No errors from RTD, all good reset.
     s_boiler_error_sec = 0;
 
-    // Add damping as needed to target setpoint
+    // Add trim as needed to target setpoint to maintain brew temp
     auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-    setpoint = brew_temp_dampen_boiler_setpoint(setpoint);
+    auto trim = brew_temp_get_trim();
+    if (trim.active) {
+        // Safety guard
+        if (s_trimmed_setpoint == 0) {
+            s_trimmed_setpoint = setpoint;
+        }
+
+        // Apply
+        s_trimmed_setpoint += trim.value;
+
+        // Cap trim always
+        if (s_trimmed_setpoint > s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]) {
+            s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
+        } else if (s_trimmed_setpoint < 108) {
+            s_trimmed_setpoint = 108;
+        }
+        setpoint = s_trimmed_setpoint;
+    }
+
+
+
     // Make a copy of config to dampen setpoint
     auto pid_cfg = s_cfg.pid;
     pid_cfg.setpoints[pid_cfg.active_setpoint] = setpoint;
@@ -250,6 +276,7 @@ void boiler_temp_init(esp_event_loop_handle_t event_loop) {
 
     _rmt_tx_init();
     pid_init(s_pid);
+    s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 
     // Get our power events in place so we can run the process loop as needed
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,

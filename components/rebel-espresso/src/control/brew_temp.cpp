@@ -16,7 +16,7 @@ const double BREW_TEMP_PERC_DEFAULT = 10.0;
 const double BREW_TEMP_RESET_SEC_DEFAULT = 3 * 60;
 
 static esp_event_loop_handle_t s_event_loop;
-static int s_duty = 0;
+static brew_temp_trim_t s_trim = {};
 static uint64_t s_last_brew_time = 0;
 
 static brew_temp_cfg_t s_cfg;
@@ -25,6 +25,10 @@ static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
 static brew_temp_status_t s_stats;
 static pid_struct_t s_pid;
+
+extern "C" void brew_temp_fake_trim_active() {
+    s_trim.active = true;
+}
 
 static void _load_stats() {
     nvs_handle my_handle;
@@ -35,7 +39,8 @@ static void _load_stats() {
                         (void *) &defaultVal);
     nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count,
                         (void *) &defaultVal);
-    nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.brew_temp_out_of_range_count,
+    nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR,
+                        (uint32_t *) &s_stats.brew_temp_out_of_range_count,
                         (void *) &defaultVal);
 
     nvs_close(my_handle);
@@ -50,7 +55,8 @@ static void _save_stats(uint64_t time) {
 
     nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_OVER_TEMP, (uint32_t *) &s_stats.brew_temp_over_limit_count);
     nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count);
-    nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.brew_temp_out_of_range_count);
+    nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR,
+                        (uint32_t *) &s_stats.brew_temp_out_of_range_count);
 
     nvs_close(my_handle);
     s_last_stats_save = time;
@@ -84,17 +90,11 @@ static void _save_nvram() {
     nvs_close(my_handle);
 }
 
-int brew_temp_get_duty() {
-    return s_duty;
-}
-
-double brew_temp_dampen_boiler_setpoint(double setpoint) {
+brew_temp_trim_t brew_temp_get_trim() {
     if (!s_cfg.enabled) {
-        return setpoint;
-    } else {
-        double min_duty = setpoint * (100 - s_cfg.max_damping_perc) / 100;
-        return min_duty + setpoint * s_duty / 100;
+        s_trim.active = false;
     }
+    return s_trim;
 }
 
 double brew_temp_get_setpoint() {
@@ -103,31 +103,31 @@ double brew_temp_get_setpoint() {
 
 void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
     if (!s_cfg.enabled) {
-        s_duty = s_cfg.max_damping_perc;
+        s_trim.active = false;
         return;
     } else if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         ESP_LOGW(TAG, "In standby, not running.");
-        s_duty = s_cfg.max_damping_perc;
+        s_trim.active = false;
         return;
     } else if (!(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT)) {
         ESP_LOGW(TAG, "Boiler level low, not running");
-        s_duty = s_cfg.max_damping_perc;
+        s_trim.active = false;
         return;
     } else if (brew_head_data.fault != Max31865Error::NoError) {
         ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(brew_head_data.fault));
         s_stats.brew_temp_read_error_count++;
         s_stats_changed = true;
-        s_duty = s_cfg.max_damping_perc;
+        s_trim.active = false;
         return;
     } else if (brew_head_data.temperature > 150 || brew_head_data.temperature < 5) {
         ESP_LOGE(TAG, "Boiler temperature out of range: %f", brew_head_data.temperature);
         s_stats.brew_temp_out_of_range_count++;
         s_stats_changed = true;
-        s_duty = s_cfg.max_damping_perc;
+        s_trim.active = false;
         return;
     } else if (s_last_brew_time != 0 && time_us - s_last_brew_time < s_cfg.reset_time_sec * 1e6) {
         // Then brew just happened, don't worry about it
-        s_duty = s_cfg.max_damping_perc;
+        s_trim.active = false;
         return;
     }
 
@@ -138,34 +138,30 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
         ESP_LOGW(TAG, "Over temp threshold exceeded");
         s_stats.brew_temp_over_limit_count++;
         s_stats_changed = true;
-        s_duty = 0;
+        s_trim.active = false;
     } else {
-        auto duty = result.duty;
+        s_trim.active = true;
+        s_trim.value = result.duty;
 
-        // Clamp to min duty band
-        result.duty = ceil(result.duty);
-        if (result.duty > 0) {
-            if (result.duty < s_cfg.pid.min_duty_band) {
-                // Helps to maintain a tighter band by using more power
-                result.duty = s_cfg.pid.min_duty_band;
-            }
-        }
+        static window_data_t wdata = {};
+        window_data(&s_pid.data_window, &wdata);
 
-        // Clamp duty always
-        if (duty < 0) {
-            duty = 0;
-        } else if (duty > s_cfg.max_damping_perc) {
-            duty = s_cfg.max_damping_perc;
-        }
+        // 1 deg, 1 minutes
+        // 60 ticks of 1 sec
+        // P = 1 / 60 = 0.016
+        // I = P / 10 = 0.0016
+        // D = 60 = 60
 
-        s_duty = duty;
-        ESP_LOGI(TAG, "Damper duty: %d", s_duty);
+        ESP_LOGD(TAG, "************************* brew temp: %f, Trim: %f, P=%f, I=%f, D=%f",
+                brew_head_data.temperature, s_trim.value,
+                 s_cfg.pid.P * (brew_temp_get_setpoint() - brew_head_data.temperature),
+                 s_cfg.pid.I * wdata.error_integral, s_cfg.pid.D * wdata.derivative);
     }
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
-        s_duty = s_cfg.max_damping_perc;
+        s_trim.active = false;
     } else if (id == POWER_ACTIVE) {
         pid_reset(s_pid);
         s_last_brew_time = 0;
@@ -207,7 +203,7 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     _load_nvram();
     _load_stats();
-    s_duty = s_cfg.max_damping_perc;
+    s_trim = { .active = false, .value = 0 };
     s_last_brew_time = 0;
     pid_init(s_pid);
 
@@ -234,15 +230,15 @@ void brew_temp_delete() {
 }
 
 // for testing purposes only
-extern "C" void brew_temp_set_duty(uint8_t duty) {
-    s_duty = duty;
+extern "C" void brew_temp_set_offset(brew_temp_trim_t offset) {
+    s_trim = offset;
 }
 
 const brew_temp_cfg_t &brew_temp_get_cfg() {
     return s_cfg;
 }
 
-void brew_temp_set_cfg(brew_temp_cfg_t config) {
+void  brew_temp_set_cfg(brew_temp_cfg_t config) {
     // validate all fields
     pid_update(s_cfg.pid, config.pid);
 
@@ -252,7 +248,7 @@ void brew_temp_set_cfg(brew_temp_cfg_t config) {
         s_cfg.max_damping_perc = config.max_damping_perc;
     }
 
-    if (config.reset_time_sec > 0 && config.reset_time_sec < 10*60) {
+    if (config.reset_time_sec > 0 && config.reset_time_sec < 10 * 60) {
         s_cfg.reset_time_sec = config.reset_time_sec;
     }
 

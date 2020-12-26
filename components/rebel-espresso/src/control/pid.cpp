@@ -73,13 +73,13 @@ void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t &cfg) {
 
 void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
     // validate all fields
-    if (src.P >= 0 && src.P < 20) {
+    if (src.P >= 0 && src.P < 60) {
         dest.P = src.P;
     }
-    if (src.I >= 0 && src.I < 30 ) {
+    if (src.I >= 0 && src.I < 100 ) {
         dest.I = src.I;
     }
-    if (src.D >= 0 && src.D < 300) {
+    if (src.D >= 0 && src.D < 800) {
         dest.D = src.D;
     }
     if (src.I_reset_sec >= 0 && src.I_reset_sec < 60 * 10) {
@@ -106,8 +106,6 @@ void pid_reset(pid_struct_t &pid) {
     ESP_LOGD(TAG, "Resetting...");
     pid.last_time_us = 0;
     pid.last_pid_err = 0;
-    pid.smoothed_duty = 0;
-    pid.smoothed_temp = 0;
 
     window_reset(&pid.data_window);
     ESP_LOGD(TAG, "Reset done.");
@@ -142,14 +140,8 @@ pid_result_t pid_process(
         static window_data_t wdata = {};
         window_data(&pid.data_window, &wdata);
 
-        // Average with last value for stability
-        if (pid.smoothed_temp == 0) {
-            pid.smoothed_temp = data.temperature;
-        }
-        pid.smoothed_temp = (data.temperature + pid.smoothed_temp) / 2;
-
         // delta from set-point, e.g. our error
-        double error = setpoint - pid.smoothed_temp;
+        double error = setpoint - data.temperature;
 
         // Safety. If we are over set temperature by threshold, cut off
         if (cfg.over_setpoint_perc != 0 && -error > cfg.over_setpoint_perc * setpoint / 100) {
@@ -157,10 +149,7 @@ pid_result_t pid_process(
         } else {
             double duty = 0;
             // Derivative part
-            double derivative = 0;
-            if (pid.last_time_us != 0 && deltaT != 0) {
-                derivative = (error - pid.last_pid_err) / deltaT;
-            }
+            double derivative = wdata.derivative;
 
             // Calculate duty, start with P and D
             duty = (cfg.P * error) + (cfg.D * derivative);
@@ -169,14 +158,14 @@ pid_result_t pid_process(
             if (fabs(error) < cfg.I_reset_temp) {
                 ESP_LOGD(TAG, "I=%f, value=%f", cfg.I, (cfg.I * wdata.error_integral));
                 duty += (cfg.I * wdata.error_integral);
+
             } else {
                 // Keep on resetting window in this case
                 window_reset(&pid.data_window);
             }
 
-            // Bit of smoothing
-            pid.smoothed_duty = (duty + pid.smoothed_duty) / 2;
-            result.duty = pid.smoothed_duty;
+            ESP_LOGI(TAG, "Calculated duty: %f, P=%f, I=%f, D=%f", duty, (cfg.P * error), (cfg.I * wdata.error_integral), (cfg.D * derivative));
+            result.duty = duty;
             pid.last_pid_err = error;
         }
     }

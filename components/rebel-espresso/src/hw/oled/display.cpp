@@ -21,7 +21,7 @@
 #include "state.h"
 
 extern "C" {
-    #include "u8g2_esp32_hal.h"
+#include "u8g2_esp32_hal.h"
 }
 
 #define TEMP_ERROR_STR "---"
@@ -29,7 +29,7 @@ extern "C" {
 #define TEMPERATURE_PANEL_WIDTH 112
 
 static esp_event_loop_handle_t s_event_loop;
-const static char* TAG = "oled";
+const static char *TAG = "oled";
 static bool g_go = true;
 
 
@@ -39,7 +39,7 @@ static float temperature_to_unit(double celcius, units_enum_t unit) {
     }
 
     // Round to 1 digit only
-    return (int)(round (10 * celcius)) / 10.0f;
+    return (int) (round(10 * celcius)) / 10.0f;
 }
 
 static void display_draw_frame(u8g2_t *u8g2, int xSeparator, int ySeparator) {
@@ -82,9 +82,9 @@ static void display_draw_unit(u8g2_t *u8g2, int yPos) {
                     U8G2_DRAW_UPPER_RIGHT | U8G2_DRAW_UPPER_LEFT | U8G2_DRAW_LOWER_LEFT | U8G2_DRAW_LOWER_RIGHT);
 
     if (rtds_get_unit() == UNIT_CELCIUS) {
-        u8g2_DrawStr(u8g2, TEMPERATURE_PANEL_WIDTH +  8, yPos + 4, "C");
+        u8g2_DrawStr(u8g2, TEMPERATURE_PANEL_WIDTH + 8, yPos + 4, "C");
     } else {
-        u8g2_DrawStr(u8g2, TEMPERATURE_PANEL_WIDTH +  8, yPos + 4, "F");
+        u8g2_DrawStr(u8g2, TEMPERATURE_PANEL_WIDTH + 8, yPos + 4, "F");
     }
 }
 
@@ -94,10 +94,10 @@ void _render_tec(u8g2_t *u8g2, char *tempBuf, int xpad, int yOffset, int idx) {
     if (tec.fault == Max31865Error::NoError) {
         sprintf(tempBuf, "%.1f", tec.temperature);
     } else {
-        sprintf(tempBuf,"%s", TEMP_ERROR_STR);
+        sprintf(tempBuf, "%s", TEMP_ERROR_STR);
     }
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
+    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
 }
 
 void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
@@ -129,9 +129,9 @@ void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
     auto xpad = 3;
     auto yOffset = 8;
     double duty = brew_tec_get_duty();
-    sprintf(tempBuf, "%d%%", (int)duty);
+    sprintf(tempBuf, "%d%%", (int) duty);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
+    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
     yOffset += 8 + 2;
 
     // TEC side 1
@@ -175,22 +175,22 @@ void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     auto xpad = 3;
     auto yOffset = *y - 20;
     double duty = boiler_temp_get_duty();
-    sprintf(tempBuf, "%d%%", (int)duty);
+    sprintf(tempBuf, "%d%%", (int) duty);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 
     yOffset += 8 + 2;
     double actual_setpoint = boiler_temp_get_trimmed_setpoint();
     sprintf(tempBuf, "%.1f", actual_setpoint);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 
     // Water level voltage
     yOffset += 8 + 2;
     double level_voltage = boiler_refill_level_mv() / 1e3;
     sprintf(tempBuf, "%.1fV", level_voltage);
     u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2,  (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 }
 
 
@@ -216,7 +216,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
     bool toggle = true;
     while (g_go) {
         EventBits_t uxBits = xEventGroupWaitBits(
-                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT, false, true, 0);
+                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT, false, true, 0);
 
         if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
             drawWifi = !drawWifi;
@@ -230,7 +230,20 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             delay = 5000;
         }
 
-        if (power_is_active()) {
+        if (DESCALE_MODE_BIT & uxBits) {
+            u8g2_SetPowerSave(&u8g2, 0);
+            u8g2_ClearBuffer(&u8g2);
+
+            u8g2_SetFont(&u8g2, u8g2_font_courR10_tf);
+            const char *line1 = "Descaling";
+            int w = u8g2_GetStrWidth(&u8g2, line1);
+            u8g2_DrawStr(&u8g2, (128 - w) / 2, 16, line1);
+            const char *line2 = "mode";
+            w = u8g2_GetStrWidth(&u8g2, line2);
+            u8g2_DrawStr(&u8g2, (128 - w) / 2, 16 + 22, line2);
+
+            u8g2_SendBuffer(&u8g2);
+        } else if (power_is_active()) {
             u8g2_SetPowerSave(&u8g2, 0);
             u8g2_ClearBuffer(&u8g2);
 
@@ -279,13 +292,13 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 }
 
 
-static void do_display(void* userData) {
+static void do_display(void *userData) {
     ESP_LOGI(TAG, "Initialising display");
     u8g2_t u8g2;
 
     u8g2_esp32_hal_t u8g2_esp32_hal = {};
-    u8g2_esp32_hal.sda   = GPIO_NUM_NC;
-    u8g2_esp32_hal.scl  = GPIO_NUM_NC;
+    u8g2_esp32_hal.sda = GPIO_NUM_NC;
+    u8g2_esp32_hal.scl = GPIO_NUM_NC;
     u8g2_esp32_hal.mosi = GPIO_MOSI;
     u8g2_esp32_hal.miso = GPIO_MISO;
     u8g2_esp32_hal.clk = GPIO_SCK;

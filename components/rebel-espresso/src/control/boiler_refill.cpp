@@ -94,6 +94,17 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     }
 }
 
+static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    // Handle solenoid valve open/close for descaling here
+    if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+        if (id == BREW_STARTED) {
+            gpio_set_level(GPIO_TRIG2_REL2, 1);
+        } else if (id == BREW_STOPPED) {
+            gpio_set_level(GPIO_TRIG2_REL2, 0);
+        }
+    }
+}
+
 void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     check_level = boiler_check_level;
@@ -145,6 +156,10 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
                                                     _power_events, s_event_loop));
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
                                                     _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, s_event_loop));
 
     ESP_LOGI(TAG, "Initialised");
 }
@@ -152,6 +167,8 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
 void boiler_refill_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, _brew_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick));
 
     free(adc_chars);

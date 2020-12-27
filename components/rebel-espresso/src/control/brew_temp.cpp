@@ -109,6 +109,10 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
         ESP_LOGW(TAG, "In standby, not running.");
         s_trim.active = false;
         return;
+    } else if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+        ESP_LOGI(TAG, "Descaling, not running");
+        s_trim.active = false;
+        return;
     } else if (!(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT)) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         s_trim.active = false;

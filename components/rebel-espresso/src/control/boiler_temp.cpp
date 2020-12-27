@@ -176,6 +176,10 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         ESP_LOGW(TAG, "In standby, not running.");
         _power_off_ssr();
         return;
+    } else if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+        ESP_LOGI(TAG, "Descaling, not running");
+        _power_off_ssr();
+        return;
     } else if (!(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT)) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         _power_off_ssr();

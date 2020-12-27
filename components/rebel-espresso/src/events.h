@@ -14,6 +14,7 @@ extern EventGroupHandle_t status_event_group;
 #define OTA_PERFORMED_BIT           BIT5
 #define REFRESH_DISPLAY_BIT         BIT6
 #define SEND_STATE_BIT              BIT7
+#define DESCALE_MODE_BIT            BIT8
 
 
 

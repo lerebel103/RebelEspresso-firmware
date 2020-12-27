@@ -87,6 +87,11 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
         return;
     }
 
+    if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+        ESP_LOGI(TAG, "Descaling, not running");
+        return;
+    }
+
     uint64_t now = 0;
     if (event_data != nullptr) {
         now = *(uint64_t *) event_data;

@@ -13,6 +13,7 @@
 static esp_event_loop_handle_t s_event_loop;
 static bool _pump_sw_on = false;
 static bool _boiler_refilling = false;
+static bool s_descaled_entered = false;
 
 static void IRAM_ATTR _pump_on() {
     gpio_set_level(GPIO_TRIG2_REL1, 1);
@@ -37,16 +38,18 @@ static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id
 }
 
 static void IRAM_ATTR _brew_switch_off(void *arg) {
-    if (_pump_sw_on) {
-        // Only send end event if switch was previously on
-        auto now_us = esp_timer_get_time();
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, (void *) &now_us, 0,
-                                          portMAX_DELAY));
-    }
+    bool is_on = _pump_sw_on;
 
     _pump_sw_on = false;
     if (!_boiler_refilling) {
         _pump_off();
+    }
+
+    if (is_on) {
+        // Only send end event if switch was previously on
+        auto now_us = esp_timer_get_time();
+        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, (void *) &now_us, 0,
+                                          portMAX_DELAY));
     }
 }
 
@@ -67,20 +70,28 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-    // maintain pump state with switch
-    bool is_running = (GPIO_REG_READ(GPIO_OUT_REG) >> GPIO_TRIG2_REL1) & 1U;
-    if (gpio_get_level(GPIO_SW1) == 0 && !is_running) {
-        _pump_sw_on = true;
+    bool is_pump_powered = (GPIO_REG_READ(GPIO_OUT_REG) >> GPIO_TRIG2_REL1) & 1U;
 
-        // Send start event then
-        auto now_us = esp_timer_get_time();
-        ESP_ERROR_CHECK(
-                esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, sizeof(uint64_t),
-                                  portMAX_DELAY));
+    if (s_descaled_entered && gpio_get_level(GPIO_SW1) == 1) {
+        // Don't run normal pump on/off if we are in descale mode until the pump switch is cycled once.
+        s_descaled_entered = false;
+    } else if (!s_descaled_entered) {
+        // maintain pump state with switch
+        if (gpio_get_level(GPIO_SW1) == 0 && !is_pump_powered) {
+            _pump_sw_on = true;
 
-        _pump_on();
-    } else if (gpio_get_level(GPIO_SW1) == 1 && is_running) {
-        _brew_switch_off(nullptr);
+            // Send start event then
+            auto now_us = esp_timer_get_time();
+            ESP_ERROR_CHECK(
+                    esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, sizeof(uint64_t),
+                                      portMAX_DELAY));
+
+            _pump_on();
+        } else if (gpio_get_level(GPIO_SW1) == 1 && is_pump_powered) {
+            _brew_switch_off(nullptr);
+        }
+    } else {
+        _pump_off();
     }
 }
 
@@ -88,13 +99,21 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     if (id == POWER_STANDBY) {
         // Always stop pump regardless
         _pump_off();
+        xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+        s_descaled_entered = false;
     } else if (id == POWER_ACTIVE) {
+        // If pump switch is on when active, we enter descaling mode
+        if (gpio_get_level(GPIO_SW1) == 0) {
+            xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
+            s_descaled_entered = true;
+        }
     }
 }
 
 
 void pump_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
+    s_descaled_entered = false;
 
     // --- Output pins
     gpio_config_t io_conf;

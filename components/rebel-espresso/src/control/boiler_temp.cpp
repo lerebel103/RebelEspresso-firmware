@@ -147,7 +147,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     } else if (id == POWER_ACTIVE) {
         ESP_LOGI(TAG, "Resuming Boiler SSR");
         pid_reset(s_pid);
-        s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
+        // Trimmed setpoin is not reset
     }
 }
 
@@ -232,7 +232,6 @@ void boiler_temp_process(uint64_t time_us, const rtd_data_t &data) {
         }
         setpoint = s_trimmed_setpoint;
     }
-
 
 
     // Make a copy of config to dampen setpoint

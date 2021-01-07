@@ -31,7 +31,7 @@ extern "C" {
 static esp_event_loop_handle_t s_event_loop;
 const static char *TAG = "oled";
 static bool g_go = true;
-
+static time_t s_brew_start_time = -1;
 
 static float temperature_to_unit(double celcius, units_enum_t unit) {
     if (unit == UNIT_FARENHEIGHT) {
@@ -100,7 +100,7 @@ void _render_tec(u8g2_t *u8g2, char *tempBuf, int xpad, int yOffset, int idx) {
     u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
 }
 
-void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
+void _draw_brew_temp_only(u8g2_t *u8g2, const int *y) {
     rtd_data_t result;
     rtds_get(&result, 1);
 
@@ -124,6 +124,11 @@ void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
     sprintf(tempBuf, ".%d", point);
     u8g2_SetFont(u8g2, u8g2_font_courR10_tf);
     u8g2_DrawStr(u8g2, x_offset + width_of_intregral_temp, *y, tempBuf);
+}
+
+void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
+    char tempBuf[16];
+    _draw_brew_temp_only(u8g2, y);
 
     // Duty
     auto xpad = 3;
@@ -209,73 +214,102 @@ static void display_draw_info(u8g2_t &u8g2) {
     u8g2_SendBuffer(&u8g2);
 }
 
+void _draw_brew_counter(u8g2_t &u8g2) {
+    u8g2_SetPowerSave(&u8g2, 0);
+    u8g2_ClearBuffer(&u8g2);
+
+    char buf[64];
+    sprintf(buf, "%d", (int)(pdTICKS_TO_MS(xTaskGetTickCount())/1000 - s_brew_start_time));
+
+    u8g2_SetFont(&u8g2, u8g2_font_courB24_tf);
+    int w = u8g2_GetStrWidth(&u8g2, buf);
+    u8g2_DrawStr(&u8g2, (128 - w)/2 - 6, 32, buf);
+    u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
+    u8g2_DrawStr(&u8g2, (128 - w)/2 + w + 1, 32, "s");
+
+    u8g2_SendBuffer(&u8g2);
+}
+
+void _draw_descale_mode(u8g2_t &u8g2) {
+    u8g2_SetPowerSave(&u8g2, 0);
+    u8g2_ClearBuffer(&u8g2);
+
+    u8g2_SetFont(&u8g2, u8g2_font_courR10_tf);
+    const char *line1 = "Descaling";
+    int w = u8g2_GetStrWidth(&u8g2, line1);
+    u8g2_DrawStr(&u8g2, (128 - w) / 2, 16, line1);
+    const char *line2 = "mode";
+    w = u8g2_GetStrWidth(&u8g2, line2);
+    u8g2_DrawStr(&u8g2, (128 - w) / 2, 16 + 22, line2);
+
+    u8g2_SendBuffer(&u8g2);
+}
+
+void _draw_active_mode(u8g2_t &u8g2, bool drawWifi) {
+    static bool toggle = true;
+
+    u8g2_SetPowerSave(&u8g2, 0);
+    u8g2_ClearBuffer(&u8g2);
+
+    // Draw temps, flash them when lid is open
+    int y = 24;
+    display_draw_brew_tec(&u8g2, &y);
+
+    // Now draw frame separator
+    y = 32;
+    display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, y);
+
+    y += 32;
+    display_draw_boiler_temp(&u8g2, &y);
+
+
+    int yPosWifi = 14;
+    int yPosOnOff = 54;
+
+
+    // WiFi symbol
+    if (drawWifi) {
+        display_draw_wifi(&u8g2, yPosWifi);
+    }
+
+    // unit
+    display_draw_unit(&u8g2, yPosWifi + (yPosOnOff - yPosWifi) / 2);
+
+    // On / Off
+    toggle = !toggle;
+    display_draw_on_off(&u8g2, yPosOnOff, toggle);
+
+    u8g2_SendBuffer(&u8g2);
+}
+
 static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
     u8g2_ClearBuffer(&u8g2);
     u8g2_SendBuffer(&u8g2);
 
-    bool toggle = true;
     while (g_go) {
         EventBits_t uxBits = xEventGroupWaitBits(
                 status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT, false, true, 0);
 
-        if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
-            drawWifi = !drawWifi;
-            delay = 500;
-        } else if ((WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
-            drawWifi = !drawWifi;
+        if (s_brew_start_time >=0) {
+            _draw_brew_counter(u8g2);
             delay = 200;
-        } else {
-            drawWifi = true;
-            // Then no need to go crazy, it's event triggered when changes are detected
-            delay = 5000;
         }
-
-        if (DESCALE_MODE_BIT & uxBits) {
-            u8g2_SetPowerSave(&u8g2, 0);
-            u8g2_ClearBuffer(&u8g2);
-
-            u8g2_SetFont(&u8g2, u8g2_font_courR10_tf);
-            const char *line1 = "Descaling";
-            int w = u8g2_GetStrWidth(&u8g2, line1);
-            u8g2_DrawStr(&u8g2, (128 - w) / 2, 16, line1);
-            const char *line2 = "mode";
-            w = u8g2_GetStrWidth(&u8g2, line2);
-            u8g2_DrawStr(&u8g2, (128 - w) / 2, 16 + 22, line2);
-
-            u8g2_SendBuffer(&u8g2);
+        else if (DESCALE_MODE_BIT & uxBits) {
+            _draw_descale_mode(u8g2);
         } else if (power_is_active()) {
-            u8g2_SetPowerSave(&u8g2, 0);
-            u8g2_ClearBuffer(&u8g2);
-
-            // Draw temps, flash them when lid is open
-            int y = 24;
-            display_draw_brew_tec(&u8g2, &y);
-
-            // Now draw frame separator
-            y = 32;
-            display_draw_frame(&u8g2, TEMPERATURE_PANEL_WIDTH, y);
-
-            y += 32;
-            display_draw_boiler_temp(&u8g2, &y);
-
-
-            int yPosWifi = 14;
-            int yPosOnOff = 54;
-
-
-            // WiFi symbol
-            if (drawWifi) {
-                display_draw_wifi(&u8g2, yPosWifi);
+            if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
+                drawWifi = !drawWifi;
+                delay = 500;
+            } else if ((WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
+                drawWifi = !drawWifi;
+                delay = 200;
+            } else {
+                drawWifi = true;
+                // Then no need to go crazy, it's event triggered when changes are detected
+                delay = 5000;
             }
 
-            // unit
-            display_draw_unit(&u8g2, yPosWifi + (yPosOnOff - yPosWifi) / 2);
-
-            // On / Off
-            toggle = !toggle;
-            display_draw_on_off(&u8g2, yPosOnOff, toggle);
-
-            u8g2_SendBuffer(&u8g2);
+            _draw_active_mode(u8g2, drawWifi);
         } else {
             u8g2_SetPowerSave(&u8g2, 1);
         }
@@ -287,7 +321,18 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     if (id == POWER_STANDBY) {
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     } else if (id == POWER_ACTIVE) {
+        s_brew_start_time = -1;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
+    }
+}
+
+static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+    if (!(xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT)) {
+        if (id == BREW_STARTED) {
+            s_brew_start_time = pdTICKS_TO_MS(xTaskGetTickCount())/1000;
+        } else if (id == BREW_STOPPED) {
+            s_brew_start_time = -1;
+        }
     }
 }
 
@@ -318,6 +363,10 @@ static void do_display(void *userData) {
                                                     _power_events, &u8g2));
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
                                                     _power_events, &u8g2));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, s_event_loop));
 
 
     ESP_LOGI(TAG, "Display initialised");
@@ -337,5 +386,7 @@ static void do_display(void *userData) {
 
 void display_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
+
+
     xTaskCreate(do_display, "do_display", 4596, NULL, 5, NULL);
 }

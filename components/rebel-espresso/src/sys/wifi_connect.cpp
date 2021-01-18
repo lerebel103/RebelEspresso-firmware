@@ -25,6 +25,7 @@ static wifi_config_t wifi_config;
 static uint32_t g_wifi_error_count = 0;
 static TickType_t g_wifi_connect_start;
 static TickType_t g_wifi_last_connected = 0;
+static TickType_t g_wifi_last_connect_attempt = 0;
 
 static esp_netif_t* s_netif = nullptr;
 
@@ -64,10 +65,10 @@ void event_handler(void *ctx,
         if (strlen(reinterpret_cast<const char *>(wifi_config.sta.ssid)) > 0) {
             esp_wifi_connect();
         }
-        g_wifi_last_connected = 0;
+        g_wifi_last_connect_attempt = 0;
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
         ESP_LOGI(WIFI_TAG, " !! WiFi connected !!");
-        g_wifi_last_connected = xTaskGetTickCount() * portTICK_PERIOD_MS;
+        g_wifi_last_connect_attempt = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         // Set host name as STA client
         char hostname[33];
@@ -84,7 +85,7 @@ void event_handler(void *ctx,
             esp_wifi_connect();
         }
 
-        g_wifi_last_connected = 0;
+        g_wifi_last_connect_attempt = 0;
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         auto event = static_cast<ip_event_got_ip_t *>(event_data);
 
@@ -204,13 +205,25 @@ void wifi_set_tx_power(int power) {
 }
 
 
+
 void wifi_tick(TickType_t time_ms) {
     // Check if we are connected but aren't receiving an IP, restart WiFi.
-    if (! (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) && g_wifi_last_connected > 0) {
-        if (time_ms > g_wifi_last_connected && (time_ms - g_wifi_last_connected) > 10000) {
+    if (! (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) && g_wifi_last_connect_attempt > 0) {
+        if (time_ms > g_wifi_last_connect_attempt && (time_ms - g_wifi_last_connect_attempt) > 10000) {
             // Nope, we are not getting an IP, start over again
-            ESP_LOGW(WIFI_TAG, "I have no IP, restarting WiFi, timeout=%d", time_ms - g_wifi_last_connected);
+            ESP_LOGW(WIFI_TAG, "I have no IP, restarting WiFi, timeout=%d", time_ms - g_wifi_last_connect_attempt);
             esp_wifi_disconnect();
         }
     }
+
+
+    // Hack to reboot if we have no wifi for extended periods.
+    if ((xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT)) {
+        g_wifi_last_connected = g_wifi_last_connect_attempt = xTaskGetTickCount() * portTICK_PERIOD_MS;
+    } else if (time_ms - g_wifi_last_connected > 60*30 * 1000) {
+        ESP_LOGE(WIFI_TAG, "No wifi for too long, restarting");
+        esp_restart();
+    }
+
+
 }

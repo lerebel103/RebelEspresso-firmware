@@ -103,8 +103,7 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 
     // Ok, check schedules if we have NTP and wifi going only for time sync
-    if (xEventGroupGetBits(status_event_group) & TIME_SYNC_BIT &&
-        xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) {
+    if (xEventGroupGetBits(status_event_group) & TIME_SYNC_BIT) {
         time_t time_now;
         time(&time_now);
         struct tm* l_time = localtime(&time_now);
@@ -131,9 +130,8 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
             }
         }
 
-
     } else {
-        ESP_LOGW(TAG, "No wifi or timesync, not running scheduler");
+        ESP_LOGW(TAG, "No timesync, not running scheduler");
     }
 }
 

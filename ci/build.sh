@@ -7,6 +7,7 @@ set -e
 echo "Starting build in `pwd`"
 sudo chown -R dev:dev .
 
+su dev
 source "${IDF_PATH}"/export.sh
 
 #export HOME=/home/dev/

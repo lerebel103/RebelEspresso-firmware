@@ -30,7 +30,7 @@ RUN apt-get install -y cmake ninja-build
 RUN curl https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2020r2-linux-amd64.tar.gz > /tmp/xtensa.tar.gz && mkdir -p /opt/esp && cd /opt/esp && tar -xzf /tmp/xtensa.tar.gz 
 
 # esp-idf
-ENV ESP_IDF_VERSION v4.1
+ENV ESP_IDF_VERSION v4.2
 RUN cd /opt/esp && git clone --recursive --branch ${ESP_IDF_VERSION} https://github.com/espressif/esp-idf.git
 
 # Set paths

@@ -43,8 +43,7 @@
 # Suspect build folders one may have
 BUILD
 build*
-cmake-build-debug
-cmake-build-release
+cmake-build-*
 
 # Suspect IDE files, we never want this stuff committed as it is developer specific
 .idea

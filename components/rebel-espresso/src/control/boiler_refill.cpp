@@ -75,7 +75,12 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-    // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
+    if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+        // In descale mode, we don't run any of this
+        return;
+    }
+
+        // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
     uint64_t now_ms = 0;
     if (event_data != nullptr) {
         now_ms = *(uint64_t *) event_data;

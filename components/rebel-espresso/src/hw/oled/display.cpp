@@ -290,6 +290,9 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         EventBits_t uxBits = xEventGroupWaitBits(
                 status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT, false, true, 0);
 
+        u8g2_SetDrawColor(&u8g2, 1);
+        u8g2_SetFontMode(&u8g2, 0);
+
         if (s_brew_start_time >=0) {
             _draw_brew_counter(u8g2);
             delay = 200;
@@ -311,6 +314,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
             _draw_active_mode(u8g2, drawWifi);
         } else {
+            u8g2_ClearDisplay(&u8g2);
             u8g2_SetPowerSave(&u8g2, 1);
         }
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);

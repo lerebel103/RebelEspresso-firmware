@@ -152,9 +152,10 @@ uint8_t u8g2_esp32_gpio_and_delay_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int,
             gpioConfig.pull_down_en = GPIO_PULLDOWN_ENABLE;
             gpioConfig.intr_type    = GPIO_INTR_DISABLE;
             gpio_config(&gpioConfig);
-        }
 
-            // Set the GPIO reset pin to the value passed in through arg_int.
+            break;
+        }
+        // Set the GPIO reset pin to the value passed in through arg_int.
         case U8X8_MSG_GPIO_RESET:
             if (u8g2_esp32_hal.reset != U8G2_ESP32_HAL_UNDEFINED) {
                 gpio_set_level(u8g2_esp32_hal.reset, arg_int);

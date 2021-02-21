@@ -77,19 +77,19 @@ struct schedules_cfg_t {
             if (strend(item->string, SCHEDULES_CFG_JSON_KEY "enabled")) {
                 enabled = cJSON_IsTrue(item);
             } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "monday")) {
-                parse_time_schedule(0, item);
-            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "tuesday")) {
                 parse_time_schedule(1, item);
-            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "wednesday")) {
+            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "tuesday")) {
                 parse_time_schedule(2, item);
-            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "thursday")) {
+            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "wednesday")) {
                 parse_time_schedule(3, item);
-            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "friday")) {
+            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "thursday")) {
                 parse_time_schedule(4, item);
-            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "saturday")) {
+            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "friday")) {
                 parse_time_schedule(5, item);
-            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "sunday")) {
+            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "saturday")) {
                 parse_time_schedule(6, item);
+            } else if (strend(item->string, SCHEDULES_CFG_JSON_KEY "sunday")) {
+                parse_time_schedule(0, item);
             }
 
             item = item->next;
@@ -105,7 +105,7 @@ struct schedules_cfg_t {
         sprintf(buf, "%s" SCHEDULES_CFG_JSON_KEY "enabled", base_key);
         cJSON_AddBoolToObject(config, buf, enabled);
 
-        static const char *days[] = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"};
+        static const char *days[] = {"sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"};
 
         for (int i = 0; i < MAX_DAYS; i++) {
             sprintf(buf, "%s" SCHEDULES_CFG_JSON_KEY "%s", base_key, days[i]);

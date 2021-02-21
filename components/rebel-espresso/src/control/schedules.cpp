@@ -109,6 +109,8 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
         struct tm* l_time = localtime(&time_now);
 
         // Pick up our schedule times and match with the desired day of the week, that's it.
+        ESP_LOGI(TAG, "**************************** Today %d", l_time->tm_wday);
+
         auto times = s_cfg.times[l_time->tm_wday-1];
         for(int i=0; i<DAILY_SCHEDULES_MAX; i++) {
             auto schedule = times[i];

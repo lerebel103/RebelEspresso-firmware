@@ -8,7 +8,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source "$DIR"/shell.env
 
 # Create docker image to build TI's stuff with
-docker build -f "${DIR}"/Dockerfile --build-arg MD5="$MD5" "$DIR" -t "$REPOSITORY_NAME":latest
+docker build -m 4g --network=host -f "${DIR}"/Dockerfile --build-arg MD5="$MD5" "$DIR" -t "$REPOSITORY_NAME":latest
 
 # Tag for GCR now
 GCR_IMAGE=gcr.io/${REPOSITORY_NAME}

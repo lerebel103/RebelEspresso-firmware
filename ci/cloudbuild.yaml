@@ -47,7 +47,7 @@ steps:
 
   # Now build project
   - name: 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest'
-    args: ['bash', 'ci/build.sh']
+    args: ['ci/build.sh']
     volumes:
       - name: 'ssh'
         path: /root/.ssh

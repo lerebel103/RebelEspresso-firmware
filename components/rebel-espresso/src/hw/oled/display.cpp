@@ -290,8 +290,8 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         EventBits_t uxBits = xEventGroupWaitBits(
                 status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT, false, true, 0);
 
-        u8g2_SetDrawColor(&u8g2, 1);
-        u8g2_SetFontMode(&u8g2, 0);
+        // For some reason the screen will often go into inverse contrast mode, hope this cures it.
+        u8g2_SetupDisplay(&u8g2, u8x8_d_ssd1306_128x64_noname, u8x8_cad_001, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
 
         if (s_brew_start_time >=0) {
             _draw_brew_counter(u8g2);

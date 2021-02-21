@@ -7,13 +7,8 @@ set -e
 echo "Starting build in `pwd`"
 sudo chown -R dev:dev .
 
-ls -tral
-echo $HOME
+export HOME=/home/dev/
 source "${IDF_PATH}"/export.sh
-
-#export HOME=/home/dev/
-#sudo chown -R dev:dev ~/.ssh/
-#chmod 600 ~/.ssh/id_rsa
 
 # Go, build
 mkdir build && cd build

@@ -22,7 +22,7 @@ const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT = 1000;
 const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT = 5;
 const uint16_t BOILER_REFILL_ADC_NUM_READINGS_DEFAULT = 25;
 const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT = 1500;
-const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 8000;
+const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 15000;
 const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 500;
 const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 750;
 
@@ -261,7 +261,7 @@ void boiler_refill_set_cfg(boiler_refill_cfg_t config) {
         ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
     }
     
-    if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 10000) {
+    if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 30000) {
         s_cfg.max_refill_time_ms = config.max_refill_time_ms;
     } else {
         ESP_LOGE(TAG, "max_refill_time_ms is out of bounds: %d, ignoring.", config.max_refill_time_ms);

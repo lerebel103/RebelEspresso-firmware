@@ -32,6 +32,8 @@ static esp_event_loop_handle_t s_event_loop;
 const static char *TAG = "oled";
 static bool g_go = true;
 static time_t s_brew_start_time = -1;
+static bool s_reset_display = false;
+static bool s_show_diag = false;
 
 static float temperature_to_unit(double celcius, units_enum_t unit) {
     if (unit == UNIT_FARENHEIGHT) {
@@ -130,23 +132,25 @@ void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
     char tempBuf[16];
     _draw_brew_temp_only(u8g2, y);
 
-    // Duty
-    auto xpad = 3;
-    auto yOffset = 8;
-    double duty = brew_tec_get_duty();
-    sprintf(tempBuf, "%d%%", (int) duty);
-    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
-    yOffset += 8 + 2;
+    if (s_show_diag) {
+        // Duty
+        auto xpad = 3;
+        auto yOffset = 8;
+        double duty = brew_tec_get_duty();
+        sprintf(tempBuf, "%d%%", (int) duty);
+        u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+        u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf)) - xpad, yOffset, tempBuf);
+        yOffset += 8 + 2;
 
-    // TEC side 1
-    auto idx = 2;
-    _render_tec(u8g2, tempBuf, xpad, yOffset, idx);
+        // TEC side 1
+        auto idx = 2;
+        _render_tec(u8g2, tempBuf, xpad, yOffset, idx);
 
-    // TEC side 2
-    yOffset += 8 + 2;
-    idx = 3;
-    _render_tec(u8g2, tempBuf, xpad, yOffset, idx);
+        // TEC side 2
+        yOffset += 8 + 2;
+        idx = 3;
+        _render_tec(u8g2, tempBuf, xpad, yOffset, idx);
+    }
 }
 
 void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
@@ -176,26 +180,28 @@ void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     u8g2_SetFont(u8g2, u8g2_font_courR10_tf);
     u8g2_DrawStr(u8g2, x_offset + width_of_intregral_temp, *y, tempBuf);
 
-    // Duty
-    auto xpad = 3;
-    auto yOffset = *y - 20;
-    double duty = boiler_temp_get_duty();
-    sprintf(tempBuf, "%d%%", (int) duty);
-    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+    if (s_show_diag) {
+        // Duty
+        auto xpad = 3;
+        auto yOffset = *y - 20;
+        double duty = boiler_temp_get_duty();
+        sprintf(tempBuf, "%d%%", (int) duty);
+        u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+        u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 
-    yOffset += 8 + 2;
-    double actual_setpoint = boiler_temp_get_trimmed_setpoint();
-    sprintf(tempBuf, "%.1f", actual_setpoint);
-    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+        yOffset += 8 + 2;
+        double actual_setpoint = boiler_temp_get_trimmed_setpoint();
+        sprintf(tempBuf, "%.1f", actual_setpoint);
+        u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+        u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
 
-    // Water level voltage
-    yOffset += 8 + 2;
-    double level_voltage = boiler_refill_level_mv() / 1e3;
-    sprintf(tempBuf, "%.1fV", level_voltage);
-    u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
-    u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+        // Water level voltage
+        yOffset += 8 + 2;
+        double level_voltage = boiler_refill_level_mv() / 1e3;
+        sprintf(tempBuf, "%.1fV", level_voltage);
+        u8g2_SetFont(u8g2, u8g2_font_courR08_tf);
+        u8g2_DrawStr(u8g2, (TEMPERATURE_PANEL_WIDTH - u8g2_GetStrWidth(u8g2, tempBuf) - xpad), yOffset, tempBuf);
+    }
 }
 
 
@@ -282,6 +288,43 @@ void _draw_active_mode(u8g2_t &u8g2, bool drawWifi) {
     u8g2_SendBuffer(&u8g2);
 }
 
+/* more or less generic setup of all these small OLEDs */
+static const uint8_t u8x8_d_ssd1306_128x64_noname_init_seq[] = {
+
+        U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
+
+
+        U8X8_C(0x0ae),		                /* display off */
+        U8X8_CA(0x0d5, 0x080),		/* clock divide ratio (0x00=1) and oscillator frequency (0x8) */
+        U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio */
+        U8X8_CA(0x0d3, 0x000),		/* display offset */
+        U8X8_C(0x040),		                /* set display start line to 0 */
+        U8X8_CA(0x08d, 0x014),		/* [2] charge pump setting (p62): 0x014 enable, 0x010 disable, SSD1306 only, should be removed for SH1106 */
+        U8X8_CA(0x020, 0x000),		/* page addressing mode */
+
+        U8X8_C(0x0a1),				/* segment remap a0/a1*/
+        U8X8_C(0x0c8),				/* c0: scan dir normal, c8: reverse */
+        // Flipmode
+        // U8X8_C(0x0a0),				/* segment remap a0/a1*/
+        // U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
+
+        U8X8_CA(0x0da, 0x012),		/* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
+
+        U8X8_CA(0x081, 0x0cf), 		/* [2] set contrast control */
+        U8X8_CA(0x0d9, 0x0f1), 		/* [2] pre-charge period 0x022/f1*/
+        U8X8_CA(0x0db, 0x040), 		/* vcomh deselect level */
+        // if vcomh is 0, then this will give the biggest range for contrast control issue #98
+        // restored the old values for the noname constructor, because vcomh=0 will not work for all OLEDs, #116
+
+        U8X8_C(0x02e),				/* Deactivate scroll */
+        U8X8_C(0x0a4),				/* output ram to display */
+        U8X8_C(0x0a6),				/* none inverted normal display mode */
+
+        U8X8_END_TRANSFER(),             	/* disable chip */
+        U8X8_END()             			/* end of sequence */
+};
+
+
 static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
     u8g2_ClearBuffer(&u8g2);
     u8g2_SendBuffer(&u8g2);
@@ -290,8 +333,11 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         EventBits_t uxBits = xEventGroupWaitBits(
                 status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT, false, true, 0);
 
-        // For some reason the screen will often go into inverse contrast mode, hope this cures it.
-        u8g2_SetupDisplay(&u8g2, u8x8_d_ssd1306_128x64_noname, u8x8_cad_001, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
+        if (s_reset_display) {
+            // For some reason the screen will often go into inverse contrast mode, hope this cures it.
+            u8x8_cad_SendSequence(&u8g2.u8x8, u8x8_d_ssd1306_128x64_noname_init_seq);
+            s_reset_display = false;
+        }
 
         if (s_brew_start_time >=0) {
             _draw_brew_counter(u8g2);
@@ -326,6 +372,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     } else if (id == POWER_ACTIVE) {
         s_brew_start_time = -1;
+        s_reset_display = true;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     }
 }
@@ -375,6 +422,8 @@ static void do_display(void *userData) {
 
     ESP_LOGI(TAG, "Display initialised");
     bool drawWifi = true;
+
+    s_reset_display = true;
 
     // First display firmware version
     display_draw_info(u8g2);

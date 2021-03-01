@@ -405,7 +405,7 @@ void homekit_init(esp_event_loop_handle_t event_loop) {
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
                                                     _power_events, s_event_loop));
 
-    xTaskCreate(homekit_task, "homekit_task", 6 * 1024, NULL, 6, NULL);
+    xTaskCreate(homekit_task, "homekit_task", 5 * 1024, NULL, 5, NULL);
     s_init = true;
 }
 

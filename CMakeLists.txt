@@ -102,10 +102,6 @@ IF (NOT NVRAM_STORAGE_PARTITION)
     SET(NVRAM_STORAGE_PARTITION "storage" CACHE INTERNAL "NVS partition name"  FORCE)
 ENDIF()
 
-add_definitions(
-        ${WOLFSSL_DEFINITIONS}
-        -DNVRAM_STORAGE_PARTITION="${NVRAM_STORAGE_PARTITION}"
-)
 
 # Set hardware revision dependent files
 file(COPY components/rebel-espresso/src/hw/r${HARDWARE_REVISION}/sdkconfig DESTINATION ${CMAKE_SOURCE_DIR}/)

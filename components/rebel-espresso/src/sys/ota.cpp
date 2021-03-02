@@ -124,11 +124,13 @@ static void ota_get_latest_version(char *latest_version) {
             .clientkey_password = nullptr,
             .clientkey_password_len = 0,
             .non_block = false,
+            .use_secure_element = false,
             .timeout_ms = (int) g_ota_config.timeout_ms,
             .use_global_ca_store = false,
             .common_name = nullptr,
             .skip_common_name = false,
-            .psk_hint_key = nullptr
+            .psk_hint_key = nullptr,
+            .crt_bundle_attach = NULL
     };
 
     ESP_LOGI(TAG, "Connecting to '%s'", url);
@@ -177,6 +179,7 @@ static void ota_get_latest_version(char *latest_version) {
         } while (num_read > 0);
 
         ESP_LOGD(TAG, "Response body is '%s'", body);
+        body = strstrip(body);
         strcpy(latest_version, body);
         delete[] body;
     } else {
@@ -321,11 +324,13 @@ static bool ota_download_firmware(char *version) {
             .clientkey_password = nullptr,
             .clientkey_password_len = 0,
             .non_block = false,
+            .use_secure_element = false,
             .timeout_ms =(int) g_ota_config.timeout_ms,
             .use_global_ca_store = false,
             .common_name = nullptr,
             .skip_common_name = false,
-            .psk_hint_key = nullptr
+            .psk_hint_key = nullptr,
+            .crt_bundle_attach = NULL
     };
 
     esp_tls_t *tls = esp_tls_conn_http_new(url, &cfg);
@@ -563,7 +568,7 @@ void ota_run() {
     }
 
     // Good to go! Put it all in a task
-    xTaskCreate(do_ota, "ota_run_task", 7 * 1024, nullptr, 5, &g_ota_task_handle);
+    xTaskCreate(do_ota, "ota_run_task", 6 * 1024, nullptr, 5, &g_ota_task_handle);
 }
 
 bool ota_is_enabled() {

@@ -1,5 +1,4 @@
 #include <esp_err.h>
-#include <cstring>
 #include <esp_log.h>
 #include <esp_tls.h>
 #include <cJSON.h>
@@ -7,15 +6,13 @@
 #include <freertos/event_groups.h>
 #include <esp_task_wdt.h>
 #include <esp_ota_ops.h>
-#include <esp_image_format.h>
 #include <esp_partition.h>
 #include <mbedtls/ssl.h>
-#include <src/str_utils.h>
 
 #include "ota.h"
 #include "nvram_store.h"
 #include "events.h"
-#include "mqtt.h"
+#include "str_utils.h"
 
 #define MAX_OTA_URI 128
 #define MAX_VERSION_LEN 32
@@ -170,9 +167,8 @@ static void ota_get_latest_version(char *latest_version) {
                 result += 4;
                 int position = result - buffer;
                 int body_length = num_read - position;
-                ESP_LOGW(TAG, "body_length=%d, num_read=%d, position=%d", body_length, num_read, position);
+                ESP_LOGI(TAG, "body_length=%d, num_read=%d, position=%d", body_length, num_read, position);
                 memcpy(body, result, body_length);
-                ESP_LOGW(TAG, "memcpy ok");
                 esp_tls_conn_read(tls, &body[body_length], sizeof(body) - body_length);
                 break;
             }
@@ -225,7 +221,7 @@ static bool ota_download_new_firmware(esp_tls_t *tls) {
 
     /* Read HTTP response */
     int r;
-    const static int rec_buf_size = 512;
+    const static int rec_buf_size = 1024;
     char *recv_buf = new char[rec_buf_size];
     bool body_flag = false;
     int binary_file_length = 0;
@@ -302,7 +298,7 @@ static bool ota_download_firmware(char *version) {
             g_ota_config.url, g_ota_config.hardware_revision, g_ota_config.thing_type, g_ota_config.desiredBuildType,
             version);
 
-    const static int buf_len = 512; // Yes, this is a bit lazy for embedded programming, I hear you
+    const static int buf_len = 1024; // Yes, this is a bit lazy for embedded programming, I hear you
     char *buffer = new char[buf_len];
     sprintf(buffer, "GET %s HTTP/1.0\r\n"
                     "Host: %s\r\n"

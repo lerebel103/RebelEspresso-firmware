@@ -8,7 +8,7 @@
 #include "hw/rtds.h"
 #include "pid.h"
 #include "rmt_duty_map.h"
-#include "str_utils.h"
+#include "sys/str_utils.h"
 
 #define BOILER_SSR_PIN GPIO_TRIG1_SSR
 

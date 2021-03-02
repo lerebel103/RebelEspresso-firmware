@@ -2,7 +2,7 @@
 
 #include <cstring>
 #include <cJSON.h>
-#include "str_utils.h"
+#include "sys/str_utils.h"
 #include "src/sys/nvram_store.h"
 #include "window.h"
 

@@ -83,11 +83,6 @@ execute_process(
 )
 STRING(STRIP ${PROJECT_VERSION_PATCH} PROJECT_VERSION_PATCH)
 
-# Fix missing headers for homekit
-file(COPY "${CMAKE_SOURCE_DIR}/patch/include/"
-        DESTINATION "${CMAKE_SOURCE_DIR}/components/esp-apple-homekit-adk/port/include/"
-)
-
 # Not ussing this
 set(PROJECT_VERSION_TWEAK "0" CACHE INTERNAL "" FORCE)
 
@@ -106,8 +101,13 @@ ENDIF()
 # Set hardware revision dependent files
 file(COPY components/rebel-espresso/src/hw/r${HARDWARE_REVISION}/sdkconfig DESTINATION ${CMAKE_SOURCE_DIR}/)
 
-# Add homekit related stuff and what is needs
-set(EXTRA_COMPONENT_DIRS components/esp-apple-homekit-adk)
+if(DEFINED ENV{HOMEKIT_PATH})
+    set(HOMEKIT_PATH $ENV{HOMEKIT_PATH})
+else()
+    set(HOMEKIT_PATH ${CMAKE_CURRENT_LIST_DIR}/components/esp-homekit-sdk)
+endif(DEFINED ENV{HOMEKIT_PATH})
+
+set(EXTRA_COMPONENT_DIRS ${HOMEKIT_PATH}/components ${HOMEKIT_PATH}/components/homekit ${CMAKE_CURRENT_LIST_DIR}/../common)
 
 set(PROJECT_NAME rebel-espresso-firmware)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

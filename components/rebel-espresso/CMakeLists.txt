@@ -31,7 +31,6 @@ set(COMPONENT_REQUIRES
         esp_adc_cal
         ESP32-MAX31865
         u8g2
-        port
         )
 
 set(COMPONENT_ADD_INCLUDEDIRS

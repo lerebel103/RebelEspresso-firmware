@@ -121,6 +121,8 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data);
 
 double brew_temp_get_setpoint();
 
+void brew_temp_set_setpoint(double setpoint);
+
 /**
  * Get current duty value applied to the SSR
  * @return

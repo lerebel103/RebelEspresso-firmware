@@ -3,9 +3,6 @@
 #include <freertos/FreeRTOS.h>
 #include <esp_event_base.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
@@ -16,7 +13,3 @@ bool homekit_is_initialised();
 
 void homekit_terminate();
 
-
-#ifdef __cplusplus
-}
-#endif

@@ -299,7 +299,7 @@ void boiler_temp_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
 }
 
-const boiler_temp_cfg_t &boiler_temp_get_cfg() {
+const struct boiler_temp_cfg_t &boiler_temp_get_cfg() {
     return s_cfg;
 }
 

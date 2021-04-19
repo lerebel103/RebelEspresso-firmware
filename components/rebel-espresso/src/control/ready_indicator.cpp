@@ -69,17 +69,18 @@ static void _save_nvram() {
 
 
 void ready_indicator_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
-    if (!s_cfg.enabled) {
+    if (!s_cfg.enabled ||
+        !(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         gpio_set_level(GPIO_TRIG2_REL3, 0);
         return;
-    } else {
-        // Work out if we can light up the ready light, within range
-        auto setpoint = brew_temp_get_setpoint();
-        if (brew_head_data.temperature + s_cfg.delta >= setpoint) {
-            gpio_set_level(GPIO_TRIG2_REL3, 1);
-        } else if ((brew_head_data.temperature + s_cfg.hysteresis) < setpoint) {
-            gpio_set_level(GPIO_TRIG2_REL3, 0);
-        }
+    }
+
+    // Work out if we can light up the ready light, within range
+    auto setpoint = brew_temp_get_setpoint();
+    if (brew_head_data.temperature + s_cfg.delta >= setpoint) {
+        gpio_set_level(GPIO_TRIG2_REL3, 1);
+    } else if ((brew_head_data.temperature + s_cfg.hysteresis) < setpoint) {
+        gpio_set_level(GPIO_TRIG2_REL3, 0);
     }
 }
 

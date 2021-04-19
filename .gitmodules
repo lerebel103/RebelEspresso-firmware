@@ -7,9 +7,6 @@
 [submodule "components/esp-google-iot"]
 	path = components/esp-google-iot
 	url = git@github.com:espressif/esp-google-iot.git
-[submodule "components/esp-apple-homekit-adk"]
-	path = components/esp-apple-homekit-adk
-	url = https://github.com/espressif/esp-apple-homekit-adk.git
-[submodule "components/mbedtls/mbedtls"]
-	path = components/mbedtls/mbedtls
-	url = https://github.com/espressif/mbedtls.git
+[submodule "components/esp-homekit-sdk"]
+	path = components/esp-homekit-sdk
+	url = https://github.com/espressif/esp-homekit-sdk.git

@@ -56,10 +56,10 @@ struct boiler_temp_cfg_t {
         pid.from_json(BOILER_CFG_JSON_KEY, config);
 
         cJSON *item = config->child;
-        while( item ) {
-            if ( strend(item->string, BOILER_CFG_JSON_KEY "mains_hz") ) {
+        while (item) {
+            if (strend(item->string, BOILER_CFG_JSON_KEY "mains_hz")) {
                 mains_hz = item->valuedouble;
-            } else if ( strend(item->string, BOILER_CFG_JSON_KEY "temp_error_restart_time_sec") ) {
+            } else if (strend(item->string, BOILER_CFG_JSON_KEY "temp_error_restart_time_sec")) {
                 temp_error_restart_time_sec = item->valueint;
             }
             item = item->next;
@@ -69,8 +69,8 @@ struct boiler_temp_cfg_t {
     /**
      * Report current configuration
      */
-    void to_json(cJSON* config, const char* base_key) {
-        char* buf = (char*) malloc(64);
+    void to_json(cJSON *config, const char *base_key) {
+        char *buf = (char *) malloc(64);
 
         sprintf(buf, "%s" BOILER_CFG_JSON_KEY, base_key);
         pid.to_json(config, buf);
@@ -94,8 +94,8 @@ struct boiler_temp_status_t {
     /**
      * Report current configuration
      */
-    void to_json(cJSON* config, const char* base_key) {
-        char* buf = (char*) malloc(64);
+    void to_json(cJSON *config, const char *base_key) {
+        char *buf = (char *) malloc(64);
 
         sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_read_error_count", base_key);
         cJSON_AddNumberToObject(config, buf, temp_read_error_count);
@@ -142,13 +142,13 @@ double boiler_setpoint_inc(double inc);
  * Get the underlying configuration set.
  * @return Object representing the config of all boiler parameters.
  */
-const boiler_temp_cfg_t &boiler_temp_get_cfg();
+const struct boiler_temp_cfg_t &boiler_temp_get_cfg();
 
 /**
  * Updates underlying config, partial keys are accepted.
  * @param json Config to be parsed.
  */
-void boiler_temp_update_cfg(const cJSON* json);
+void boiler_temp_update_cfg(const cJSON *json);
 
 /**
  * Whipes entire config with a new object
@@ -158,7 +158,7 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
 
 void boiler_temp_reset_cfg();
 
-const boiler_temp_status_t& boiler_temp_get_status();
+const boiler_temp_status_t &boiler_temp_get_status();
 
 void boiler_temp_reset_stats();
 

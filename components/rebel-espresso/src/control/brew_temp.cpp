@@ -101,6 +101,12 @@ double brew_temp_get_setpoint() {
     return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 }
 
+void brew_temp_set_setpoint(double setpoint) {
+    s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] = setpoint;
+    brew_temp_set_cfg(s_cfg);
+    xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
+}
+
 void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
     if (!s_cfg.enabled) {
         s_trim.active = false;

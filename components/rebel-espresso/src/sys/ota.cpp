@@ -564,7 +564,7 @@ void ota_run() {
     }
 
     // Good to go! Put it all in a task
-    xTaskCreate(do_ota, "ota_run_task", 6 * 1024, nullptr, 5, &g_ota_task_handle);
+    xTaskCreate(do_ota, "ota_run_task", 6 * 1024, nullptr, 2, &g_ota_task_handle);
 }
 
 bool ota_is_enabled() {

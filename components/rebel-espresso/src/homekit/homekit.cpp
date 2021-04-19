@@ -15,8 +15,6 @@
 #include <src/hw/rtds.h>
 #include <src/control/brew_temp.h>
 
-static bool requestedFactoryReset = false;
-static bool clearPairings = false;
 static esp_event_loop_handle_t s_event_loop;
 static bool s_init = false;
 
@@ -35,32 +33,6 @@ static hap_serv_t *s_boiler_service;
 #define BREW_TEMP_MIN 88
 #define BREW_TEMP_MAX 94
 
-
-/**
- * @brief The network reset button callback handler.
- * Useful for testing the Wi-Fi re-configuration feature of WAC2
- */
-static void reset_network_handler(void *arg) {
-    hap_reset_network();
-}
-
-/**
- * @brief The factory reset button callback handler.
- */
-static void reset_to_factory_handler(void *arg) {
-    hap_reset_to_factory();
-}
-
-/**
- * The Reset button  GPIO initialisation function.
- * Same button will be used for resetting Wi-Fi network as well as for reset to factory based on
- * the time for which the button is pressed.
- */
-static void reset_key_init(uint32_t key_gpio_pin) {
-    //button_handle_t handle = iot_button_create(key_gpio_pin, BUTTON_ACTIVE_LOW);
-    //iot_button_add_on_release_cb(handle, RESET_NETWORK_BUTTON_TIMEOUT, reset_network_handler, NULL);
-    //iot_button_add_on_press_cb(handle, RESET_TO_FACTORY_BUTTON_TIMEOUT, reset_to_factory_handler, NULL);
-}
 
 /* Mandatory identify routine for the accessory.
  * In a real accessory, something like LED blink should be implemented
@@ -273,7 +245,9 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 /*The main thread for handling the RebelEspresso Switch Accessory */
 static void switch_thread_entry(void *arg) {
     struct rtd_data_t result{};
-    double brew_temp, boiler_temp, setpoint;
+    double brew_temp, setpoint;
+    //double boiler_temp;
+
     hap_char_t *hc = nullptr;
     int ret = HAP_SUCCESS;
     hap_acc_t *accessory;
@@ -355,7 +329,7 @@ static void switch_thread_entry(void *arg) {
     hap_serv_set_read_cb(service, brew_char_read);
     hap_acc_add_serv(accessory, service);
 
-    // Now for boiler
+    /*// Now for boiler
     rtds_get(&result, 0);
     boiler_temp = (result.fault == Max31865Error::NoError ? result.temperature : 0);
     s_boiler_service = hap_serv_temperature_sensor_create((float) boiler_temp);
@@ -373,6 +347,7 @@ static void switch_thread_entry(void *arg) {
 
     hap_serv_set_read_cb(s_boiler_service, boiler_char_read);
     hap_acc_add_serv(accessory, s_boiler_service);
+     */
 
 
 #ifdef CONFIG_FIRMWARE_SERVICE

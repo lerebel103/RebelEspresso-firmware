@@ -10,6 +10,7 @@ extern "C" {
 
 #include <sys/ota.h>
 #include <esp_event.h>
+#include <src/sys/sys_reset.h>
 #include "state.h"
 #include "control/controller.h"
 #include "thing_info.h"
@@ -38,6 +39,9 @@ extern "C" void app_main() {
     esp_log_level_set("gpio", ESP_LOG_ERROR);
 
     // Do core initialisations first
+
+    // force NVS partition delete
+    sys_reset_nvs();
     nvram_store_init();
     store_inc_cycle_count(); // Record number of power cycles.
 

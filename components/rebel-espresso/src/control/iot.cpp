@@ -77,6 +77,7 @@ void iot_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
 
     // Now for wifi, ota, mqtt
+
     wifi_init();
 
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);

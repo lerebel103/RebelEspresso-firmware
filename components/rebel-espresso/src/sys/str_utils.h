@@ -1,6 +1,6 @@
 #pragma once
 
-#include <string.h>  // strlen(), memcmp()
+#include <string.h>
 
 /**
  * @fn int strend(const char *s, const char *t)

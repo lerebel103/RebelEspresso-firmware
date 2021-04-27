@@ -15,6 +15,7 @@ extern EventGroupHandle_t status_event_group;
 #define REFRESH_DISPLAY_BIT         BIT6
 #define SEND_STATE_BIT              BIT7
 #define DESCALE_MODE_BIT            BIT8
+#define PROVISIONING_BIT            BIT9
 
 
 

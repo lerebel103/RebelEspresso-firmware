@@ -3,7 +3,6 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <driver/rtc_io.h>
 #include <thing_info.h>
 #include <hw_config.h>
 #include <src/hw/rtds.h>
@@ -13,7 +12,8 @@
 #include <esp_event.h>
 #include <src/control/brew_tec.h>
 #include <src/control/boiler_refill.h>
-#include <src/control/brew_temp.h>
+#include <src/sys/wifi_connect.h>
+#include <qrcodegen.h>
 
 #include "control/controller.h"
 
@@ -225,15 +225,81 @@ void _draw_brew_counter(u8g2_t &u8g2) {
     u8g2_ClearBuffer(&u8g2);
 
     char buf[64];
-    sprintf(buf, "%d", (int)(pdTICKS_TO_MS(xTaskGetTickCount())/1000 - s_brew_start_time));
+    sprintf(buf, "%d", (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time));
 
     u8g2_SetFont(&u8g2, u8g2_font_courB24_tf);
     int w = u8g2_GetStrWidth(&u8g2, buf);
-    u8g2_DrawStr(&u8g2, (128 - w)/2 - 6, 32, buf);
+    u8g2_DrawStr(&u8g2, (128 - w) / 2 - 6, 32, buf);
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, (128 - w)/2 + w + 1, 32, "s");
+    u8g2_DrawStr(&u8g2, (128 - w) / 2 + w + 1, 32, "s");
 
     u8g2_SendBuffer(&u8g2);
+}
+
+
+static const char *lt[] = {
+        /* 0 */ "  ",
+        /* 1 */ "\u2580 ",
+        /* 2 */ " \u2580",
+        /* 3 */ "\u2580\u2580",
+        /* 4 */ "\u2584 ",
+        /* 5 */ "\u2588 ",
+        /* 6 */ "\u2584\u2580",
+        /* 7 */ "\u2588\u2580",
+        /* 8 */ " \u2584",
+        /* 9 */ "\u2580\u2584",
+        /* 10 */ " \u2588",
+        /* 11 */ "\u2580\u2588",
+        /* 12 */ "\u2584\u2584",
+        /* 13 */ "\u2588\u2584",
+        /* 14 */ "\u2584\u2588",
+        /* 15 */ "\u2588\u2588",
+};
+
+void esp_qrcode_print(u8g2_t &u8g2, int x_off, int y_off, const uint8_t* qrcode, int size)
+{
+    int border = 1;
+    for (int y = -border; y < size + border ; y+=1) {
+        for (int x = -border; x < size + border ; x+=1) {
+
+            if (qrcodegen_getModule(qrcode, x, y) and x >= 0 and y >= 0 and x < size and y < size) {
+                u8g2_SetDrawColor(&u8g2, 0);
+            } else {
+                u8g2_SetDrawColor(&u8g2, 1);
+            }
+            u8g2_DrawPixel(&u8g2, x + x_off, y + y_off);
+        }
+    }
+    u8g2_SetDrawColor(&u8g2, 1);
+}
+
+
+void _draw_provisioning(u8g2_t &u8g2) {
+    static bool once = false;
+
+    if (once) {
+        return;
+    }
+    once = true;
+
+    u8g2_SetPowerSave(&u8g2, 0);
+    u8g2_ClearBuffer(&u8g2);
+
+    u8g2_SetFont(&u8g2, u8g2_font_helvB08_tr);
+    const char *line1 = "Scan to provision";
+    int w = u8g2_GetStrWidth(&u8g2, line1);
+    u8g2_DrawStr(&u8g2, (128 - w) / 2, 10, line1);
+
+    int xPos = 45;
+    int yPos = 17;
+    esp_qrcode_print(u8g2, xPos, yPos, wifi_get_prov_qr(), wifi_get_prov_qr_len());
+
+    const char* line2 = thing_info_id();
+    w = u8g2_GetStrWidth(&u8g2, line2);
+    u8g2_DrawStr(&u8g2, (128 - w) / 2, 64, line2);
+
+    u8g2_SendBuffer(&u8g2);
+
 }
 
 void _draw_descale_mode(u8g2_t &u8g2) {
@@ -291,37 +357,39 @@ void _draw_active_mode(u8g2_t &u8g2, bool drawWifi) {
 /* more or less generic setup of all these small OLEDs */
 static const uint8_t u8x8_d_ssd1306_128x64_noname_init_seq[] = {
 
-        U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
+        U8X8_START_TRANSFER(),                /* enable chip, delay is part of the transfer start */
 
 
-        U8X8_C(0x0ae),		                /* display off */
-        U8X8_CA(0x0d5, 0x080),		/* clock divide ratio (0x00=1) and oscillator frequency (0x8) */
-        U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio */
-        U8X8_CA(0x0d3, 0x000),		/* display offset */
-        U8X8_C(0x040),		                /* set display start line to 0 */
-        U8X8_CA(0x08d, 0x014),		/* [2] charge pump setting (p62): 0x014 enable, 0x010 disable, SSD1306 only, should be removed for SH1106 */
-        U8X8_CA(0x020, 0x000),		/* page addressing mode */
+        U8X8_C(0x0ae),                        /* display off */
+        U8X8_CA(0x0d5, 0x080),        /* clock divide ratio (0x00=1) and oscillator frequency (0x8) */
+        U8X8_CA(0x0a8, 0x03f),        /* multiplex ratio */
+        U8X8_CA(0x0d3, 0x000),        /* display offset */
+        U8X8_C(0x040),                        /* set display start line to 0 */
+        U8X8_CA(0x08d,
+                0x014),        /* [2] charge pump setting (p62): 0x014 enable, 0x010 disable, SSD1306 only, should be removed for SH1106 */
+        U8X8_CA(0x020, 0x000),        /* page addressing mode */
 
-        U8X8_C(0x0a1),				/* segment remap a0/a1*/
-        U8X8_C(0x0c8),				/* c0: scan dir normal, c8: reverse */
+        U8X8_C(0x0a1),                /* segment remap a0/a1*/
+        U8X8_C(0x0c8),                /* c0: scan dir normal, c8: reverse */
         // Flipmode
         // U8X8_C(0x0a0),				/* segment remap a0/a1*/
         // U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
 
-        U8X8_CA(0x0da, 0x012),		/* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
+        U8X8_CA(0x0da,
+                0x012),        /* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
 
-        U8X8_CA(0x081, 0x0cf), 		/* [2] set contrast control */
-        U8X8_CA(0x0d9, 0x0f1), 		/* [2] pre-charge period 0x022/f1*/
-        U8X8_CA(0x0db, 0x040), 		/* vcomh deselect level */
+        U8X8_CA(0x081, 0x0cf),        /* [2] set contrast control */
+        U8X8_CA(0x0d9, 0x0f1),        /* [2] pre-charge period 0x022/f1*/
+        U8X8_CA(0x0db, 0x040),        /* vcomh deselect level */
         // if vcomh is 0, then this will give the biggest range for contrast control issue #98
         // restored the old values for the noname constructor, because vcomh=0 will not work for all OLEDs, #116
 
-        U8X8_C(0x02e),				/* Deactivate scroll */
-        U8X8_C(0x0a4),				/* output ram to display */
-        U8X8_C(0x0a6),				/* none inverted normal display mode */
+        U8X8_C(0x02e),                /* Deactivate scroll */
+        U8X8_C(0x0a4),                /* output ram to display */
+        U8X8_C(0x0a6),                /* none inverted normal display mode */
 
-        U8X8_END_TRANSFER(),             	/* disable chip */
-        U8X8_END()             			/* end of sequence */
+        U8X8_END_TRANSFER(),                /* disable chip */
+        U8X8_END()                        /* end of sequence */
 };
 
 
@@ -331,7 +399,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
     while (g_go) {
         EventBits_t uxBits = xEventGroupWaitBits(
-                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT, false, true, 0);
+                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT, false, true, 0);
 
         if (s_reset_display) {
             // For some reason the screen will often go into inverse contrast mode, hope this cures it.
@@ -339,12 +407,13 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             s_reset_display = false;
         }
 
-        if (s_brew_start_time >=0) {
+        if (s_brew_start_time >= 0) {
             _draw_brew_counter(u8g2);
             delay = 200;
-        }
-        else if (DESCALE_MODE_BIT & uxBits) {
+        } else if (DESCALE_MODE_BIT & uxBits) {
             _draw_descale_mode(u8g2);
+        } else if (PROVISIONING_BIT & uxBits) {
+            _draw_provisioning(u8g2);
         } else if (power_is_active()) {
             if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
                 drawWifi = !drawWifi;
@@ -380,7 +449,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (!(xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT)) {
         if (id == BREW_STARTED) {
-            s_brew_start_time = pdTICKS_TO_MS(xTaskGetTickCount())/1000;
+            s_brew_start_time = pdTICKS_TO_MS(xTaskGetTickCount()) / 1000;
         } else if (id == BREW_STOPPED) {
             s_brew_start_time = -1;
         }

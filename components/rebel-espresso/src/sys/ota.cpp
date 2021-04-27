@@ -127,7 +127,8 @@ static void ota_get_latest_version(char *latest_version) {
             .common_name = nullptr,
             .skip_common_name = false,
             .psk_hint_key = nullptr,
-            .crt_bundle_attach = NULL
+            .crt_bundle_attach = nullptr,
+            .keep_alive_cfg = nullptr
     };
 
     ESP_LOGI(TAG, "Connecting to '%s'", url);
@@ -326,7 +327,8 @@ static bool ota_download_firmware(char *version) {
             .common_name = nullptr,
             .skip_common_name = false,
             .psk_hint_key = nullptr,
-            .crt_bundle_attach = NULL
+            .crt_bundle_attach = nullptr,
+            .keep_alive_cfg = nullptr
     };
 
     esp_tls_t *tls = esp_tls_conn_http_new(url, &cfg);
@@ -556,11 +558,46 @@ void ota_cfg_to_json(cJSON* config, const char* base_key) {
     free(buf);
 }
 
+/**
+ * Placeholder to perform diagnostics to validate a new firmware after it is downloaded and booted for the first time.
+ * @return True if all is ok and we can keep this OTA update.
+ */
+static bool ota_perform_diagnostics() {
+    return true;
+}
 
 void ota_run() {
     if (g_ota_task_handle != nullptr) {
         ESP_LOGW(TAG, "OTA already in progress");
         return;
+    }
+
+    // Do we need to verify this image first?
+    auto partition = esp_ota_get_running_partition();
+    esp_ota_img_states_t state;
+    auto check = esp_ota_get_state_partition(partition, &state);
+    if (check == ESP_OK) {
+        if (state == ESP_OTA_IMG_PENDING_VERIFY) {
+            ESP_LOGI(TAG, " ... ");
+            ESP_LOGI(TAG, " ... ");
+            ESP_LOGI(TAG, " ... ");
+            ESP_LOGI(TAG, " ... ");
+            // run diagnostic function ...
+            bool diagnostic_is_ok = ota_perform_diagnostics();
+            if (diagnostic_is_ok) {
+                ESP_LOGI(TAG, "Diagnostics completed successfully! Continuing execution ...");
+                esp_ota_mark_app_valid_cancel_rollback();
+            } else {
+                ESP_LOGE(TAG, "Diagnostics failed! Start rollback to the previous version ...");
+                esp_ota_mark_app_invalid_rollback_and_reboot();
+            }
+            ESP_LOGI(TAG, " ... ");
+            ESP_LOGI(TAG, " ... ");
+            ESP_LOGI(TAG, " ... ");
+            ESP_LOGI(TAG, " ... ");
+        }
+    } else {
+        ESP_LOGD(TAG, "Could not get OTA partition state: %d.", check);
     }
 
     // Good to go! Put it all in a task

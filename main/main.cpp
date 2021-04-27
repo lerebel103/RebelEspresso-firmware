@@ -41,7 +41,6 @@ extern "C" void app_main() {
     // Do core initialisations first
 
     // force NVS partition delete
-    sys_reset_nvs();
     nvram_store_init();
     store_inc_cycle_count(); // Record number of power cycles.
 

@@ -23,11 +23,11 @@
 
 static const char *TAG = "mqtt";
 
-#define MQTT_GIOT_PROJECT_ID           "giot_proj_id"
-#define MQTT_GIOT_LOCATION             "giot_loc_id"
-#define MQTT_GIOT_REGISTRY_ID          "giot_reg_id"
-#define MQTT_GIOT_CLIENT_PRIVATE_KEY   "giot_clt_key"
-#define MQTT_GIOT_LAST_CONFIG_MD5      "giot_cfg_md5"
+#define MQTT_GIOT_PROJECT_ID           "project_id"
+#define MQTT_GIOT_LOCATION             "location_id"
+#define MQTT_GIOT_REGISTRY_ID          "registry_id"
+#define MQTT_GIOT_CLIENT_PRIVATE_KEY   "private_key"
+#define MQTT_GIOT_LAST_CONFIG_MD5      "cfg_md5"
 
 #define MAX_GIOT_FIELD 32
 

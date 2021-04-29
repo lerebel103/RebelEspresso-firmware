@@ -408,10 +408,12 @@ static void _load_params() {
 
         s_enabled = true;
         nvram_store_get_u8(my_handle, KEY_OTA_ENABLE, (uint8_t*)&s_enabled, (uint8_t*)& s_enabled);
-        nvram_store_read_str(my_handle, KEY_OTA_URL, g_ota_config.url, MAX_OTA_URI, g_ota_config.url);
-        nvram_store_read_str(my_handle, KEY_OTA_API_KEY, g_ota_config.api_key, MAX_OTA_API_KEY, g_ota_config.api_key);
-        nvram_store_read_str(my_handle, KEY_OTA_VERSION, g_ota_config.desiredVersion, MAX_VERSION_LEN, g_ota_config.desiredVersion);
-        nvram_store_read_str(my_handle, KEY_OTA_BUILD_TYPE, g_ota_config.desiredBuildType, MAX_VERSION_LEN, g_ota_config.desiredBuildType);
+        nvram_store_get_str(my_handle, KEY_OTA_URL, g_ota_config.url, MAX_OTA_URI, g_ota_config.url);
+        nvram_store_get_str(my_handle, KEY_OTA_API_KEY, g_ota_config.api_key, MAX_OTA_API_KEY, g_ota_config.api_key);
+        nvram_store_get_str(my_handle, KEY_OTA_VERSION, g_ota_config.desiredVersion, MAX_VERSION_LEN,
+                            g_ota_config.desiredVersion);
+        nvram_store_get_str(my_handle, KEY_OTA_BUILD_TYPE, g_ota_config.desiredBuildType, MAX_VERSION_LEN,
+                            g_ota_config.desiredBuildType);
 
         nvs_close(my_handle);
     }
@@ -529,10 +531,10 @@ void ota_update_cfg(const cJSON *config) {
     ESP_ERROR_CHECK(nvs_open(NVS_CFG_STORE, NVS_READWRITE, &my_handle));
 
     nvram_store_set_u8(my_handle, KEY_OTA_ENABLE, (uint8_t *) &s_enabled);
-    nvram_store_write_str(my_handle, KEY_OTA_URL, g_ota_config.url);
-    nvram_store_write_str(my_handle, KEY_OTA_API_KEY, g_ota_config.api_key);
-    nvram_store_write_str(my_handle, KEY_OTA_VERSION, g_ota_config.desiredVersion);
-    nvram_store_write_str(my_handle, KEY_OTA_BUILD_TYPE, g_ota_config.desiredBuildType);
+    nvram_store_set_str(my_handle, KEY_OTA_URL, g_ota_config.url);
+    nvram_store_set_str(my_handle, KEY_OTA_API_KEY, g_ota_config.api_key);
+    nvram_store_set_str(my_handle, KEY_OTA_VERSION, g_ota_config.desiredVersion);
+    nvram_store_set_str(my_handle, KEY_OTA_BUILD_TYPE, g_ota_config.desiredBuildType);
 
     nvs_close(my_handle);
 }

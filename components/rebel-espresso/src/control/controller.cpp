@@ -50,7 +50,11 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 
     s_event_loop = event_loop;
-    nvram_store_read_u8(KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, g_controller_cfg.enabled);
+
+    nvs_handle nvs_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE_SYS, NVS_READWRITE, &nvs_handle));
+    nvram_store_get_u8(nvs_handle, KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, &g_controller_cfg.enabled);
+    nvs_close(nvs_handle);
 
     boiler_refill_init(event_loop);
     brew_temp_init(s_event_loop);

@@ -79,24 +79,7 @@ void iot_init(esp_event_loop_handle_t event_loop) {
     // Now for wifi, ota, mqtt
 
     wifi_init();
-
     ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
-
-    // -------------------
-    mqtt_set_client_private_key(    "-----BEGIN EC PRIVATE KEY-----\n"
-                                    "MHcCAQEEIDvKD7cTp5i6OeJhXvw/PxQFWs0rq5wAt3hTOUScpJr1oAoGCCqGSM49\n"
-                                    "AwEHoUQDQgAE3a5tg30Yse9WDVIzNYI5p9AXB9ipSBMLg1/yv6fweoNikB+/mbtg\n"
-                                    "55cJUWmK2ZbxLvlwh19Exe4DVZNfZVL6og==\n"
-                                    "-----END EC PRIVATE KEY-----"
-    );
-
-    mqtt_set_registry_id("RebelEspresso");
-    mqtt_set_location("asia-east1");
-    mqtt_set_project_id("rebelthings");
-    // -------------------
-
-    ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
-
     mqtt_set_cfg_cb(controller_handle_new_cfg);
 
     // We also start a secondary tick loop, which for a machine wide tick that is not realtime based

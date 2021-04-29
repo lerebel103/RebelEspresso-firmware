@@ -127,8 +127,8 @@ static void ota_get_latest_version(char *latest_version) {
             .common_name = nullptr,
             .skip_common_name = false,
             .psk_hint_key = nullptr,
-            .crt_bundle_attach = nullptr,
-            .keep_alive_cfg = nullptr
+            .crt_bundle_attach = nullptr /*,
+            .keep_alive_cfg = nullptr*/
     };
 
     ESP_LOGI(TAG, "Connecting to '%s'", url);
@@ -327,8 +327,8 @@ static bool ota_download_firmware(char *version) {
             .common_name = nullptr,
             .skip_common_name = false,
             .psk_hint_key = nullptr,
-            .crt_bundle_attach = nullptr,
-            .keep_alive_cfg = nullptr
+            .crt_bundle_attach = nullptr /*,
+            .keep_alive_cfg = nullptr*/
     };
 
     esp_tls_t *tls = esp_tls_conn_http_new(url, &cfg);

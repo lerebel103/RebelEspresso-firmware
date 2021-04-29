@@ -51,7 +51,7 @@ void controller_init(esp_event_loop_handle_t event_loop) {
 
     s_event_loop = event_loop;
 
-    nvs_handle nvs_handle;
+    nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE_SYS, NVS_READWRITE, &nvs_handle));
     nvram_store_get_u8(nvs_handle, KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, &g_controller_cfg.enabled);
     nvs_close(nvs_handle);

@@ -29,7 +29,7 @@ esp_err_t nvram_store_set_u8(nvs_handle handle, const char *key, uint8_t* value)
 esp_err_t nvram_store_get_i32(nvs_handle handle, const char *key, int32_t *value, void* default_value);
 esp_err_t nvram_store_set_i32(nvs_handle handle, const char *key, int32_t* value);
 
-void nvram_store_set_blob(nvs_handle handle, const char *key, const char *data, size_t len, char **cache_ptr);
+void nvram_store_set_blob(nvs_handle handle, const char *key, const char *data, size_t len);
 const char* nvram_store_get_blob(nvs_handle handle, const char *key, char **cache_ptr);
 
 

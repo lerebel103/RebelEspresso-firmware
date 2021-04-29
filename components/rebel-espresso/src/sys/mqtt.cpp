@@ -48,7 +48,7 @@ struct mqtt_connect_init_t {
 // #define PUBLISH_TOPIC_EVENT_TEMPERATURE "/devices/%s/events/temperature"
 // #define PUBLISH_TOPIC_EVENT_FAN "/devices/%s/events/fan"
 
-static mqtt_connect_init_t config;
+static mqtt_connect_init_t config = {};
 static uint32_t g_mqtt_error_count = 0;
 static TickType_t s_last_connect_attempt = 0;
 
@@ -63,12 +63,11 @@ static iotc_context_handle_t iotc_context = IOTC_INVALID_CONTEXT_HANDLE;
 uint32_t mqtt_get_total_error_count() {
     if (g_mqtt_error_count == 0) {
         // This is our default value
-        uint32_t val;
-        nvs_handle nvs_handle;
+        uint32_t val = 0;
+        nvs_handle_t nvs_handle;
         ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
-        esp_err_t err = nvram_store_get_u32(nvs_handle,"mqtt_error_cnt", &val, 0);
+        ESP_ERROR_CHECK(nvram_store_get_u32(nvs_handle, "mqtt_error_cnt", &val, &val));
         nvs_close(nvs_handle);
-        ESP_ERROR_CHECK(err);
         g_mqtt_error_count = val;
     }
     return g_mqtt_error_count;
@@ -76,11 +75,9 @@ uint32_t mqtt_get_total_error_count() {
 
 void mqtt_inc_total_error_count() {
     uint32_t count = mqtt_get_total_error_count() + 1;
-    nvs_handle nvs_handle;
+    nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
-
-    esp_err_t err = nvram_store_set_u32(nvs_handle,"mqtt_error_cnt", &count);
-    ESP_ERROR_CHECK(err);
+    ESP_ERROR_CHECK(nvram_store_set_u32(nvs_handle, "mqtt_error_cnt", &count));
     nvs_close(nvs_handle);
     g_mqtt_error_count = count;
 }
@@ -134,7 +131,7 @@ static void config_cb(
             strncpy(md5, (char *) digest, 16);
             md5[16] = '\0';
 
-            nvs_handle nvs_handle;
+            nvs_handle_t nvs_handle;
             ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
 
             char last_md5[17];
@@ -327,10 +324,9 @@ static void mqtt_task(void *pvParameters) {
     vTaskDelete(nullptr);
 }
 
-
-void mqtt_init() {
-    nvs_handle nvs_handle;
-    ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
+static void _mqtt_load_settings(const char *nvs_partition, nvs_open_mode_t mode) {
+    nvs_handle_t nvs_handle;
+    ESP_ERROR_CHECK(nvs_open_from_partition(nvs_partition, NVS_MQTT_NAMESPACE, mode, &nvs_handle));
 
     ESP_ERROR_CHECK(nvram_store_get_str(nvs_handle,
                                         MQTT_GIOT_PROJECT_ID, (char *) &config.project_id, MAX_GIOT_FIELD, ""));
@@ -340,16 +336,50 @@ void mqtt_init() {
                                         MQTT_GIOT_REGISTRY_ID, (char *) &config.registry_id, MAX_GIOT_FIELD, ""));
 
     nvram_store_get_blob(nvs_handle, MQTT_GIOT_CLIENT_PRIVATE_KEY, &config.client_private_key);
+    nvs_close(nvs_handle);
+}
+
+
+void mqtt_init() {
+    config.client_private_key = nullptr;
+
+    _mqtt_load_settings(NVS_DEFAULT_PART_NAME, NVS_READWRITE);
 
     if (strlen(config.project_id) == 0) {
-        ESP_LOGW(TAG, " -- No auth information in nvs, loading from factory nvs");
+        ESP_LOGW(TAG, " -- No auth information in nvs, loading from factory nvs "
+                CONFIG_HAP_PLATFORM_DEF_NVS_FACTORY_PARTITION);
+        _mqtt_load_settings(CONFIG_HAP_PLATFORM_DEF_NVS_FACTORY_PARTITION, NVS_READONLY);
 
+        // Save to current NVS then
+        nvs_handle_t nvs_handle;
+        ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
+        ESP_ERROR_CHECK(nvram_store_set_str(nvs_handle,
+                                            MQTT_GIOT_PROJECT_ID, (char *) &config.project_id));
+        ESP_ERROR_CHECK(nvram_store_set_str(nvs_handle,
+                                            MQTT_GIOT_LOCATION, (char *) &config.location_id));
+        ESP_ERROR_CHECK(nvram_store_set_str(nvs_handle,
+                                            MQTT_GIOT_REGISTRY_ID, (char *) &config.registry_id));
+        nvram_store_set_blob(nvs_handle, MQTT_GIOT_CLIENT_PRIVATE_KEY, config.client_private_key,
+                             strlen(config.client_private_key) + 1);
+        nvs_close(nvs_handle);
+    } else {
+        ESP_LOGI(TAG, " -- Auth information loaded from nvs");
     }
-
-    nvs_close(nvs_handle);
 
     xTaskCreate(&mqtt_task, "mqtt_task", 8192, nullptr, 5, nullptr);
 }
+
+
+void mqtt_terminate() {
+    iotc_events_stop();
+
+
+    if (config.client_private_key) {
+        free(config.client_private_key);
+        config.client_private_key = nullptr;
+    }
+}
+
 
 
 bool mqtt_send_status(const char *msg) {
@@ -368,7 +398,7 @@ bool mqtt_send_status(const char *msg) {
 
 
 void mqtt_set_project_id(const char *val) {
-    nvs_handle nvs_handle;
+    nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
 
     strncpy((char *) config.project_id, val, MAX_GIOT_FIELD);
@@ -380,7 +410,7 @@ void mqtt_set_project_id(const char *val) {
 }
 
 void mqtt_set_location(const char *val) {
-    nvs_handle nvs_handle;
+    nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
 
     strncpy((char *) config.location_id, val, MAX_GIOT_FIELD);
@@ -392,7 +422,7 @@ void mqtt_set_location(const char *val) {
 }
 
 void mqtt_set_registry_id(const char *val) {
-    nvs_handle nvs_handle;
+    nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
 
     strncpy((char *) config.registry_id, val, MAX_GIOT_FIELD);
@@ -404,10 +434,10 @@ void mqtt_set_registry_id(const char *val) {
 }
 
 void mqtt_set_client_private_key(const char *val) {
-    nvs_handle nvs_handle;
+    nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
 
-    nvram_store_set_blob(nvs_handle, MQTT_GIOT_CLIENT_PRIVATE_KEY, val, strlen(val) + 1, &config.client_private_key);
+    nvram_store_set_blob(nvs_handle, MQTT_GIOT_CLIENT_PRIVATE_KEY, val, strlen(val) + 1);
     nvram_store_get_blob(nvs_handle, MQTT_GIOT_CLIENT_PRIVATE_KEY, &config.client_private_key);
 
     nvs_close(nvs_handle);

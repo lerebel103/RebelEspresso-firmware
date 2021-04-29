@@ -39,25 +39,27 @@ void nvram_store_init() {
     ESP_ERROR_CHECK(err);
     ESP_LOGI(TAG, "NVS initialised.");
 
+    // Also init factory partition
+    ESP_ERROR_CHECK(nvs_flash_init_partition(CONFIG_HAP_PLATFORM_DEF_NVS_FACTORY_PARTITION));
 }
 
-void nvram_store_set_blob(nvs_handle_t handleconst, const char *key, const char *data, size_t len, char **cache_ptr) {
+void nvram_store_set_blob(nvs_handle_t handleconst, const char *key, const char *data, size_t len) {
     ESP_ERROR_CHECK(nvs_set_blob(handleconst, key, data, len));
-
-    // Clear data cache
-    if (*cache_ptr != NULL) {
-        free(*cache_ptr);
-        *cache_ptr = NULL;
-    }
 }
 
 const char *nvram_store_get_blob(nvs_handle_t handleconst, const char *key, char **cache_ptr) {
-    if (*cache_ptr == NULL) {
+    if (*cache_ptr == nullptr) {
         size_t len;
         esp_err_t err = nvs_get_blob(handleconst, key, NULL, &len);
         if (err == ESP_ERR_NVS_NOT_FOUND) {
             return "";
         }
+
+        // Free any prior memory allocated
+        if (*cache_ptr != nullptr) {
+            free(*cache_ptr);
+        }
+
         *cache_ptr = (char *) malloc(len * sizeof(char) + 1);
         ESP_ERROR_CHECK(nvs_get_blob(handleconst, key, *cache_ptr, &len));
 

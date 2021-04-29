@@ -45,3 +45,6 @@
 // OLED
 #define GPIO_OLED_DC    GPIO_NUM_22
 #define GPIO_OLED_CS    GPIO_NUM_33
+
+// Reset button, hard wired to bootloader via sdkconfig
+#define GPIO_RESET    GPIO_NUM_4

@@ -34,6 +34,7 @@ static bool g_go = true;
 static time_t s_brew_start_time = -1;
 static bool s_reset_display = false;
 static bool s_show_diag = false;
+static bool s_qr_displayed = false;
 
 static float temperature_to_unit(double celcius, units_enum_t unit) {
     if (unit == UNIT_FARENHEIGHT) {
@@ -236,28 +237,9 @@ void _draw_brew_counter(u8g2_t &u8g2) {
     u8g2_SendBuffer(&u8g2);
 }
 
-
-static const char *lt[] = {
-        /* 0 */ "  ",
-        /* 1 */ "\u2580 ",
-        /* 2 */ " \u2580",
-        /* 3 */ "\u2580\u2580",
-        /* 4 */ "\u2584 ",
-        /* 5 */ "\u2588 ",
-        /* 6 */ "\u2584\u2580",
-        /* 7 */ "\u2588\u2580",
-        /* 8 */ " \u2584",
-        /* 9 */ "\u2580\u2584",
-        /* 10 */ " \u2588",
-        /* 11 */ "\u2580\u2588",
-        /* 12 */ "\u2584\u2584",
-        /* 13 */ "\u2588\u2584",
-        /* 14 */ "\u2584\u2588",
-        /* 15 */ "\u2588\u2588",
-};
-
 void esp_qrcode_print(u8g2_t &u8g2, int x_off, int y_off, const uint8_t* qrcode, int size)
 {
+    // Draw a square for the QR with a white border
     int border = 1;
     for (int y = -border; y < size + border ; y+=1) {
         for (int x = -border; x < size + border ; x+=1) {
@@ -275,12 +257,10 @@ void esp_qrcode_print(u8g2_t &u8g2, int x_off, int y_off, const uint8_t* qrcode,
 
 
 void _draw_provisioning(u8g2_t &u8g2) {
-    static bool once = false;
-
-    if (once) {
+    if (s_qr_displayed) {
         return;
     }
-    once = true;
+    s_qr_displayed = true;
 
     u8g2_SetPowerSave(&u8g2, 0);
     u8g2_ClearBuffer(&u8g2);
@@ -405,15 +385,16 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             // For some reason the screen will often go into inverse contrast mode, hope this cures it.
             u8x8_cad_SendSequence(&u8g2.u8x8, u8x8_d_ssd1306_128x64_noname_init_seq);
             s_reset_display = false;
+            s_qr_displayed = false;
         }
 
-        if (s_brew_start_time >= 0) {
-            _draw_brew_counter(u8g2);
-            delay = 200;
+        if (PROVISIONING_BIT & uxBits) {
+            _draw_provisioning(u8g2);
         } else if (DESCALE_MODE_BIT & uxBits) {
             _draw_descale_mode(u8g2);
-        } else if (PROVISIONING_BIT & uxBits) {
-            _draw_provisioning(u8g2);
+        } else if (s_brew_start_time >= 0) {
+            _draw_brew_counter(u8g2);
+            delay = 200;
         } else if (power_is_active()) {
             if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
                 drawWifi = !drawWifi;

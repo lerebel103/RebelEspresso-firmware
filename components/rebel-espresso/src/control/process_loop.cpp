@@ -147,14 +147,14 @@ void process_loop_init(esp_event_loop_handle_t event_loop) {
     ESP_ERROR_CHECK(timer_isr_register(s_timer_group, s_timer_idx, _process_loop_isr,
                                        nullptr, ESP_INTR_FLAG_LEVEL3, NULL));
     ESP_ERROR_CHECK(timer_enable_intr(s_timer_group, s_timer_idx));
-    ESP_ERROR_CHECK(timer_pause(s_timer_group, s_timer_idx));
+    //ESP_ERROR_CHECK(timer_pause(s_timer_group, s_timer_idx));
 
 
     // Cool now create a task that will run our process loop.
     _go = true;
-    //ESP_ERROR_CHECK( esp_task_wdt_init(10, true));
+    ESP_ERROR_CHECK( esp_task_wdt_init(10, true));
     xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 10, &_process_task_handle);
-    //ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
+    ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
     //vTaskSuspend(_process_task_handle);
 
     // Get our power events in place so we can run the process loop as needed

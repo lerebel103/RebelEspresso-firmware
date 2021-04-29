@@ -8,6 +8,7 @@
 
 
 void mqtt_init();
+void mqtt_terminate();
 
 bool mqtt_send_status(const char* message);
 

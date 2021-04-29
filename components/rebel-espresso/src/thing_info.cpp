@@ -37,6 +37,9 @@ const char *thing_info_id() {
 
 void thing_info_init() {
     set_default_thing_id();
-    ESP_ERROR_CHECK(nvram_store_read_str(THING_ID, (char *) g_thing_id, THING_ID_MAX, ""));
+    nvs_handle_t nvs_handle;
+    ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE_SYS, NVS_READWRITE, &nvs_handle));
+    ESP_ERROR_CHECK(nvram_store_get_str(nvs_handle, THING_ID, (char *) g_thing_id, THING_ID_MAX, ""));
+    nvs_close(nvs_handle);
 }
 

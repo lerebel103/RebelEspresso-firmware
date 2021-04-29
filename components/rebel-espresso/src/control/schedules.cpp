@@ -50,7 +50,7 @@ static void _load_nvram() {
     ESP_ERROR_CHECK(nvs_open(NVS_SCHEDULES_CFG_STORE, NVS_READWRITE, &my_handle));
 
     char* buffer = (char*) calloc(1, 2048);
-    nvram_store_read_str(my_handle, NVS_KEY_SCHEDULES, buffer, 2048, "{}");
+    nvram_store_get_str(my_handle, NVS_KEY_SCHEDULES, buffer, 2048, "{}");
     cJSON* root = cJSON_Parse(buffer);
     if (root != nullptr) {
         s_cfg.from_json(root);
@@ -72,7 +72,7 @@ static void _save_nvram() {
     s_cfg.to_json(root, "");
     char* content = cJSON_PrintUnformatted(root);
     ESP_LOGI(TAG, "Saved schedules to nvram, size %d", strlen(content));
-    nvram_store_write_str(my_handle, NVS_KEY_SCHEDULES, content);
+    nvram_store_set_str(my_handle, NVS_KEY_SCHEDULES, content);
     cJSON_free(content);
     cJSON_Delete(root);
 

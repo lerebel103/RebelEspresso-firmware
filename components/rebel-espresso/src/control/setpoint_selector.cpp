@@ -15,11 +15,11 @@ static esp_event_loop_handle_t s_event_loop;
 static bool _setpoint_selector_sw_on = false;
 static bool _boiler_refilling = false;
 
-static void IRAM_ATTR _setpoint_selector_on() {
+static void  _setpoint_selector_on() {
     boiler_set_active_setpoint(1);
 }
 
-static void IRAM_ATTR _setpoint_selector_off() {
+static void  _setpoint_selector_off() {
     boiler_set_active_setpoint(0);
 }
 

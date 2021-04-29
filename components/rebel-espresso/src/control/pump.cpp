@@ -15,7 +15,7 @@ static bool _pump_sw_on = false;
 static bool _boiler_refilling = false;
 static bool s_descaled_entered = false;
 
-static void IRAM_ATTR _pump_on() {
+static void _pump_on() {
     gpio_set_level(GPIO_TRIG2_REL1, 1);
 }
 

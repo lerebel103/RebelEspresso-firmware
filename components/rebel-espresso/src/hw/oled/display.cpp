@@ -27,6 +27,8 @@ extern "C" {
 #define TEMP_ERROR_STR "---"
 
 #define TEMPERATURE_PANEL_WIDTH 112
+#define SAVER_CONTRAST 1
+#define NORMAL_CONTRAST 255
 
 static esp_event_loop_handle_t s_event_loop;
 const static char *TAG = "oled";
@@ -358,11 +360,9 @@ static const uint8_t u8x8_d_ssd1306_128x64_noname_init_seq[] = {
         U8X8_CA(0x0da,
                 0x012),        /* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
 
-        U8X8_CA(0x081, 0x0cf),        /* [2] set contrast control */
-        U8X8_CA(0x0d9, 0x0f1),        /* [2] pre-charge period 0x022/f1*/
-        U8X8_CA(0x0db, 0x040),        /* vcomh deselect level */
-        // if vcomh is 0, then this will give the biggest range for contrast control issue #98
-        // restored the old values for the noname constructor, because vcomh=0 will not work for all OLEDs, #116
+        U8X8_CA(0x081, 0x0cf),        /* [2] set contrast control 0x0cf */
+        U8X8_CA(0x0d9, 0x20),        /* [2] pre-charge period 0x022/f1*/
+        U8X8_CA(0x0db, 0),        /* vcomh deselect level 0x040 */
 
         U8X8_C(0x02e),                /* Deactivate scroll */
         U8X8_C(0x0a4),                /* output ram to display */
@@ -377,6 +377,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
     u8g2_ClearBuffer(&u8g2);
     u8g2_SendBuffer(&u8g2);
 
+    int time_in_high_contrast = 0;
     while (g_go) {
         EventBits_t uxBits = xEventGroupWaitBits(
                 status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT, false, true, 0);
@@ -386,16 +387,29 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             u8x8_cad_SendSequence(&u8g2.u8x8, u8x8_d_ssd1306_128x64_noname_init_seq);
             s_reset_display = false;
             s_qr_displayed = false;
+            time_in_high_contrast = 0;
         }
 
         if (PROVISIONING_BIT & uxBits) {
+            time_in_high_contrast = 0;
             _draw_provisioning(u8g2);
         } else if (DESCALE_MODE_BIT & uxBits) {
+            time_in_high_contrast = 0;
             _draw_descale_mode(u8g2);
         } else if (s_brew_start_time >= 0) {
+            time_in_high_contrast = 0;
             _draw_brew_counter(u8g2);
             delay = 200;
         } else if (power_is_active()) {
+
+            // Always in high contrast when brew is running
+            if (s_brew_start_time > 0) {
+                time_in_high_contrast = 0;
+            }
+
+            time_in_high_contrast += delay / 1000;
+
+
             if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
                 drawWifi = !drawWifi;
                 delay = 500;
@@ -410,9 +424,18 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
             _draw_active_mode(u8g2, drawWifi);
         } else {
+            time_in_high_contrast = 0;
             u8g2_ClearDisplay(&u8g2);
             u8g2_SetPowerSave(&u8g2, 1);
         }
+
+        // Set contrast with screen saver
+        if (time_in_high_contrast < 60) {
+            u8g2_SetContrast(&u8g2, NORMAL_CONTRAST);
+        } else {
+            u8g2_SetContrast(&u8g2, SAVER_CONTRAST);
+        }
+
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
     }
 }

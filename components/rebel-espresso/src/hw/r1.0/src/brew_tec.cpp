@@ -1,11 +1,12 @@
-#include <hw/rtds.h>
+#include "rtds.h"
 #include <esp_log.h>
 #include <hal/ledc_types.h>
 #include <driver/ledc.h>
-#include <src/hw/r1.0/hw_config.h>
 #include <freertos/task.h>
-#include <src/events.h>
 #include <esp_event.h>
+
+#include "hw_config.h"
+#include "events.h"
 #include "brew_tec.h"
 
 #define TAG "TEC"
@@ -102,9 +103,9 @@ extern "C" void brew_tec_set_duty(int duty) {
 
     // Apply the correct polarity for duty
     if (duty > 0) {
-        gpio_set_level(GPIO_HBRIDGE_DIR, 1);
+        gpio_set_level(PIN_OUT_HBRIDGE_DIR, 1);
     } else {
-        gpio_set_level(GPIO_HBRIDGE_DIR, 0);
+        gpio_set_level(PIN_OUT_HBRIDGE_DIR, 0);
     }
 
     ledc_set_duty(s_pwm_channel.speed_mode, s_pwm_channel.channel, (uint32_t) (1024 * abs(duty) / 100.0f));
@@ -119,7 +120,7 @@ int brew_tec_get_duty() {
 
 void _power_off_tec() {
     brew_tec_set_duty(0);
-    gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+    gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
 
     // Invalidate TEC temp records, new ones will come in
     s_hot_data.fault = Max31865Error::RefHigh;
@@ -172,7 +173,7 @@ void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
     if (abs(s_hot_data.temperature - s_cold_data.temperature) > 55) {
         ESP_LOGE(TAG, "TEC max delta exceeded: %f", abs(s_hot_data.temperature - s_cold_data.temperature));
         brew_tec_set_duty(0);
-        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+        gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
         s_stats.tec_temp_delta_error_count++;
         s_stats_changed = true;
         return;
@@ -181,7 +182,7 @@ void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
     if (s_hot_data.temperature > s_cfg.max_tec_temp) {
         ESP_LOGE(TAG, "TEC hot side exceeded: %f", s_hot_data.temperature);
         brew_tec_set_duty(0);
-        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+        gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
         s_stats.tec_temp_hot_thres_error_count++;
         s_stats_changed = true;
         return;
@@ -190,18 +191,18 @@ void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
     if (s_cold_data.temperature > s_cfg.max_tec_temp) {
         ESP_LOGE(TAG, "TEC cold side exceeded: %f", s_cold_data.temperature);
         brew_tec_set_duty(0);
-        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+        gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
         s_stats.tec_temp_cold_thres_error_count++;
         s_stats_changed = true;
         return;
     }
 
     // Check if we have h-bridge report and error, attempt to reset it
-    if (gpio_get_level(GPIO_HBRIDGE_SO)) {
-        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+    if (gpio_get_level(PIN_IN_HBRIDGE_SO)) {
+        gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
         vTaskDelay(pdMS_TO_TICKS(100));
         ESP_LOGW(TAG, "Got error from h-bridge, turning off and on");
-        gpio_set_level(GPIO_HBRIDGE_DIS, 0);
+        gpio_set_level(PIN_OUT_HBRIDGE_DIS, 0);
         vTaskDelay(pdMS_TO_TICKS(100));
         s_stats.tec_ic_error++;
     }
@@ -215,7 +216,7 @@ void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
     }
 
     if (result.duty == 0) {
-        gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+        gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
     }
     brew_tec_set_duty(result.duty);
     ESP_LOGI(TAG, "Brew temp=%f, duty=%d, setpoint=%f",
@@ -238,7 +239,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     } else if (id == POWER_ACTIVE) {
         if (s_cfg.enabled) {
             ESP_LOGI(TAG, "Resuming TEC");
-            gpio_set_level(GPIO_HBRIDGE_DIS, 0);
+            gpio_set_level(PIN_OUT_HBRIDGE_DIS, 0);
             pid_reset(s_pid);
         }
     }
@@ -283,7 +284,7 @@ static void _init_h_bridge() {
 
     s_pwm_channel.channel = LEDC_CHANNEL_0;
     s_pwm_channel.duty = 0;
-    s_pwm_channel.gpio_num = GPIO_HBRIDGE_PWM;
+    s_pwm_channel.gpio_num = PIN_OUT_HBRIDGE_PWM;
     s_pwm_channel.speed_mode = LEDC_HIGH_SPEED_MODE;
     s_pwm_channel.hpoint = 0;
     s_pwm_channel.timer_sel = LEDC_TIMER_0;
@@ -306,9 +307,9 @@ void brew_tec_init(esp_event_loop_handle_t event_loop) {
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = (
-            (1ULL << GPIO_HBRIDGE_DIR) |
-            (1ULL << GPIO_HBRIDGE_DIS) |
-            (1ULL << GPIO_HBRIDGE_PWM)
+            (1ULL << PIN_OUT_HBRIDGE_DIR) |
+            (1ULL << PIN_OUT_HBRIDGE_DIS) |
+            (1ULL << PIN_OUT_HBRIDGE_PWM)
     );
 
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -319,7 +320,7 @@ void brew_tec_init(esp_event_loop_handle_t event_loop) {
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (
-            (1ULL << GPIO_HBRIDGE_SO)
+            (1ULL << PIN_IN_HBRIDGE_SO)
     );
 
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -342,7 +343,7 @@ void brew_tec_init(esp_event_loop_handle_t event_loop) {
 
 
     // Enable H-Bridge
-    gpio_set_level(GPIO_HBRIDGE_DIS, 1);
+    gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
 }
 
 void brew_tec_delete() {

@@ -5,12 +5,12 @@
 #include <freertos/task.h>
 #include <thing_info.h>
 #include <hw_config.h>
-#include <src/hw/rtds.h>
+#include "rtds.h"
 #include <src/control/boiler_temp.h>
 #include <cmath>
 #include <src/control/power.h>
 #include <esp_event.h>
-#include <src/control/brew_tec.h>
+#include <brew_tec.h>
 #include <src/control/boiler_refill.h>
 #include <src/sys/wifi_connect.h>
 #include <qrcodegen.h>
@@ -468,16 +468,17 @@ static void do_display(void *userData) {
     u8g2_esp32_hal_t u8g2_esp32_hal = {};
     u8g2_esp32_hal.sda = GPIO_NUM_NC;
     u8g2_esp32_hal.scl = GPIO_NUM_NC;
-    u8g2_esp32_hal.mosi = GPIO_MOSI;
-    u8g2_esp32_hal.miso = GPIO_MISO;
-    u8g2_esp32_hal.clk = GPIO_SCK;
-    u8g2_esp32_hal.cs = GPIO_OLED_CS;
-    u8g2_esp32_hal.reset = GPIO_NUM_NC;
-    u8g2_esp32_hal.dc = GPIO_OLED_DC;
+    u8g2_esp32_hal.mosi = PIN_MOSI;
+    u8g2_esp32_hal.miso = PIN_MISO;
+    u8g2_esp32_hal.clk = PIN_SCK;
+    u8g2_esp32_hal.cs = PIN_OUT_DISPLAY_CS;
+    u8g2_esp32_hal.reset = PIN_OUT_ADC_RESET;
+    u8g2_esp32_hal.dc = PIN_OUT_DISPLAY_DC;
 
     u8g2_esp32_hal_init(u8g2_esp32_hal);
 
     //u8g2_Setup_ssd1322_nhd_256x64_f(&u8g2, U8G2_R0, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
+    //u8g2_Setup_st77
     u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8g2_esp32_spi_byte_cb, u8g2_esp32_gpio_and_delay_cb);
     u8g2_InitDisplay(&u8g2); // send init sequence to the display, display is in sleep mode after this,
     u8g2_ClearDisplay(&u8g2);

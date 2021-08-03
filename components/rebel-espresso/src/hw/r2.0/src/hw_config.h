@@ -1,0 +1,48 @@
+#pragma once
+
+#include <driver/adc.h>
+
+// SPI bus
+#define PIN_MISO                GPIO_NUM_12
+#define PIN_MOSI                GPIO_NUM_13
+#define PIN_SCK                 GPIO_NUM_14
+
+// I2C bus
+#define PIN_SDA                 GPIO_NUM_19
+#define PIN_SCL                 GPIO_NUM_18
+
+// ADC pins handling (ADS124S08)
+#define PIN_OUT_ADC_CS          GPIO_NUM_15
+#define PIN_OUT_ADC_RESET       GPIO_NUM_16
+
+// Switches (inputs)
+#define PIN_IN_SYS_EN           GPIO_NUM_35
+#define PIN_IN_BREW_EN          GPIO_NUM_34
+#define PIN_IN_STEAM_EN         GPIO_NUM_17
+#define PIN_IN_AUX_EN           GPIO_NUM_39
+
+// Buttons (inputs)
+#define PIN_IN_ENTER            GPIO_NUM_4
+#define PIN_IN_BACK             GPIO_NUM_23
+#define PIN_IN_UP               GPIO_NUM_36
+#define PIN_IN_DOWN             GPIO_NUM_5
+
+// SSR Outputs
+#define PIN_OUT_SSR1            GPIO_NUM_27
+#define PIN_OUT_SSR2            GPIO_NUM_21
+
+// Water sensing
+#define PIN_WATER_LEVEL_ENABLE  GPIO_NUM_32
+
+// TFT display
+#define PIN_OUT_DISPLAY_CS      GPIO_NUM_33
+#define PIN_OUT_DISPLAY_DC      GPIO_NUM_22
+#define PIN_OUT_DISPLAY_LED     GPIO_NUM_25
+#define PIN_OUT_DISPLAY_RESET   GPIO_NUM_26
+
+// This doesn't really belong here
+#define RTD_R_REF           2000.0f
+#define RTD_MAX_COUNT           3
+#define RTD_BREW_BOILER_IDX     0
+#define RTD_BREW_HEAD_IDX       1
+#define RTD_STEAM_BOILER_IDX    2

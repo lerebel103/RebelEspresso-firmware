@@ -5,12 +5,12 @@
 #include <esp_event_base.h>
 #include <cJSON.h>
 
-#include "hw/rtds.h"
+#include "rtds.h"
 #include "pid.h"
 #include "rmt_duty_map.h"
 #include "sys/str_utils.h"
 
-#define BOILER_SSR_PIN GPIO_TRIG1_SSR
+#define BOILER_SSR_PIN PIN_OUT_SSR1
 
 #define BOILER_CFG_JSON_KEY                 "boiler_temp."
 #define NVS_BOILER_CFG_STORE                "cfg.boiler_temp"

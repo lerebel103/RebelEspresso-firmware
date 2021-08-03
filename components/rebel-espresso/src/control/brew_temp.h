@@ -1,6 +1,7 @@
 #include <cJSON.h>
 #include <cstdint>
 #include <malloc.h>
+#include <esp_event_base.h>
 #include "pid.h"
 
 #define BREW_TEMP_CFG_JSON_KEY            "brew_temp."

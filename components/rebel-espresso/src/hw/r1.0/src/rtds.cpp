@@ -2,9 +2,10 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <hw/r1.0/hw_config.h>
 #include <esp_log.h>
-#include <src/events.h>
+
+#include "hw_config.h"
+#include "events.h"
 #include "rtds.h"
 
 #define TAG "Temperature"
@@ -14,7 +15,7 @@
 #define STATIC_R_OFFSET (0.6)
 
 // Talks to the MAX IC for RTD sensing
-static Max31865 s_tempSensor(GPIO_MISO, GPIO_MOSI, GPIO_SCK, GPIO_RTD_CS);
+static Max31865 s_tempSensor(PIN_MISO, PIN_MOSI, PIN_SCK, PIN_OUT_ADC_CS);
 static max31865_rtd_config_t s_rtdConfig = {};
 static uint16_t s_min_rtd = 0;
 static uint16_t s_max_rtd = 0;
@@ -45,17 +46,17 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
 
 void rtds_update(rtd_update_cb_t cb) {
     // Select a port a time and read temp from it
-    gpio_set_level(GPIO_RTD_A1, 0);
-    gpio_set_level(GPIO_RTD_A0, 0);
-    _read_temp(cb, RTD_BOILER_IDX);
+    gpio_set_level(PIN_OUT_RTD_A1, 0);
+    gpio_set_level(PIN_OUT_RTD_A0, 0);
+    _read_temp(cb, RTD_BREW_BOILER_IDX);
 
-    gpio_set_level(GPIO_RTD_A0, 1);
+    gpio_set_level(PIN_OUT_RTD_A0, 1);
     _read_temp(cb, RTD_BREW_HEAD_IDX);
 
-    gpio_set_level(GPIO_RTD_A1, 1);
+    gpio_set_level(PIN_OUT_RTD_A1, 1);
     _read_temp(cb, RTD_TEC_COLD_IDX);
 
-    gpio_set_level(GPIO_RTD_A0, 0);
+    gpio_set_level(PIN_OUT_RTD_A0, 0);
     _read_temp(cb, RTD_TEC_HOT_IDX);
 
     // Always trigger display refresh at the back of new temperatures
@@ -77,7 +78,7 @@ int rtds_init(const rtds_cfg_t *cfg) {
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = ((1ULL << GPIO_RTD_A0) | (1ULL << GPIO_RTD_A1));
+    io_conf.pin_bit_mask = ((1ULL << PIN_OUT_RTD_A0) | (1ULL << PIN_OUT_RTD_A1));
 
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;

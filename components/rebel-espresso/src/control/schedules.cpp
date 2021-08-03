@@ -1,6 +1,6 @@
 #include "schedules.h"
 
-#include <hw/rtds.h>
+#include "rtds.h"
 #include <esp_log.h>
 #include <freertos/task.h>
 #include <src/events.h>

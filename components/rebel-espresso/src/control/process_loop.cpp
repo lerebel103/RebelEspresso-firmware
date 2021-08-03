@@ -1,6 +1,5 @@
 #include "process_loop.h"
 #include "boiler_temp.h"
-#include "brew_tec.h"
 #include "pump.h"
 
 #include <freertos/FreeRTOS.h>
@@ -13,12 +12,16 @@
 #include <freertos/semphr.h>
 #include <esp_task_wdt.h>
 #include <cmath>
-#include <hw/rtds.h>
-#include <hw/r1.0/hw_config.h>
+#include "rtds.h"
+#include "hw_config.h"
 #include <esp_event.h>
 #include "events.h"
 #include "brew_temp.h"
 #include "ready_indicator.h"
+
+#ifdef PIN_OUT_HBRIDGE_PWM
+#include "brew_tec.h"
+#endif
 
 #define TAG "process"
 #define TIMER_DIVIDER         16  //  Hardware timer clock divider
@@ -61,19 +64,25 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
  */
 static void _handle_new_temp(uint64_t time_us, const rtd_data_t &data, uint8_t idx) {
     switch (idx) {
-        case RTD_BOILER_IDX:
+        case RTD_BREW_BOILER_IDX:
             boiler_temp_process(time_us, data);
             break;
         case RTD_BREW_HEAD_IDX:
+            #ifdef PIN_OUT_HBRIDGE_PWM
             brew_tec_process(time_us, data);
+            #endif
             brew_temp_process(time_us, data);
             ready_indicator_process(time_us, data);
             break;
         case RTD_TEC_HOT_IDX:
+            #ifdef PIN_OUT_HBRIDGE_PWM
             brew_tec_hot_updated(time_us, data);
+            #endif
             break;
         case RTD_TEC_COLD_IDX:
+            #ifdef PIN_OUT_HBRIDGE_PWM
             brew_tec_cold_updated(time_us, data);
+            #endif
             break;
     }
 }

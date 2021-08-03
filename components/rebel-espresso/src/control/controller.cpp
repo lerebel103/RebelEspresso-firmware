@@ -9,9 +9,9 @@
 #include <hal/timer_types.h>
 #include <driver/timer.h>
 #include <driver/gpio.h>
-#include <hw/rtds.h>
 #include <esp_event.h>
 
+#include "rtds.h"
 #include "controller.h"
 #include "process_loop.h"
 #include "boiler_refill.h"

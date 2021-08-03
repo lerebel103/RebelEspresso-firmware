@@ -29,8 +29,6 @@ const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 750;
 static boiler_refill_cfg_t s_cfg;
 static boiler_refill_status_t s_status;
 
-static const adc_unit_t unit = ADC_UNIT_1;
-static esp_adc_cal_characteristics_t *adc_chars;
 static esp_event_loop_handle_t s_event_loop;
 static double s_level_voltage = 0;
 
@@ -46,15 +44,8 @@ bool boiler_check_level() {
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 1);
     vTaskDelay(pdMS_TO_TICKS(s_cfg.stabilise_ms));
 
-    auto level_voltage = 0;
-    for (int i = 0; i < s_cfg.adc_num_readings; i++) {
-        auto raw = adc1_get_raw(PIN_WATER_LEVEL_SENSE);
-        level_voltage += esp_adc_cal_raw_to_voltage(raw, adc_chars);
-        ets_delay_us(250);
-    }
-    s_level_voltage = level_voltage / s_cfg.adc_num_readings;
 
-    ESP_LOGD(TAG, "Level voltage: %f", s_level_voltage);
+    ESP_LOGE(TAG, "TODO implement water level reading: %f", s_level_voltage);
 
     // Done, disable to prevent electrolysis
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);
@@ -103,9 +94,9 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
     // Handle solenoid valve open/close for descaling here
     if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
         if (id == BREW_STARTED) {
-            gpio_set_level(GPIO_TRIG2_REL2, 1);
+            gpio_set_level(PIN_OUT_REL2_EN, 1);
         } else if (id == BREW_STOPPED) {
-            gpio_set_level(GPIO_TRIG2_REL2, 0);
+            gpio_set_level(PIN_OUT_REL2_EN, 0);
         }
     }
 }
@@ -124,7 +115,7 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = (
-            (1ULL << GPIO_TRIG2_REL2) |
+            (1ULL << PIN_OUT_REL2_EN) |
             (1ULL << PIN_WATER_LEVEL_ENABLE)
     );
 
@@ -133,21 +124,12 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     gpio_config(&io_conf);
 
     // Turn off outputs
-    gpio_set_level(GPIO_TRIG2_REL2, 0);
+    gpio_set_level(PIN_OUT_REL2_EN, 0);
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);
 
     // Configure ADC input
     // Configure pins for voltage divider
     ESP_LOGI(TAG, "Initialising ADC pin input");
-
-    // Configure ADC
-    auto attenuation = ADC_ATTEN_DB_11;
-    adc1_config_width(ADC_WIDTH_BIT_12);
-    adc1_config_channel_atten(PIN_WATER_LEVEL_SENSE, attenuation);
-
-    //Characterize ADC
-    adc_chars = static_cast<esp_adc_cal_characteristics_t *>(calloc(1, sizeof(esp_adc_cal_characteristics_t)));
-    esp_adc_cal_characterize(unit, attenuation, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);
 
     // Init state machine
     boiler_refill_states_init(event_loop, s_cfg);
@@ -175,8 +157,6 @@ void boiler_refill_delete() {
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, _brew_events));
     ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick));
-
-    free(adc_chars);
 }
 
 double boiler_refill_level_mv() {

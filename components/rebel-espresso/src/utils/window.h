@@ -9,9 +9,7 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include <hw/rtds.h>
-#include "controller.h"
-
+#include "rtds.h"
 
 struct window_data_t {
     double mean;

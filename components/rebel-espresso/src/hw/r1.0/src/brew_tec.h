@@ -2,7 +2,7 @@
 
 #include <esp_event_base.h>
 #include <cJSON.h>
-#include <src/hw/rtds.h>
+#include "rtds.h"
 #include "pid.h"
 
 #define BREW_TEC_CFG_JSON_KEY               "brew_tec."

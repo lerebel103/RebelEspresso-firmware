@@ -12,3 +12,5 @@ On: 3.2V
 Off: Float at .78V
 It seems the LEDs should be able to be wired straight in. GPIO low level trigger is at 1.67V measured.
 
+
+

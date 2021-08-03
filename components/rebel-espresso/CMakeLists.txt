@@ -13,10 +13,12 @@ file(GLOB_RECURSE HARDWARE_SPECIFIC_SRCS
 
 set(COMPONENT_SRCDIRS
         src/
+        src/utils
         src/control
         src/sys
-        src/hw
-        src/hw/oled
+        src/hw/base
+        src/hw/r${HARDWARE_REVISION}/src
+        src/hw/r${HARDWARE_REVISION}/src/display
         src/homekit
         )
 
@@ -40,8 +42,10 @@ set(COMPONENT_REQUIRES
 set(COMPONENT_ADD_INCLUDEDIRS
         "."
         "./src"
+        "./src/utils"
         "./_generated/"
-        "./src/hw/r${HARDWARE_REVISION}"
+        "./src/hw/base/"
+        "./src/hw/r${HARDWARE_REVISION}/src"
         "../u8g2/csrc"
         )
 

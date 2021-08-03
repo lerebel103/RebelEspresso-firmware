@@ -1,6 +1,6 @@
 #include "ready_indicator.h"
 
-#include <hw/rtds.h>
+#include "rtds.h"
 #include <esp_log.h>
 #include <freertos/task.h>
 #include <src/events.h>
@@ -71,23 +71,23 @@ static void _save_nvram() {
 void ready_indicator_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
     if (!s_cfg.enabled ||
         !(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
-        gpio_set_level(GPIO_TRIG2_REL3, 0);
+        gpio_set_level(PIN_OUT_REL3_EN, 0);
         return;
     }
 
     // Work out if we can light up the ready light, within range
     auto setpoint = brew_temp_get_setpoint();
     if (brew_head_data.temperature + s_cfg.delta >= setpoint) {
-        gpio_set_level(GPIO_TRIG2_REL3, 1);
+        gpio_set_level(PIN_OUT_REL3_EN, 1);
     } else if ((brew_head_data.temperature + s_cfg.hysteresis) < setpoint) {
-        gpio_set_level(GPIO_TRIG2_REL3, 0);
+        gpio_set_level(PIN_OUT_REL3_EN, 0);
     }
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
         // Always off
-        gpio_set_level(GPIO_TRIG2_REL3, 0);
+        gpio_set_level(PIN_OUT_REL3_EN, 0);
     }
 }
 
@@ -120,14 +120,14 @@ void ready_indicator_init(esp_event_loop_handle_t event_loop) {
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = (
-            (1ULL << GPIO_TRIG2_REL3)
+            (1ULL << PIN_OUT_REL3_EN)
     );
 
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
 
-    gpio_set_level(GPIO_TRIG2_REL3, 0);
+    gpio_set_level(PIN_OUT_REL3_EN, 0);
 
     // Get our power events in place so we can run the process loop as needed
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,

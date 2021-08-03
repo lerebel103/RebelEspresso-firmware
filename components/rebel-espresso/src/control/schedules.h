@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <malloc.h>
 #include <sys/param.h>
+#include <esp_event_base.h>
 #include "pid.h"
 
 #define SCHEDULES_CFG_JSON_KEY            "schedules."

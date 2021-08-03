@@ -1,6 +1,7 @@
 #include <cJSON.h>
 #include <cstdint>
 #include <malloc.h>
+#include <esp_event_base.h>
 #include "pid.h"
 
 #define READY_INDICATOR_CFG_JSON_KEY            "ready_indicator."

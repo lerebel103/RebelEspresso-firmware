@@ -12,7 +12,7 @@
 #include <hap_apple_servs.h>
 #include <src/thing_info.h>
 #include <src/control/power.h>
-#include <src/hw/rtds.h>
+#include "rtds.h"
 #include <src/control/brew_temp.h>
 
 static esp_event_loop_handle_t s_event_loop;

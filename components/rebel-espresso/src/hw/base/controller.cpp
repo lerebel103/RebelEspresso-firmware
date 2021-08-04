@@ -1,3 +1,5 @@
+#include "controller.h"
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
@@ -10,20 +12,20 @@
 #include <driver/timer.h>
 #include <driver/gpio.h>
 #include <esp_event.h>
+#include <cJSON.h>
 
 #include "rtds.h"
-#include "controller.h"
 #include "process_loop.h"
 #include "boiler_refill.h"
 #include "boiler_temp.h"
-#include "brew_tec.h"
+#include "hw_specs.h"
 #include "pump.h"
 #include "power.h"
 #include "setpoint_selector.h"
 #include "iot.h"
 #include "brew_temp.h"
-#include "ready_indicator.h"
 #include "schedules.h"
+#include "display.h"
 
 
 #define KEY_ENABLED "ctrl_enabled"
@@ -56,18 +58,22 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     nvram_store_get_u8(nvs_handle, KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, &g_controller_cfg.enabled);
     nvs_close(nvs_handle);
 
+    // Common hw initialisation
+    display_init(event_loop);
+
     boiler_refill_init(event_loop);
     brew_temp_init(s_event_loop);
     boiler_temp_init(event_loop);
     pump_init(event_loop);
-    brew_tec_init(event_loop);
     setpoint_selector_init(event_loop);
     rtds_init(&s_rtds_cfg);
-    ready_indicator_init(event_loop);
     process_loop_init(event_loop);
     power_init(event_loop);
     schedules_init(event_loop);
     iot_init(event_loop);
+
+    // Hardware-specific implementation
+    hw_specs_init(event_loop);
 
     // Causes initial state to be sent
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
@@ -95,45 +101,43 @@ void controller_enter_loop() {
 // ---------------------------------------------------------------------------------------------------------------------
 
 void controller_cfg_to_json(cJSON *root, const char* base_key) {
+    controller_cfg_to_json(root, base_key);
+
     auto boiler_cfg = boiler_temp_get_cfg();
     boiler_cfg.to_json(root, base_key);
 
     auto BREW_TEMP_cfg = brew_temp_get_cfg();
     BREW_TEMP_cfg.to_json(root, base_key);
 
-    auto brew_cfg = brew_tec_get_cfg();
-    brew_cfg.to_json(root, base_key);
-
     auto boiler_refill_cfg = boiler_refill_get_cfg();
     boiler_refill_cfg.to_json(root, base_key);
-
-    auto ready_indicator_cfg = ready_indicator_get_cfg();
-    ready_indicator_cfg.to_json(root, base_key);
 
     auto schedules_cfg = schedules_get_cfg();
     schedules_cfg.to_json(root, base_key);
 
     ota_cfg_to_json(root, base_key);
+
+    // Hardware-specific implementation
+    hw_specs_cfg_to_json(root, base_key);
 }
 
 void controller_status_to_json(cJSON *root, const char* base_key) {
+    controller_status_to_json(root, base_key);
+
     auto boiler_status = boiler_temp_get_status();
     boiler_status.to_json(root, base_key);
 
     auto brew_temp_status = brew_temp_get_status();
     brew_temp_status.to_json(root, base_key);
 
-    auto brew_status = brew_tec_get_status();
-    brew_status.to_json(root, base_key);
-
-    auto ready_indicator_status = ready_indicator_get_status();
-    ready_indicator_status.to_json(root, base_key);
-
     auto refill_status = boiler_refill_get_status();
     refill_status.to_json(root, base_key);
 
     auto schedules_status = schedules_get_status();
     schedules_status.to_json(root, base_key);
+
+    // Hardware-specific implementation
+    hw_specs_status_to_json(root, base_key);
 }
 
 void controller_handle_new_cfg(const cJSON* cfg) {
@@ -141,16 +145,20 @@ void controller_handle_new_cfg(const cJSON* cfg) {
     ESP_LOGI(TAG, "Got remote config %s", json);
     cJSON_free(json);
 
+    controller_handle_new_cfg(cfg);
+
     // Pass down to each component, they will deal with it - it's a bit lazy really
     boiler_temp_update_cfg(cfg);
     brew_temp_update_cfg(cfg);
-    brew_tec_update_cfg(cfg);
     boiler_refill_update_cfg(cfg);
-    ready_indicator_update_cfg(cfg);
     schedules_update_cfg(cfg);
     ota_update_cfg(cfg);
+
+    // Hardware-specific implementation
+    hw_specs_handle_new_cfg(cfg);
 
     // Trigger status send
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
+
 

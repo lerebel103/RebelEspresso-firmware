@@ -14,7 +14,6 @@ file(GLOB_RECURSE HARDWARE_SPECIFIC_SRCS
 set(COMPONENT_SRCDIRS
         src/
         src/utils
-        src/control
         src/sys
         src/hw/base
         src/hw/r${HARDWARE_REVISION}/src

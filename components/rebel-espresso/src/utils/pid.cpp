@@ -119,7 +119,7 @@ void pid_init(pid_struct_t &pid) {
 pid_result_t pid_process(
         pid_struct_t &pid,
         pid_cfg_t &cfg,
-        uint64_t time_us, const rtd_data_t &data) {
+        uint64_t time_us, const window_value_t &data) {
 
     pid_result_t result = {
             .duty = 0,

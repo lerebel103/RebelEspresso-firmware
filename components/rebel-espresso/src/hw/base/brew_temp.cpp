@@ -5,6 +5,7 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <hw_config.h>
+#include <Max31865.h>
 
 #include "rtds.h"
 #include "pid.h"
@@ -107,7 +108,7 @@ void brew_temp_set_setpoint(double setpoint) {
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
-void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
+void brew_temp_process(uint64_t time_us, const window_value_t &brew_head_data) {
     if (!s_cfg.enabled) {
         s_trim.active = false;
         return;
@@ -123,8 +124,8 @@ void brew_temp_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         s_trim.active = false;
         return;
-    } else if (brew_head_data.fault != Max31865Error::NoError) {
-        ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString(brew_head_data.fault));
+    } else if (brew_head_data.fault != (uint8_t)Max31865Error::NoError) {
+        ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString((Max31865Error)brew_head_data.fault));
         s_stats.brew_temp_read_error_count++;
         s_stats_changed = true;
         s_trim.active = false;

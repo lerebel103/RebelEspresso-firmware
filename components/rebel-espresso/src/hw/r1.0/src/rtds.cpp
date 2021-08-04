@@ -3,6 +3,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
+#include <Max31865.h>
 
 #include "hw_config.h"
 #include "events.h"
@@ -24,7 +25,7 @@ static max31865_config_t s_tempConfig;
 /**
  * Contains our last known reading
  */
-static rtd_data_t _rtd_array[RTD_MAX_COUNT];
+static window_value_t _rtd_array[RTD_MAX_COUNT];
 
 static void _read_temp(rtd_update_cb_t cb, int idx) {
     uint16_t rtd;
@@ -32,11 +33,13 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
     vTaskDelay(pdMS_TO_TICKS(20));
     ESP_ERROR_CHECK(s_tempSensor.setConfig(s_tempConfig));
     ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(s_min_rtd, s_max_rtd));
-    s_tempSensor.getRTD(&rtd, &_rtd_array[idx].fault);
+    Max31865Error fault;
+    s_tempSensor.getRTD(&rtd, &fault);
+    _rtd_array[idx].fault = (uint8_t)fault;
 
 
     // Calculate new value if we can, otherwise leave the old one there.
-    if (_rtd_array[idx].fault == Max31865Error::NoError) {
+    if (_rtd_array[idx].fault == (uint8_t)Max31865Error::NoError) {
         _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
     }
 
@@ -63,7 +66,7 @@ void rtds_update(rtd_update_cb_t cb) {
     xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
 }
 
-esp_err_t rtds_get(rtd_data_t* data, uint8_t idx) {
+esp_err_t rtds_get(window_value_t* data, uint8_t idx) {
     if (idx >= RTD_MAX_COUNT) {
         ESP_LOGE(TAG, "RTD index is out of range");
         return ESP_FAIL;

@@ -86,7 +86,7 @@ void ready_indicator_init(esp_event_loop_handle_t event_loop);
 
 void ready_indicator_delete();
 
-void ready_indicator_process(uint64_t time_us, const rtd_data_t &brew_head_data);
+void ready_indicator_process(uint64_t time_us, const window_value_t &brew_head_data);
 
 /**
  * Get the underlying configuration set.

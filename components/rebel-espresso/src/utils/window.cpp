@@ -2,6 +2,8 @@
 #include <esp_log.h>
 #include <sys/param.h>
 
+#include <Max31865.h>
+
 static const char *TAG = "window";
 
 static uint64_t g_sequence = 0;
@@ -26,7 +28,7 @@ void window_reset(window_handle_t *window) {
 void window_accumulate(
         window_handle_t *window,
         uint64_t time_us,
-        const rtd_data_t *result,
+        const window_value_t *result,
         float setpoint,
         uint16_t window_size_ms) {
 
@@ -68,7 +70,7 @@ void window_data(window_handle_t *window, window_data_t *data) {
     window_entry_t *item = NULL;
     double last_error = 0;
     STAILQ_FOREACH(item, &window->queue, entries) {
-        if (item && item->data.fault == Max31865Error::NoError) {
+        if (item && item->data.fault == (int)Max31865Error::NoError) {
             data->count++;
             data->min = MIN(data->min, item->data.temperature);
             data->max = MAX(data->max, item->data.temperature);

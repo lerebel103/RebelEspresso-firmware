@@ -11,9 +11,10 @@
 #include <hap_apple_chars.h>
 #include <hap_apple_servs.h>
 #include <src/thing_info.h>
-#include <src/control/power.h>
+#include <Max31865.h>
+#include "power.h"
 #include "rtds.h"
-#include <src/control/brew_temp.h>
+#include "brew_temp.h"
 
 static esp_event_loop_handle_t s_event_loop;
 static bool s_init = false;
@@ -93,7 +94,7 @@ static int brew_char_read(hap_char_t *hc, hap_status_t *status_code,
                           void *serv_priv, void *read_priv) {
     int ret = HAP_SUCCESS;
     hap_val_t new_val;
-    struct rtd_data_t result{};
+    struct window_value_t result{};
 
     if (hc == NULL) {
         ret = HAP_FAIL;
@@ -113,7 +114,7 @@ static int brew_char_read(hap_char_t *hc, hap_status_t *status_code,
         hap_char_update_val(hc, &new_val);
         *status_code = HAP_STATUS_SUCCESS;
     } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_CURRENT_TEMPERATURE)) {
-        new_val.f = (float) (result.fault == Max31865Error::NoError ? result.temperature : 21);
+        new_val.f = (float) (result.fault == (uint8_t)Max31865Error::NoError ? result.temperature : 21);
         hap_char_update_val(hc, &new_val);
         *status_code = HAP_STATUS_SUCCESS;
     } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_TARGET_TEMPERATURE)) {
@@ -135,7 +136,7 @@ static int brew_char_read(hap_char_t *hc, hap_status_t *status_code,
         hap_char_update_val(hc, &new_val);
         *status_code = HAP_STATUS_SUCCESS;
     } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_STATUS_FAULT)) {
-        new_val.i = (result.fault == Max31865Error::NoError ? 0 : 1);
+        new_val.i = (result.fault == (uint8_t)Max31865Error::NoError ? 0 : 1);
         hap_char_update_val(hc, &new_val);
         *status_code = HAP_STATUS_SUCCESS;
     } else {
@@ -154,7 +155,7 @@ static int boiler_char_read(hap_char_t *hc, hap_status_t *status_code,
                             void *serv_priv, void *read_priv) {
     int ret = HAP_SUCCESS;
     hap_val_t new_val;
-    struct rtd_data_t result{};
+    struct window_value_t result{};
 
     if (hc == NULL) {
         ret = HAP_FAIL;
@@ -169,13 +170,13 @@ static int boiler_char_read(hap_char_t *hc, hap_status_t *status_code,
         hap_char_update_val(hc, &new_val);
         *status_code = HAP_STATUS_SUCCESS;
     } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_CURRENT_TEMPERATURE)) {
-        double temp = (result.fault == Max31865Error::NoError ? result.temperature : 21);
+        double temp = (result.fault == (uint8_t)Max31865Error::NoError ? result.temperature : 21);
 
         new_val.f = (float) temp;
         hap_char_update_val(hc, &new_val);
         *status_code = HAP_STATUS_SUCCESS;
     } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_STATUS_FAULT)) {
-        new_val.i = (result.fault == Max31865Error::NoError ? 0 : 1);
+        new_val.i = (result.fault == (uint8_t)Max31865Error::NoError ? 0 : 1);
         hap_char_update_val(hc, &new_val);
         *status_code = HAP_STATUS_SUCCESS;
     } else {
@@ -244,7 +245,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 
 /*The main thread for handling the RebelEspresso Switch Accessory */
 static void switch_thread_entry(void *arg) {
-    struct rtd_data_t result{};
+    struct window_value_t result{};
     double brew_temp, setpoint;
     //double boiler_temp;
 
@@ -282,7 +283,7 @@ static void switch_thread_entry(void *arg) {
     hap_acc_add_product_data(accessory, product_data, sizeof(product_data));
 
     rtds_get(&result, 1);
-    brew_temp = (result.fault == Max31865Error::NoError ? result.temperature : 21);
+    brew_temp = (result.fault == (uint8_t)Max31865Error::NoError ? result.temperature : 21);
 
     /* Create the RebelEspresso Switch Service. Include the "name" since this is a user visible service  */
     setpoint = brew_temp_get_setpoint();
@@ -308,7 +309,7 @@ static void switch_thread_entry(void *arg) {
     /* Add the optional characteristic to the Light Bulb Service */
     ret = hap_serv_add_char(service, hap_char_name_create((char *) "Brew"));
     ret |= hap_serv_add_char(service,
-                             hap_char_status_fault_create((result.fault == Max31865Error::NoError ? 0 : 1)));
+                             hap_char_status_fault_create((result.fault == (uint8_t)Max31865Error::NoError ? 0 : 1)));
 
     if (ret != HAP_SUCCESS) {
         ESP_LOGE(TAG, "Failed to add optional characteristics to Switch");

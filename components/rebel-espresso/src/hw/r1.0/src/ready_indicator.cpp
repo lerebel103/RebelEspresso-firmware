@@ -68,7 +68,7 @@ static void _save_nvram() {
 
 
 
-void ready_indicator_process(uint64_t time_us, const rtd_data_t &brew_head_data) {
+void ready_indicator_process(uint64_t time_us, const window_value_t &brew_head_data) {
     if (!s_cfg.enabled ||
         !(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         gpio_set_level(PIN_OUT_REL3_EN, 0);

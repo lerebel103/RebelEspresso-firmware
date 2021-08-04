@@ -8,13 +8,12 @@
 #include <sys/ota.h>
 
 #include "thing_info.h"
-#include "thing_info.h"
 #include "version.h"
 #include "sys/nvram_store.h"
 #include "sys/wifi_connect.h"
 #include "sys/mqtt.h"
 #include "sys/sntp.h"
-#include "control/controller.h"
+#include "controller.h"
 
 const char *DIAG_TAG = "state";
 

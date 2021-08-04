@@ -1,22 +1,17 @@
 #pragma once
 
-#include <Max31865.h>
-
+#include "window_value.h"
 
 struct rtds_cfg_t {
 };
 
-struct rtd_data_t {
-    double temperature;
-    Max31865Error fault;
-};
 
 enum units_enum_t {
     UNIT_CELCIUS,
     UNIT_FARENHEIGHT
 };
 
-typedef void (*rtd_update_cb_t)(uint64_t time_us, const rtd_data_t& data, uint8_t rtd_idx);
+typedef void (*rtd_update_cb_t)(uint64_t time_us, const window_value_t& data, uint8_t rtd_idx);
 
 int rtds_init(const rtds_cfg_t* cfg);
 
@@ -32,7 +27,7 @@ void rtds_update(rtd_update_cb_t cb);
  * @param data
  * @param idx
  */
-esp_err_t rtds_get(rtd_data_t* data, uint8_t idx);
+esp_err_t rtds_get(window_value_t* data, uint8_t idx);
 
 inline units_enum_t rtds_get_unit() {
     return UNIT_CELCIUS;

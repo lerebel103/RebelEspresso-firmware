@@ -1,13 +1,18 @@
+
+#include "brew_tec.h"
+
 #include "rtds.h"
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <esp_log.h>
 #include <hal/ledc_types.h>
 #include <driver/ledc.h>
-#include <freertos/task.h>
 #include <esp_event.h>
+#include <Max31865.h>
 
 #include "hw_config.h"
 #include "events.h"
-#include "brew_tec.h"
 
 #define TAG "TEC"
 
@@ -28,8 +33,8 @@ static brew_tec_status_t s_stats;
 static pid_struct_t s_pid;
 
 // Keep track of TEC temps on both sides
-static rtd_data_t s_hot_data;
-static rtd_data_t s_cold_data;
+static window_value_t s_hot_data;
+static window_value_t s_cold_data;
 
 static void _load_stats() {
     nvs_handle my_handle;
@@ -123,11 +128,11 @@ void _power_off_tec() {
     gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
 
     // Invalidate TEC temp records, new ones will come in
-    s_hot_data.fault = Max31865Error::RefHigh;
-    s_cold_data.fault = Max31865Error::RefHigh;
+    s_hot_data.fault = (uint8_t)Max31865Error::RefHigh;
+    s_cold_data.fault = (uint8_t)Max31865Error::RefHigh;
 }
 
-void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
+void brew_tec_process(uint64_t time_us, const window_value_t &data) {
     if (!s_cfg.enabled) {
         _power_off_tec();
         return;
@@ -143,20 +148,20 @@ void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         _power_off_tec();
         return;
-    } else if (data.fault != Max31865Error::NoError) {
-        ESP_LOGE(TAG, "Brew sensor error %s", Max31865::errorToString(data.fault));
+    } else if (data.fault != (uint8_t)Max31865Error::NoError) {
+        ESP_LOGE(TAG, "Brew sensor error %s", Max31865::errorToString((Max31865Error)data.fault));
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
         _power_off_tec();
         return;
-    } else if (s_hot_data.fault != Max31865Error::NoError) {
-        ESP_LOGE(TAG, "TEC hot side sensor error %s", Max31865::errorToString(s_hot_data.fault));
+    } else if (s_hot_data.fault != (uint8_t)Max31865Error::NoError) {
+        ESP_LOGE(TAG, "TEC hot side sensor error %s", Max31865::errorToString((Max31865Error)s_hot_data.fault));
         _power_off_tec();
         s_stats.tec_hot_side_error_count++;
         s_stats_changed = true;
         return;
-    } else if (s_cold_data.fault != Max31865Error::NoError) {
-        ESP_LOGE(TAG, "TEC cold side sensor error %s", Max31865::errorToString(s_cold_data.fault));
+    } else if (s_cold_data.fault != (uint8_t)Max31865Error::NoError) {
+        ESP_LOGE(TAG, "TEC cold side sensor error %s", Max31865::errorToString((Max31865Error)s_cold_data.fault));
         _power_off_tec();
         s_stats.tec_cold_side_error_count++;
         s_stats_changed = true;
@@ -223,11 +228,11 @@ void brew_tec_process(uint64_t time_us, const rtd_data_t &data) {
              data.temperature, s_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
 }
 
-void brew_tec_hot_updated(uint64_t time_us, const rtd_data_t &data) {
+void brew_tec_hot_updated(uint64_t time_us, const window_value_t &data) {
     s_hot_data = data;
 }
 
-void brew_tec_cold_updated(uint64_t time_us, const rtd_data_t &data) {
+void brew_tec_cold_updated(uint64_t time_us, const window_value_t &data) {
     s_cold_data = data;
 }
 

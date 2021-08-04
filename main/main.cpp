@@ -11,11 +11,9 @@ extern "C" {
 #include <sys/ota.h>
 #include <esp_event.h>
 #include "state.h"
-#include "control/controller.h"
+#include "controller.h"
 #include "thing_info.h"
 #include "sys/nvram_store.h"
-
-#include "hw.h"
 
 #define TAG  "main"
 
@@ -44,7 +42,6 @@ extern "C" void app_main() {
     store_inc_cycle_count(); // Record number of power cycles.
 
     thing_info_init();
-    hw_init(event_loop);
     state_print_system_info();
     controller_init(event_loop);
 

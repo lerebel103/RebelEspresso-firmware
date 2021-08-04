@@ -1,8 +1,10 @@
 #pragma once
 
-#include <esp_event_base.h>
+#include <cstdint>
 #include <cJSON.h>
-#include "rtds.h"
+#include <esp_event_base.h>
+
+#include "window_value.h"
 #include "pid.h"
 
 #define BREW_TEC_CFG_JSON_KEY               "brew_tec."
@@ -126,7 +128,7 @@ void brew_tec_init(esp_event_loop_handle_t event_loop);
 
 void brew_tec_delete();
 
-void brew_tec_process(uint64_t time_us, const rtd_data_t& data);
+void brew_tec_process(uint64_t time_us, const window_value_t& data);
 
 /**
  * Get current duty value applied to the SSR
@@ -138,11 +140,11 @@ int brew_tec_get_duty();
  * @param time_us
  * @param data
  */
-void brew_tec_hot_updated(uint64_t time_us, const rtd_data_t& data);
+void brew_tec_hot_updated(uint64_t time_us, const window_value_t& data);
 /**
  * Just got a new value for cold side of TEC
  */
-void brew_tec_cold_updated(uint64_t time_us, const rtd_data_t& data);
+void brew_tec_cold_updated(uint64_t time_us, const window_value_t& data);
 
 void brew_tec_set_active_setpoint(int idx);
 

@@ -6,16 +6,15 @@
 #include <thing_info.h>
 #include <hw_config.h>
 #include "rtds.h"
-#include <src/control/boiler_temp.h>
+#include <boiler_temp.h>
 #include <cmath>
-#include <src/control/power.h>
+#include <power.h>
 #include <esp_event.h>
 #include <brew_tec.h>
-#include <src/control/boiler_refill.h>
+#include <boiler_refill.h>
 #include <src/sys/wifi_connect.h>
 #include <qrcodegen.h>
-
-#include "control/controller.h"
+#include <Max31865.h>
 
 #include "events.h"
 #include "state.h"
@@ -94,9 +93,9 @@ static void display_draw_unit(u8g2_t *u8g2, int yPos) {
 }
 
 void _render_tec(u8g2_t *u8g2, char *tempBuf, int xpad, int yOffset, int idx) {
-    rtd_data_t tec;
+    window_value_t tec;
     rtds_get(&tec, idx);
-    if (tec.fault == Max31865Error::NoError) {
+    if (tec.fault == (uint8_t)Max31865Error::NoError) {
         sprintf(tempBuf, "%.1f", tec.temperature);
     } else {
         sprintf(tempBuf, "%s", TEMP_ERROR_STR);
@@ -106,14 +105,14 @@ void _render_tec(u8g2_t *u8g2, char *tempBuf, int xpad, int yOffset, int idx) {
 }
 
 void _draw_brew_temp_only(u8g2_t *u8g2, const int *y) {
-    rtd_data_t result;
+    window_value_t result;
     rtds_get(&result, 1);
 
     char tempBuf[16];
     auto temp_val = result.temperature;
 
     // Integral part of temperature, in larger font
-    if (result.fault == Max31865Error::NoError) {
+    if (result.fault == (uint8_t)Max31865Error::NoError) {
         sprintf(tempBuf, "%d", (int) temp_val);
     } else {
         sprintf(tempBuf, TEMP_ERROR_STR);
@@ -157,14 +156,14 @@ void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
 }
 
 void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
-    rtd_data_t result;
+    window_value_t result;
     rtds_get(&result, 0);
 
     char tempBuf[16];
     auto temp_val = result.temperature;
 
     // Integral part of temperature, in larger font
-    if (result.fault == Max31865Error::NoError) {
+    if (result.fault == (uint8_t)Max31865Error::NoError) {
         sprintf(tempBuf, "%d", (int) temp_val);
     } else {
         sprintf(tempBuf, TEMP_ERROR_STR);

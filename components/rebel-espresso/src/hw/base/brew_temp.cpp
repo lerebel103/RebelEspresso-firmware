@@ -108,7 +108,7 @@ void brew_temp_set_setpoint(double setpoint) {
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
-void brew_temp_process(uint64_t time_us, const window_value_t &brew_head_data) {
+void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
     if (!s_cfg.enabled) {
         s_trim.active = false;
         return;
@@ -124,14 +124,14 @@ void brew_temp_process(uint64_t time_us, const window_value_t &brew_head_data) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         s_trim.active = false;
         return;
-    } else if (brew_head_data.fault != (uint8_t)Max31865Error::NoError) {
+    } else if (brew_head_data.fault != (uint8_t)RTD_NoError) {
         ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString((Max31865Error)brew_head_data.fault));
         s_stats.brew_temp_read_error_count++;
         s_stats_changed = true;
         s_trim.active = false;
         return;
-    } else if (brew_head_data.temperature > 150 || brew_head_data.temperature < 5) {
-        ESP_LOGE(TAG, "Boiler temperature out of range: %f", brew_head_data.temperature);
+    } else if (brew_head_data.value > 150 || brew_head_data.value < 5) {
+        ESP_LOGE(TAG, "Boiler temperature out of range: %f", brew_head_data.value);
         s_stats.brew_temp_out_of_range_count++;
         s_stats_changed = true;
         s_trim.active = false;
@@ -164,8 +164,8 @@ void brew_temp_process(uint64_t time_us, const window_value_t &brew_head_data) {
         // D = 60 = 60
 
         ESP_LOGD(TAG, "************************* brew temp: %f, Trim: %f, P=%f, I=%f, D=%f",
-                brew_head_data.temperature, s_trim.value,
-                 s_cfg.pid.P * (brew_temp_get_setpoint() - brew_head_data.temperature),
+                 brew_head_data.value, s_trim.value,
+                 s_cfg.pid.P * (brew_temp_get_setpoint() - brew_head_data.value),
                  s_cfg.pid.I * wdata.error_integral, s_cfg.pid.D * wdata.derivative);
     }
 }

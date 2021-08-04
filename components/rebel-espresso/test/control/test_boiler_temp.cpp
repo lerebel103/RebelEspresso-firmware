@@ -78,7 +78,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         xEventGroupClearBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         rtd_data_t data;
-        data.fault = Max31865Error::NoError;
+        data.fault = RTD_NoError;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -92,7 +92,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::NoError;
+        data.fault = RTD_NoError;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -106,7 +106,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RTDHigh;
+        data.fault = RTD_RtdHigh;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -120,7 +120,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RTDLow;
+        data.fault = RTD_RtdLow;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -134,7 +134,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RTDInLow;
+        data.fault = RTD_InLow;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -148,7 +148,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RefHigh;
+        data.fault = RTD_RefHigh;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -162,7 +162,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RefLow;
+        data.fault = RTD_RefLow;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -176,7 +176,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RefHigh;
+        data.fault = RTD_RefHigh;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -190,7 +190,7 @@ TEST_CASE("[boiler_temp:test_error_conditions]", "Ensure process cuts power when
         gpio_set_level(BOILER_SSR_PIN, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::Voltage;
+        data.fault = RTD_Voltage;
         boiler_temp_process(esp_timer_get_time(), data);
 
         // Now SSR must be powered off.
@@ -372,7 +372,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_steady]", "Test duty when steady temp f
     boiler_temp_set_cfg(cfg);
 
     rtd_data_t data = {};
-    data.fault = Max31865Error::NoError;
+    data.fault = RTD_NoError;
     data.temperature = 25;
 
     // Maxes out duty in this case
@@ -405,7 +405,7 @@ TEST_CASE("[boiler_temp:test_boiler_duty_ramp_up]", "Test duty when temp ramp up
     brew_temp_set_cfg(damper_cfg);
 
     rtd_data_t data;
-    data.fault = Max31865Error::NoError;
+    data.fault = RTD_NoError;
     data.temperature = 25;
 
     double expectedDuties[] = {
@@ -539,7 +539,7 @@ TEST_CASE("[boiler_temp:test_persit_stats]", "Test that stats are persisted ok")
 
     // Cause temp read error
     rtd_data_t data;
-    data.fault = Max31865Error::RefHigh;
+    data.fault = RTD_RefHigh;
     boiler_temp_process(1e6, data);
     TEST_ASSERT_EQUAL(1, boiler_temp_get_status().temp_read_error_count);
 
@@ -606,7 +606,7 @@ TEST_CASE("[boiler_temp:test_damper]", "Test that boiler damping works with targ
     boiler_temp_set_cfg(cfg);
 
     rtd_data_t boiler_data;
-    boiler_data.fault = Max31865Error::NoError;
+    boiler_data.fault = RTD_NoError;
     boiler_data.temperature = 25;
 
     brew_temp_cfg_t damper_cfg = brew_temp_get_cfg();
@@ -621,7 +621,7 @@ TEST_CASE("[boiler_temp:test_damper]", "Test that boiler damping works with targ
     brew_temp_set_cfg(damper_cfg);
 
     rtd_data_t brew_data;
-    brew_data.fault = Max31865Error::NoError;
+    brew_data.fault = RTD_NoError;
     brew_data.temperature = 80;
 
 

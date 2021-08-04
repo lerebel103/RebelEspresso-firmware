@@ -115,7 +115,7 @@ void boiler_temp_init(esp_event_loop_handle_t event_loop);
 
 void boiler_temp_delete();
 
-void boiler_temp_process(uint64_t time_us, const window_value_t &data);
+void boiler_temp_process(uint64_t time_us, const reading_t &data);
 
 /**
  * Get current duty value applied to the SSR

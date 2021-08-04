@@ -173,7 +173,7 @@ double boiler_temp_get_trimmed_setpoint() {
     return s_trimmed_setpoint;
 }
 
-void boiler_temp_process(uint64_t time_us, const window_value_t &data) {
+void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         ESP_LOGW(TAG, "In standby, not running.");
         _power_off_ssr();
@@ -186,7 +186,7 @@ void boiler_temp_process(uint64_t time_us, const window_value_t &data) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         _power_off_ssr();
         return;
-    } else if (data.fault != (uint8_t)Max31865Error::NoError) {
+    } else if (data.fault != (uint8_t)RTD_NoError) {
         ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString((Max31865Error)data.fault));
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
@@ -203,8 +203,8 @@ void boiler_temp_process(uint64_t time_us, const window_value_t &data) {
 
         s_pid.last_time_us = time_us;
         return;
-    } else if (data.temperature > 150 || data.temperature < 5) {
-        ESP_LOGE(TAG, "Boiler temperature out of range: %f", data.temperature);
+    } else if (data.value > 150 || data.value < 5) {
+        ESP_LOGE(TAG, "Boiler temperature out of range: %f", data.value);
         s_stats.temp_out_of_range_count++;
         s_stats_changed = true;
         _power_off_ssr();
@@ -269,7 +269,7 @@ void boiler_temp_process(uint64_t time_us, const window_value_t &data) {
         boiler_temp_set_duty(result.duty);
     }
     ESP_LOGI(TAG, "Boiler temp=%f, duty=%d, setpoint=%f",
-             data.temperature, s_last_duty, setpoint);
+             data.value, s_last_duty, setpoint);
 }
 
 

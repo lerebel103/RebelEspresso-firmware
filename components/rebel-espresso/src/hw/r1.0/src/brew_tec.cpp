@@ -33,8 +33,8 @@ static brew_tec_status_t s_stats;
 static pid_struct_t s_pid;
 
 // Keep track of TEC temps on both sides
-static window_value_t s_hot_data;
-static window_value_t s_cold_data;
+static reading_t s_hot_data;
+static reading_t s_cold_data;
 
 static void _load_stats() {
     nvs_handle my_handle;
@@ -128,11 +128,11 @@ void _power_off_tec() {
     gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
 
     // Invalidate TEC temp records, new ones will come in
-    s_hot_data.fault = (uint8_t)Max31865Error::RefHigh;
-    s_cold_data.fault = (uint8_t)Max31865Error::RefHigh;
+    s_hot_data.fault = (uint8_t)RTD_RefHigh;
+    s_cold_data.fault = (uint8_t)RTD_RefHigh;
 }
 
-void brew_tec_process(uint64_t time_us, const window_value_t &data) {
+void brew_tec_process(uint64_t time_us, const reading_t &data) {
     if (!s_cfg.enabled) {
         _power_off_tec();
         return;
@@ -148,26 +148,26 @@ void brew_tec_process(uint64_t time_us, const window_value_t &data) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         _power_off_tec();
         return;
-    } else if (data.fault != (uint8_t)Max31865Error::NoError) {
+    } else if (data.fault != (uint8_t)RTD_NoError) {
         ESP_LOGE(TAG, "Brew sensor error %s", Max31865::errorToString((Max31865Error)data.fault));
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
         _power_off_tec();
         return;
-    } else if (s_hot_data.fault != (uint8_t)Max31865Error::NoError) {
+    } else if (s_hot_data.fault != (uint8_t)RTD_NoError) {
         ESP_LOGE(TAG, "TEC hot side sensor error %s", Max31865::errorToString((Max31865Error)s_hot_data.fault));
         _power_off_tec();
         s_stats.tec_hot_side_error_count++;
         s_stats_changed = true;
         return;
-    } else if (s_cold_data.fault != (uint8_t)Max31865Error::NoError) {
+    } else if (s_cold_data.fault != (uint8_t)RTD_NoError) {
         ESP_LOGE(TAG, "TEC cold side sensor error %s", Max31865::errorToString((Max31865Error)s_cold_data.fault));
         _power_off_tec();
         s_stats.tec_cold_side_error_count++;
         s_stats_changed = true;
         return;
-    } else if (data.temperature > 110 || data.temperature < 5) {
-        ESP_LOGE(TAG, "Brew temperature out of range: %f", data.temperature);
+    } else if (data.value > 110 || data.value < 5) {
+        ESP_LOGE(TAG, "Brew temperature out of range: %f", data.value);
         s_stats.temp_out_of_range_count++;
         s_stats_changed = true;
         _power_off_tec();
@@ -175,8 +175,8 @@ void brew_tec_process(uint64_t time_us, const window_value_t &data) {
     }
 
     // Ok, if we have a delta of more than 60 degree, we are stuffed, can't run control, quit
-    if (abs(s_hot_data.temperature - s_cold_data.temperature) > 55) {
-        ESP_LOGE(TAG, "TEC max delta exceeded: %f", abs(s_hot_data.temperature - s_cold_data.temperature));
+    if (abs(s_hot_data.value - s_cold_data.value) > 55) {
+        ESP_LOGE(TAG, "TEC max delta exceeded: %f", abs(s_hot_data.value - s_cold_data.value));
         brew_tec_set_duty(0);
         gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
         s_stats.tec_temp_delta_error_count++;
@@ -184,8 +184,8 @@ void brew_tec_process(uint64_t time_us, const window_value_t &data) {
         return;
     }
 
-    if (s_hot_data.temperature > s_cfg.max_tec_temp) {
-        ESP_LOGE(TAG, "TEC hot side exceeded: %f", s_hot_data.temperature);
+    if (s_hot_data.value > s_cfg.max_tec_temp) {
+        ESP_LOGE(TAG, "TEC hot side exceeded: %f", s_hot_data.value);
         brew_tec_set_duty(0);
         gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
         s_stats.tec_temp_hot_thres_error_count++;
@@ -193,8 +193,8 @@ void brew_tec_process(uint64_t time_us, const window_value_t &data) {
         return;
     }
 
-    if (s_cold_data.temperature > s_cfg.max_tec_temp) {
-        ESP_LOGE(TAG, "TEC cold side exceeded: %f", s_cold_data.temperature);
+    if (s_cold_data.value > s_cfg.max_tec_temp) {
+        ESP_LOGE(TAG, "TEC cold side exceeded: %f", s_cold_data.value);
         brew_tec_set_duty(0);
         gpio_set_level(PIN_OUT_HBRIDGE_DIS, 1);
         s_stats.tec_temp_cold_thres_error_count++;
@@ -225,14 +225,14 @@ void brew_tec_process(uint64_t time_us, const window_value_t &data) {
     }
     brew_tec_set_duty(result.duty);
     ESP_LOGI(TAG, "Brew temp=%f, duty=%d, setpoint=%f",
-             data.temperature, s_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
+             data.value, s_duty, s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]);
 }
 
-void brew_tec_hot_updated(uint64_t time_us, const window_value_t &data) {
+void brew_tec_hot_updated(uint64_t time_us, const reading_t &data) {
     s_hot_data = data;
 }
 
-void brew_tec_cold_updated(uint64_t time_us, const window_value_t &data) {
+void brew_tec_cold_updated(uint64_t time_us, const reading_t &data) {
     s_cold_data = data;
 }
 

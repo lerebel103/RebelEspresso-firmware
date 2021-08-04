@@ -68,7 +68,7 @@ static void _save_nvram() {
 
 
 
-void ready_indicator_process(uint64_t time_us, const window_value_t &brew_head_data) {
+void ready_indicator_process(uint64_t time_us, const reading_t &brew_head_data) {
     if (!s_cfg.enabled ||
         !(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         gpio_set_level(PIN_OUT_REL3_EN, 0);
@@ -77,9 +77,9 @@ void ready_indicator_process(uint64_t time_us, const window_value_t &brew_head_d
 
     // Work out if we can light up the ready light, within range
     auto setpoint = brew_temp_get_setpoint();
-    if (brew_head_data.temperature + s_cfg.delta >= setpoint) {
+    if (brew_head_data.value + s_cfg.delta >= setpoint) {
         gpio_set_level(PIN_OUT_REL3_EN, 1);
-    } else if ((brew_head_data.temperature + s_cfg.hysteresis) < setpoint) {
+    } else if ((brew_head_data.value + s_cfg.hysteresis) < setpoint) {
         gpio_set_level(PIN_OUT_REL3_EN, 0);
     }
 }

@@ -141,7 +141,7 @@ void pid_reset(pid_struct_t& pid);
 pid_result_t pid_process(
         pid_struct_t& pid,
         pid_cfg_t& cfg,
-        uint64_t time_us, const window_value_t& data);
+        uint64_t time_us, const reading_t& data);
 
 void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg);
 

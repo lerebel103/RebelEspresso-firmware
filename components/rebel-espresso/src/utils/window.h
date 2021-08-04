@@ -9,7 +9,7 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "window_value.h"
+#include "reading.h"
 
 struct window_data_t {
     double mean;
@@ -24,7 +24,7 @@ struct window_data_t {
 struct window_entry_t {
     uint64_t time_us;
     uint64_t sequence;
-    window_value_t data;
+    reading_t data;
     float setpoint;
     STAILQ_ENTRY(window_entry_t) entries;
 };
@@ -39,7 +39,7 @@ void window_reset(window_handle_t* handle);
 void window_accumulate(
         window_handle_t* handle,
         uint64_t tick,
-        const window_value_t* result,
+        const reading_t* result,
         float setpoint,
         uint16_t window_size_ms);
 

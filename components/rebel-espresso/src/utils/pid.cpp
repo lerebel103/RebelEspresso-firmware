@@ -119,7 +119,7 @@ void pid_init(pid_struct_t &pid) {
 pid_result_t pid_process(
         pid_struct_t &pid,
         pid_cfg_t &cfg,
-        uint64_t time_us, const window_value_t &data) {
+        uint64_t time_us, const reading_t &data) {
 
     pid_result_t result = {
             .duty = 0,
@@ -141,7 +141,7 @@ pid_result_t pid_process(
         window_data(&pid.data_window, &wdata);
 
         // delta from set-point, e.g. our error
-        double error = setpoint - data.temperature;
+        double error = setpoint - data.value;
 
         // Safety. If we are over set temperature by threshold, cut off
         if (cfg.over_setpoint_perc != 0 && -error > cfg.over_setpoint_perc * setpoint / 100) {

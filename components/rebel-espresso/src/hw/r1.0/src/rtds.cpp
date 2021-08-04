@@ -25,7 +25,7 @@ static max31865_config_t s_tempConfig;
 /**
  * Contains our last known reading
  */
-static window_value_t _rtd_array[RTD_MAX_COUNT];
+static reading_t _rtd_array[RTD_MAX_COUNT];
 
 static void _read_temp(rtd_update_cb_t cb, int idx) {
     uint16_t rtd;
@@ -35,12 +35,26 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
     ESP_ERROR_CHECK(s_tempSensor.setRTDThresholds(s_min_rtd, s_max_rtd));
     Max31865Error fault;
     s_tempSensor.getRTD(&rtd, &fault);
-    _rtd_array[idx].fault = (uint8_t)fault;
 
+    if (fault == Max31865Error::NoError) {
+        _rtd_array[idx].fault = RTD_NoError;
+    } else if (fault == Max31865Error::Voltage) {
+        _rtd_array[idx].fault = RTD_Voltage;
+    } else if (fault == Max31865Error::RTDInLow) {
+        _rtd_array[idx].fault = RTD_InLow;
+    } else if (fault == Max31865Error::RefLow) {
+        _rtd_array[idx].fault = RTD_RefLow;
+    } else if (fault == Max31865Error::RefHigh) {
+        _rtd_array[idx].fault = RTD_RefHigh;
+    } else if (fault == Max31865Error::RTDLow) {
+        _rtd_array[idx].fault = RTD_RTDLow;
+    } else if (fault == Max31865Error::RTDHigh) {
+        _rtd_array[idx].fault = RTD_RTDHigh;
+    }
 
     // Calculate new value if we can, otherwise leave the old one there.
-    if (_rtd_array[idx].fault == (uint8_t)Max31865Error::NoError) {
-        _rtd_array[idx].temperature = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
+    if (_rtd_array[idx].fault == RTD_NoError) {
+        _rtd_array[idx].value = Max31865::RTDtoTemperature(rtd, s_rtdConfig);
     }
 
     // Invoke CB now
@@ -66,7 +80,7 @@ void rtds_update(rtd_update_cb_t cb) {
     xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
 }
 
-esp_err_t rtds_get(window_value_t* data, uint8_t idx) {
+esp_err_t rtds_get(reading_t* data, uint8_t idx) {
     if (idx >= RTD_MAX_COUNT) {
         ESP_LOGE(TAG, "RTD index is out of range");
         return ESP_FAIL;

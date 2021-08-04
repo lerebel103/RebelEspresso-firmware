@@ -77,7 +77,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         xEventGroupClearBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
         rtd_data_t data;
-        data.fault = Max31865Error::NoError;
+        data.fault = RTD_NoError;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -91,7 +91,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::NoError;
+        data.fault = RTD_NoError;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -105,7 +105,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RTDHigh;
+        data.fault = RTD_RtdHigh;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -119,7 +119,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RTDLow;
+        data.fault = RTD_RtdLow;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -133,7 +133,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RTDInLow;
+        data.fault = RTD_InLow;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -147,7 +147,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RefHigh;
+        data.fault = RTD_RefHigh;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -161,7 +161,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RefLow;
+        data.fault = RTD_RefLow;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -175,7 +175,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::RefHigh;
+        data.fault = RTD_RefHigh;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -189,7 +189,7 @@ TEST_CASE("[brew_tec:test_error_conditions]", "Ensure process cuts power when co
         gpio_set_level(GPIO_HBRIDGE_DIS, 1);
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
         xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-        data.fault = Max31865Error::Voltage;
+        data.fault = RTD_Voltage;
         brew_tec_process(esp_timer_get_time(), data);
 
         // Now HBRIDGE must be powered off.
@@ -375,7 +375,7 @@ TEST_CASE("[brew_tec:test_brew_duty_steady_pos]", "Test duty when steady temp un
     brew_tec_set_cfg(cfg);
 
     rtd_data_t data = {};
-    data.fault = Max31865Error::NoError;
+    data.fault = RTD_NoError;
     data.temperature = 25;
 
     // Feed in valid temps for TEC
@@ -406,7 +406,7 @@ TEST_CASE("[brew_tec:test_brew_duty_steady_neg]", "Test duty when steady temp ov
     brew_tec_set_cfg(cfg);
 
     rtd_data_t data = {};
-    data.fault = Max31865Error::NoError;
+    data.fault = RTD_NoError;
     data.temperature = 92;
 
     // Feed in valid temps for TEC
@@ -439,7 +439,7 @@ TEST_CASE("[brew_tec:test_brew_duty_ramp_up]", "Test duty when temp ramp up") {
     brew_tec_set_cfg(cfg);
 
     rtd_data_t data;
-    data.fault = Max31865Error::NoError;
+    data.fault = RTD_NoError;
     data.temperature = 25;
 
     double expectedDuties[] = {
@@ -538,7 +538,7 @@ TEST_CASE("[brew_tec:test_persit_stats]", "Test that stats are persisted ok") {
 
     // Cause temp read error
     rtd_data_t data;
-    data.fault = Max31865Error::RefHigh;
+    data.fault = RTD_RefHigh;
     brew_tec_process(1e6, data);
     TEST_ASSERT_EQUAL(1, brew_tec_get_status().temp_read_error_count);
 

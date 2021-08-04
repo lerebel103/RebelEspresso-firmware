@@ -62,7 +62,7 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
 /**
  * Realtime handler for new temps
  */
-static void _handle_new_temp(uint64_t time_us, const window_value_t &data, uint8_t idx) {
+static void _handle_new_temp(uint64_t time_us, const reading_t &data, uint8_t idx) {
     switch (idx) {
         case RTD_BREW_BOILER_IDX:
             boiler_temp_process(time_us, data);

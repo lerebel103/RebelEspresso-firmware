@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-struct window_value_t {
-    double temperature;
+struct reading_t {
+    double value;
     int8_t fault;
 };

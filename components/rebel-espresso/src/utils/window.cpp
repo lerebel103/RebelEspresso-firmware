@@ -3,6 +3,7 @@
 #include <sys/param.h>
 
 #include <Max31865.h>
+#include <src/hw/base/rtds.h>
 
 static const char *TAG = "window";
 
@@ -28,7 +29,7 @@ void window_reset(window_handle_t *window) {
 void window_accumulate(
         window_handle_t *window,
         uint64_t time_us,
-        const window_value_t *result,
+        const reading_t *result,
         float setpoint,
         uint16_t window_size_ms) {
 
@@ -70,15 +71,15 @@ void window_data(window_handle_t *window, window_data_t *data) {
     window_entry_t *item = NULL;
     double last_error = 0;
     STAILQ_FOREACH(item, &window->queue, entries) {
-        if (item && item->data.fault == (int)Max31865Error::NoError) {
+        if (item && item->data.fault == RTD_NoError) {
             data->count++;
-            data->min = MIN(data->min, item->data.temperature);
-            data->max = MAX(data->max, item->data.temperature);
-            data->mean += item->data.temperature;
+            data->min = MIN(data->min, item->data.value);
+            data->max = MAX(data->max, item->data.value);
+            data->mean += item->data.value;
 
             if (previous != NULL) {
                 double dt = (double)((item->time_us - previous->time_us)) / 1e6;
-                double this_error = item->setpoint - item->data.temperature;
+                double this_error = item->setpoint - item->data.value;
                 data->error_integral += this_error * dt;
 
                 if(data->count > 2) {

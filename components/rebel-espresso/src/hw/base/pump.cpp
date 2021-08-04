@@ -7,6 +7,7 @@
 #include <esp_event.h>
 #include <esp_log.h>
 #include "pump.h"
+#include "out_signals.h"
 
 #define TAG "pump"
 
@@ -16,11 +17,11 @@ static bool _boiler_refilling = false;
 static bool s_descaled_entered = false;
 
 static void _pump_on() {
-    gpio_set_level(PIN_OUT_REL1_EN, 1);
+    out_signals_set_level(OUT_SIGNALS_RELAY1, 1);
 }
 
 static void IRAM_ATTR _pump_off() {
-    gpio_set_level(PIN_OUT_REL1_EN, 0);
+    out_signals_set_level(OUT_SIGNALS_RELAY1, 0);
 }
 
 static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -70,7 +71,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-    bool is_pump_powered = (GPIO_REG_READ(GPIO_OUT_REG) >> PIN_OUT_REL1_EN) & 1U;
+    bool is_pump_powered = out_signals_get_level(OUT_SIGNALS_RELAY1);
 
     if (s_descaled_entered && gpio_get_level(PIN_IN_SYS_EN) == 1) {
         // Don't run normal pump on/off if we are in descale mode until the pump switch is cycled once.
@@ -115,19 +116,8 @@ void pump_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     s_descaled_entered = false;
 
-    // --- Output pins
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (
-            (1ULL << PIN_OUT_REL1_EN)
-    );
-
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&io_conf);
-
     // --- Configure input switch that drives the pump
+    gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_POSEDGE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (

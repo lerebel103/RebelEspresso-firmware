@@ -17,7 +17,7 @@
 #include <esp_event.h>
 #include "events.h"
 #include "brew_temp.h"
-#include "ready_indicator.h"
+#include "hw_specs.h"
 
 #ifdef PIN_OUT_HBRIDGE_PWM
 #include "brew_tec.h"
@@ -59,35 +59,6 @@ static void IRAM_ATTR _process_loop_isr(void *para) {
     timer_group_enable_alarm_in_isr(s_timer_group, s_timer_idx);
 }
 
-/**
- * Realtime handler for new temps
- */
-static void _handle_new_temp(uint64_t time_us, const reading_t &data, uint8_t idx) {
-    switch (idx) {
-        case RTD_BREW_BOILER_IDX:
-            boiler_temp_process(time_us, data);
-            break;
-        case RTD_BREW_HEAD_IDX:
-            #ifdef PIN_OUT_HBRIDGE_PWM
-            brew_tec_process(time_us, data);
-            #endif
-            brew_temp_process(time_us, data);
-            ready_indicator_process(time_us, data);
-            break;
-        case RTD_TEC_HOT_IDX:
-            #ifdef PIN_OUT_HBRIDGE_PWM
-            brew_tec_hot_updated(time_us, data);
-            #endif
-            break;
-        case RTD_TEC_COLD_IDX:
-            #ifdef PIN_OUT_HBRIDGE_PWM
-            brew_tec_cold_updated(time_us, data);
-            #endif
-            break;
-    }
-}
-
-
 static void _process_task(void *) {
     ESP_LOGI(TAG, "Process loop starting");
 
@@ -97,7 +68,7 @@ static void _process_task(void *) {
             ESP_LOGI(TAG, "Process, heap: %d, min: %d", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
 
             // Get latest temperatures
-            rtds_update(_handle_new_temp);
+            rtds_update(hw_specs_handle_new_temp);
 
             // Done, reset ISR to go again and maintain watchdog timer
             esp_task_wdt_reset();

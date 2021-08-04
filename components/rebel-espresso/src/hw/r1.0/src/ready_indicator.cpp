@@ -6,6 +6,7 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <hw_config.h>
+#include <src/hw/base/out_signals.h>
 #include "pid.h"
 #include "brew_temp.h"
 
@@ -71,23 +72,23 @@ static void _save_nvram() {
 void ready_indicator_process(uint64_t time_us, const reading_t &brew_head_data) {
     if (!s_cfg.enabled ||
         !(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
-        gpio_set_level(PIN_OUT_REL3_EN, 0);
+        out_signals_set_level(OUT_SIGNALS_RELAY3, 0);
         return;
     }
 
     // Work out if we can light up the ready light, within range
     auto setpoint = brew_temp_get_setpoint();
     if (brew_head_data.value + s_cfg.delta >= setpoint) {
-        gpio_set_level(PIN_OUT_REL3_EN, 1);
+        out_signals_set_level(OUT_SIGNALS_RELAY3, 1);
     } else if ((brew_head_data.value + s_cfg.hysteresis) < setpoint) {
-        gpio_set_level(PIN_OUT_REL3_EN, 0);
+        out_signals_set_level(OUT_SIGNALS_RELAY3, 0);
     }
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
         // Always off
-        gpio_set_level(PIN_OUT_REL3_EN, 0);
+        out_signals_set_level(OUT_SIGNALS_RELAY3, 0);
     }
 }
 
@@ -115,19 +116,7 @@ void ready_indicator_init(esp_event_loop_handle_t event_loop) {
     _load_nvram();
     _load_stats();
 
-    // Output pins
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (
-            (1ULL << PIN_OUT_REL3_EN)
-    );
-
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&io_conf);
-
-    gpio_set_level(PIN_OUT_REL3_EN, 0);
+    out_signals_set_level(OUT_SIGNALS_RELAY3, 0);
 
     // Get our power events in place so we can run the process loop as needed
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,

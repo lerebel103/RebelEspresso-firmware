@@ -3,6 +3,7 @@
 #include "boiler_refill_states.h"
 #include "state_machine.h"
 #include "events.h"
+#include "out_signals.h"
 
 const static char *TAG = "refill";
 
@@ -17,7 +18,7 @@ static TickType_t s_level_stable_ms = 0;
 static void _start_refill() {
     // Open solenoid valve
     ESP_LOGI(TAG, "Opening refill solenoid");
-    gpio_set_level(PIN_OUT_REL2_EN, 1);
+    out_signals_set_level(OUT_SIGNALS_RELAY2, 1);
 
     ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BOILER_REFILL_STARTED, nullptr, 0,
                                       portMAX_DELAY));
@@ -29,7 +30,7 @@ static void _stop_refill() {
                                       portMAX_DELAY));
 
     ESP_LOGI(TAG, "Closing refill solenoid");
-    gpio_set_level(PIN_OUT_REL2_EN, 0);
+    out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
 }
 
 static void _state_unknown_enter(uint64_t timestamp) {
@@ -62,7 +63,7 @@ static void _state_starting_process(uint64_t timestamp) {
 
 static void _state_idle_enter(uint64_t timestamp) {
     xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    bool state = (GPIO_REG_READ(GPIO_OUT_REG) >> PIN_OUT_REL2_EN) & 1U;
+    bool state = out_signals_get_level(OUT_SIGNALS_RELAY2);
     if (state) {
         _stop_refill();
     }
@@ -113,7 +114,7 @@ static void _state_active_process(uint64_t timestamp) {
 }
 
 static void _state_error_enter(uint64_t timestamp) {
-    bool state = (GPIO_REG_READ(GPIO_OUT_REG) >> PIN_OUT_REL2_EN) & 1U;
+    bool state = out_signals_get_level(OUT_SIGNALS_RELAY2);
     if (state) {
         ESP_LOGE(TAG, "Stopping refill, error detected");
         _stop_refill();
@@ -149,7 +150,7 @@ void boiler_refill_states_power_on() {
 void boiler_refill_states_power_standby() {
     // Always stop refill
     xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    bool state = (GPIO_REG_READ(GPIO_OUT_REG) >> PIN_OUT_REL2_EN) & 1U;
+    bool state = out_signals_get_level(OUT_SIGNALS_RELAY2);
     if (state || boiler_refill_state() == REFILL_STATE_ACTIVE) {
         _stop_refill();
     }

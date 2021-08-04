@@ -7,6 +7,7 @@
 #include <esp_log.h>
 #include "boiler_refill.h"
 #include "boiler_refill_states.h"
+#include "out_signals.h"
 #include <esp_adc_cal.h>
 #include <src/events.h>
 #include <esp_event.h>
@@ -94,9 +95,9 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
     // Handle solenoid valve open/close for descaling here
     if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
         if (id == BREW_STARTED) {
-            gpio_set_level(PIN_OUT_REL2_EN, 1);
+            out_signals_set_level(OUT_SIGNALS_RELAY2, 1);
         } else if (id == BREW_STOPPED) {
-            gpio_set_level(PIN_OUT_REL2_EN, 0);
+            out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
         }
     }
 }
@@ -115,7 +116,6 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = (
-            (1ULL << PIN_OUT_REL2_EN) |
             (1ULL << PIN_WATER_LEVEL_ENABLE)
     );
 
@@ -124,7 +124,7 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     gpio_config(&io_conf);
 
     // Turn off outputs
-    gpio_set_level(PIN_OUT_REL2_EN, 0);
+    out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);
 
     // Configure ADC input

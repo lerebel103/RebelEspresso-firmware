@@ -26,6 +26,7 @@
 #include "brew_temp.h"
 #include "schedules.h"
 #include "display.h"
+#include "out_signals.h"
 
 
 #define KEY_ENABLED "ctrl_enabled"
@@ -148,6 +149,7 @@ void controller_handle_new_cfg(const cJSON* cfg) {
     controller_handle_new_cfg(cfg);
 
     // Pass down to each component, they will deal with it - it's a bit lazy really
+    out_signals_init();
     boiler_temp_update_cfg(cfg);
     brew_temp_update_cfg(cfg);
     boiler_refill_update_cfg(cfg);

@@ -10,8 +10,6 @@ extern "C" {
 #include <esp_event_base.h>
 #include <cJSON.h>
 
-#define I2C_MASTER_NUM 0 /*!< I2C master i2c port number*/
-
 void hw_specs_init(esp_event_loop_handle_t event_loop);
 
 void hw_specs_cfg_to_json(cJSON *root, const char* base_key);

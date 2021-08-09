@@ -59,9 +59,11 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     nvram_store_get_u8(nvs_handle, KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled, &g_controller_cfg.enabled);
     nvs_close(nvs_handle);
 
+    // Hardware-specific implementation
+    hw_specs_init(event_loop);
+
     // Common hw initialisation
     display_init(event_loop);
-
     boiler_refill_init(event_loop);
     brew_temp_init(s_event_loop);
     boiler_temp_init(event_loop);
@@ -72,9 +74,6 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     power_init(event_loop);
     schedules_init(event_loop);
     iot_init(event_loop);
-
-    // Hardware-specific implementation
-    hw_specs_init(event_loop);
 
     // Causes initial state to be sent
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
@@ -149,7 +148,6 @@ void controller_handle_new_cfg(const cJSON* cfg) {
     controller_handle_new_cfg(cfg);
 
     // Pass down to each component, they will deal with it - it's a bit lazy really
-    out_signals_init();
     boiler_temp_update_cfg(cfg);
     brew_temp_update_cfg(cfg);
     boiler_refill_update_cfg(cfg);

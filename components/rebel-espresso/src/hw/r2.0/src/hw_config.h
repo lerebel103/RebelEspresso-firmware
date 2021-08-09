@@ -8,6 +8,8 @@
 #define PIN_SCK                 GPIO_NUM_14
 
 // I2C bus
+#define I2C_MASTER_NUM          0 /*!< I2C master i2c port number*/
+#define I2C_MASTER_FREQ_HZ      400000
 #define PIN_SDA                 GPIO_NUM_19
 #define PIN_SCL                 GPIO_NUM_18
 

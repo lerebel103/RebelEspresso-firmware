@@ -2,18 +2,50 @@
 #include <src/hw/base/brew_temp.h>
 #include <hal/i2c_types.h>
 #include <driver/i2c.h>
+#include <esp_log.h>
+#include <src/hw/base/out_signals.h>
 
 #include "hw_specs.h"
 #include "hw_config.h"
 
-#define I2C_MASTER_FREQ_HZ 400000
+#define TAG "hw_specs"
+
 #define I2C_MASTER_TX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
+#define WRITE_BIT I2C_MASTER_WRITE  /*!< I2C master write */
+#define READ_BIT I2C_MASTER_READ    /*!< I2C master read */
+#define ACK_CHECK_EN 0x1            /*!< I2C master will check ack from slave*/
+#define ACK_CHECK_DIS 0x0           /*!< I2C master will not check ack from slave */
+#define ACK_VAL 0x0                 /*!< I2C ack value */
+#define NACK_VAL 0x1                /*!< I2C nack value */
+
+
+void _print_i2c_devices() {
+    uint8_t address;
+    for (int i = 0; i < 128; i += 16) {
+        printf("%02x: ", i);
+        for (int j = 0; j < 16; j++) {
+            fflush(stdout);
+            address = i + j;
+            i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+            i2c_master_start(cmd);
+            i2c_master_write_byte(cmd, (address << 1) | WRITE_BIT, ACK_CHECK_EN);
+            i2c_master_stop(cmd);
+            esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 50 / portTICK_RATE_MS);
+            i2c_cmd_link_delete(cmd);
+            if (ret == ESP_OK) {
+                printf("%02x ", address);
+            } else if (ret == ESP_ERR_TIMEOUT) {
+                printf("UU ");
+            } else {
+                printf("-- ");
+            }
+        }
+        printf("\r\n");
+    }
+}
 
 void hw_specs_init(esp_event_loop_handle_t event_loop) {
-    // Initialise I2C bus
-    int i2c_master_port = I2C_MASTER_NUM;
-
     i2c_config_t conf = {
             .mode = I2C_MODE_MASTER,
             .sda_io_num = PIN_SDA,
@@ -23,11 +55,16 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
             .master = {.clk_speed = I2C_MASTER_FREQ_HZ}
     };
 
-    i2c_param_config(i2c_master_port, &conf);
+    i2c_param_config(I2C_MASTER_NUM, &conf);
 
     ESP_ERROR_CHECK(
-            i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0));
+            i2c_driver_install(I2C_MASTER_NUM, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0));
+    _print_i2c_devices();
+
+    // Now can init I2C-dependent peripherals
+    out_signals_init();
 }
+
 
 void hw_specs_cfg_to_json(cJSON *root, const char *base_key) {
 

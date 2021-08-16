@@ -47,6 +47,28 @@ ESP_EVENT_DEFINE_BASE(MACHINE_EVENTS);
 #define ESP_INTR_FLAG_DEFAULT \
     (ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 |ESP_INTR_FLAG_LEVEL3)
 
+static spi_host_device_t s_spi = HSPI_HOST;
+
+void _init_spi() {
+    // SPI initialisation
+    spi_bus_config_t busConfig = {};
+    busConfig.miso_io_num = PIN_MISO;
+    busConfig.mosi_io_num = PIN_MOSI;
+    busConfig.sclk_io_num = PIN_SCK;
+    busConfig.quadhd_io_num = -1;
+    busConfig.quadwp_io_num = -1;
+    busConfig.max_transfer_sz = 0;
+
+    esp_err_t err = spi_bus_initialize(s_spi, &busConfig, 0);
+
+    // INVALID_STATE means the host is already in use - that's OK
+    if (err == ESP_ERR_INVALID_STATE) {
+        ESP_LOGD(TAG, "SPI bus already initialized");
+    } else if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error initialising SPI bus: %s", esp_err_to_name(err));
+    }
+}
+
 
 void controller_init(esp_event_loop_handle_t event_loop) {
     //install gpio isr service
@@ -60,6 +82,7 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     nvs_close(nvs_handle);
 
     // Hardware-specific implementation
+    _init_spi();
     hw_specs_init(event_loop);
 
     // Common hw initialisation
@@ -69,7 +92,7 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     boiler_temp_init(event_loop);
     pump_init(event_loop);
     setpoint_selector_init(event_loop);
-    rtds_init(&s_rtds_cfg);
+    rtds_init(s_spi, &s_rtds_cfg);
     process_loop_init(event_loop);
     power_init(event_loop);
     schedules_init(event_loop);
@@ -101,7 +124,6 @@ void controller_enter_loop() {
 // ---------------------------------------------------------------------------------------------------------------------
 
 void controller_cfg_to_json(cJSON *root, const char* base_key) {
-    controller_cfg_to_json(root, base_key);
 
     auto boiler_cfg = boiler_temp_get_cfg();
     boiler_cfg.to_json(root, base_key);
@@ -122,8 +144,6 @@ void controller_cfg_to_json(cJSON *root, const char* base_key) {
 }
 
 void controller_status_to_json(cJSON *root, const char* base_key) {
-    controller_status_to_json(root, base_key);
-
     auto boiler_status = boiler_temp_get_status();
     boiler_status.to_json(root, base_key);
 
@@ -144,8 +164,6 @@ void controller_handle_new_cfg(const cJSON* cfg) {
     char* json = cJSON_Print(cfg);
     ESP_LOGI(TAG, "Got remote config %s", json);
     cJSON_free(json);
-
-    controller_handle_new_cfg(cfg);
 
     // Pass down to each component, they will deal with it - it's a bit lazy really
     boiler_temp_update_cfg(cfg);

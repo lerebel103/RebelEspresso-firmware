@@ -90,7 +90,7 @@ esp_err_t rtds_get(reading_t* data, uint8_t idx) {
     }
 }
 
-int rtds_init(const rtds_cfg_t *cfg) {
+int rtds_init(spi_host_device_t spi, const rtds_cfg_t *cfg) {
     // Initialise multiplexer
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;

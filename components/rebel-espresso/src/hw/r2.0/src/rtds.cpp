@@ -3,12 +3,14 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
+#include <driver/spi_master.h>
 
 #include "hw_config.h"
 #include "events.h"
 #include "rtds.h"
+#include "ADS124S08.h"
 
-#define TAG "Temperature"
+#define TAG "RTDS"
 
 // The analogue switch at the front of the max31965 introduces
 // a small resistance, as per data sheet, this is as a correction offset.
@@ -17,6 +19,7 @@
 // Talks to the MAX IC for RTD sensing
 static uint16_t s_min_rtd = 0;
 static uint16_t s_max_rtd = 0;
+
 
 /**
  * Contains our last known reading
@@ -46,6 +49,9 @@ esp_err_t rtds_get(reading_t* data, uint8_t idx) {
     }
 }
 
-int rtds_init(const rtds_cfg_t *cfg) {
+int rtds_init(spi_host_device_t spi, const rtds_cfg_t *cfg) {
+    ADS124S08_init(spi);
+    ESP_LOGI(TAG, "ADC initialised");
+
     return ESP_OK;
 }

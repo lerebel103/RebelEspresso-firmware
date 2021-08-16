@@ -19,6 +19,8 @@ void hw_specs_handle_new_cfg(const cJSON* cfg);
 
 void hw_specs_handle_new_temp(uint64_t time_us, const reading_t &data, uint8_t idx);
 
+double hw_specs_read_water_level_mv();
+
 #ifdef __cplusplus
 }
 #endif

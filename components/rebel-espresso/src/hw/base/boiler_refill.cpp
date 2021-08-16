@@ -8,6 +8,7 @@
 #include "boiler_refill.h"
 #include "boiler_refill_states.h"
 #include "out_signals.h"
+#include "hw_specs.h"
 #include <esp_adc_cal.h>
 #include <src/events.h>
 #include <esp_event.h>
@@ -16,6 +17,10 @@
 #define DEFAULT_VREF                1100
 
 const static char *TAG = "refill";
+
+
+#define WL_ON   0 /* We are driving an NPN transistor, so needs to be opposite levels */
+#define WL_OFF  1 /* We are driving an NPN transistor, so needs to be opposite levels */
 
 #define BOILER_REFILL_NVS_CFG_STORE     "cfg.b_refill"
 
@@ -42,14 +47,14 @@ static void _load_nvram();
 
 bool boiler_check_level() {
     // Enable voltage on probe
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, 1);
+    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_ON);
     vTaskDelay(pdMS_TO_TICKS(s_cfg.stabilise_ms));
 
-
-    ESP_LOGE(TAG, "TODO implement water level reading: %f", s_level_voltage);
+    s_level_voltage = hw_specs_read_water_level_mv();
+    ESP_LOGI(TAG, "Water level voltage: %f", s_level_voltage);
 
     // Done, disable to prevent electrolysis
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);
+    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_OFF);
     return s_level_voltage <= s_cfg.refill_mv_threshold;
 }
 
@@ -125,8 +130,8 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
 
     // Turn off outputs
     out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, 0);
-
+    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_OFF);
+    
     // Configure ADC input
     // Configure pins for voltage divider
     ESP_LOGI(TAG, "Initialising ADC pin input");

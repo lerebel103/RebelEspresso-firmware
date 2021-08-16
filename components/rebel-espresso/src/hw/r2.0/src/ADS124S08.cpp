@@ -1,0 +1,385 @@
+#define TAG "ADS124S08"
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+#include <climits>
+#include <soc_log.h>
+#include <cstring>
+#include "ADS124S08.h"
+#include "hw_config.h"
+
+#define ADS124S08_INTERNAL_REF_VOLTAGE 2.5
+
+
+/* Control Commands */
+#define CMD_NOP         0b00000000u
+#define CMD_WAKEUP      0b00000010u
+#define CMD_POWERDOWN   0b00000100u
+#define CMD_RESET       0b00000110u
+#define CMD_START       0b00001000u
+#define CMD_STOP        0b00001010u
+
+/* Calibration Commands */
+#define CMD_SYOCAL      0b00010110u
+#define CMD_SYGCAL      0b00010111u
+#define CMD_SFOCAL      0b00011001u
+
+/* Data Read Command */
+#define CMD_RDATA       0b00010010u
+
+/* Register Read and Write Commands */
+#define CMD_RREG        0b00100000u
+#define CMD_WREG        0b01000000u
+
+/* Config Registers */
+#define REG_ID          0x00u
+#define REG_STATUS      0x01u
+#define REG_INPMUX      0x02u
+#define REG_PGA         0x03u
+#define REG_DATARATE    0x04u
+#define REG_REF         0x05u
+#define REG_IDACMAG     0x06u
+#define REG_IDACMUX     0x07u
+#define REG_VBIAS       0x08u
+#define REG_SYS         0x09u
+#define REG_OFCAL0      0x0Au
+#define REG_OFCAL1      0x0Bu
+#define REG_OFCAL2      0x0Cu
+#define REG_FSCAL0      0x0Du
+#define REG_FSCAL1      0x0Eu
+#define REG_FSCAL2      0x0Fu
+#define REG_GPIODAT     0x10u
+#define REG_GPIOCON     0x11u
+
+
+static spi_device_handle_t s_device_handle;
+
+static ADS124S08_ref_t s_ref_type;
+
+static esp_err_t _write_cmd(uint8_t cmd) {
+    spi_transaction_ext_t transaction = {};
+    transaction.base.length = 0;
+    transaction.base.rxlength = 0;
+    transaction.base.cmd = cmd;
+    transaction.base.tx_buffer = nullptr;
+    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR;
+    transaction.command_bits = 8;
+    transaction.address_bits = 0;
+
+    ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
+    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    spi_device_release_bus(s_device_handle);
+
+    return err;
+}
+
+static esp_err_t _read_register(uint8_t addr, uint8_t *result, uint8_t size) {
+    assert(size <= 4);  // we're using the transaction buffers
+    spi_transaction_ext_t transaction = {};
+    transaction.base.length = CHAR_BIT * size;
+    transaction.base.rxlength = CHAR_BIT * size;
+    transaction.base.cmd = ((CMD_RREG | addr) << 8u) | (size - 0x01u);  /* n - 1 reads */
+    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_USE_RXDATA;
+    transaction.command_bits = 16;
+    transaction.address_bits = 0;
+
+    ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
+    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    spi_device_release_bus(s_device_handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error sending SPI transaction: %s", esp_err_to_name(err));
+        return err;
+    }
+    memcpy(result, transaction.base.rx_data, size);
+
+    return ESP_OK;
+}
+
+static esp_err_t _write_register(uint8_t addr, uint8_t *data, uint8_t size) {
+    assert(size <= 4);  // we're using the transaction buffers
+    spi_transaction_ext_t transaction = {};
+    transaction.base.length = size * CHAR_BIT;
+    transaction.base.cmd = ((CMD_WREG | addr) << 8u) | (size - 0x01u);  /* n - 1 reads */
+    memcpy(transaction.base.tx_data, data, size);
+    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_USE_TXDATA;
+    transaction.command_bits = 16;
+    transaction.address_bits = 0;
+
+    ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
+    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    spi_device_release_bus(s_device_handle);
+
+    return err;
+}
+
+static esp_err_t _read_data(uint8_t* status, uint32_t* value) {
+    spi_transaction_ext_t transaction = {};
+    transaction.base.length = CHAR_BIT * 4;
+    transaction.base.rxlength = CHAR_BIT * 4;
+    transaction.base.cmd = CMD_RDATA;
+    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_USE_RXDATA;
+    transaction.command_bits = 8;
+    transaction.address_bits = 0;
+
+    ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
+    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    spi_device_release_bus(s_device_handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error sending SPI transaction: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    *status = transaction.base.rx_data[0];
+    *value = transaction.base.rx_data[3];
+    *value |= ((uint32_t)transaction.base.rx_data[2]) << 8u;
+    *value |= ((uint32_t)transaction.base.rx_data[1]) << 16u;
+
+    return ESP_OK;
+}
+
+void ADS124S08_wakeup() {
+    _write_cmd(CMD_WAKEUP);
+}
+
+void ADS124S08_powerdown() {
+    _write_cmd(CMD_POWERDOWN);
+}
+
+void ADS124S08_reset() {
+    // Here we go straight to the reset pin (safer than SPI commands)
+    ESP_LOGI(TAG, "  >> RESET <<");
+    gpio_set_level(PIN_OUT_ADC_RESET, 0);
+    vTaskDelay(pdMS_TO_TICKS(2));
+
+    // Must wait after a reset
+    gpio_set_level(PIN_OUT_ADC_RESET, 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
+}
+
+void ADS124S08_start() {
+    _write_cmd(CMD_START);
+}
+
+void ADS124S08_stop() {
+    _write_cmd(CMD_STOP);
+}
+
+void ADS124S08_set_mux(struct ADS124S08_mux_t mux) {
+    uint8_t write = mux.mux_p;
+    write = (write << 4u) | mux.mux_n;
+    _write_register(REG_INPMUX, &write, 1);
+}
+
+struct ADS124S08_mux_t ADS124S08_get_mux() {
+    // Read AIN Neg and Pos separately
+    uint8_t read;
+    ADS124S08_mux_t val = {};
+    _read_register(REG_INPMUX, &read, 1);
+    val.mux_n = read & 0b00001111;
+    val.mux_p = (read >> 4u) & 0b00001111;
+    return val;
+}
+
+struct  ADS124S08_data_t ADS124S08_conv() {
+    ADS124S08_start();
+    // Delay calculated for 10FPS, LL filter and conv delay
+    vTaskDelay(pdMS_TO_TICKS(107 + 4));
+
+    // Now read register back, it will contain status and 24-bit value
+    uint8_t status;
+    uint32_t value;
+    _read_data(&status, &value);
+
+    // Convert value accordingly to a voltage
+    struct ADS124S08_data_t data = {
+            .status = status,
+            .value = 0
+    };
+
+    // Work out which reference voltage was used and convert back accordingly
+    double vRef = 0;
+    if (s_ref_type == ADS124S08_ref_INTERNAL) {
+        vRef = ADS124S08_INTERNAL_REF_VOLTAGE;
+    } else if(s_ref_type == ADS124S08_ref_EXTERNAL) {
+        // Pass
+    } else {
+        ESP_LOGE(TAG, "No idea what this VRef is.");
+        data.status = 0xFF;
+    }
+
+    // Convert digital value into analog range one
+    double lsb = 2*vRef / (1u << 24u);
+    double full_scale_analog = vRef - lsb;
+    data.value = value * full_scale_analog / 0x7FFFFF;
+
+    return data;
+}
+
+void ADS124S08_set_ref(enum ADS124S08_ref_t ref) {
+    uint8_t val;
+    _read_register(REG_REF, &val, 1);
+
+    if (ref == ADS124S08_ref_INTERNAL) {
+        val &= ~0b00001100u;
+        val |= 0b00001000u;
+        s_ref_type = ADS124S08_ref_INTERNAL;
+        ESP_LOGD(TAG, "Using Internal 2.5V Reference");
+    } else if(ref == ADS124S08_ref_EXTERNAL) {
+        val &= ~0b00001100u;
+        ESP_LOGD(TAG, "Using External REFN0 - REFP0 as Reference");
+        s_ref_type = ADS124S08_ref_EXTERNAL;
+    }
+
+    _write_register(REG_REF, &val, 1);
+}
+
+enum ADS124S08_ref_t ADS124S08_get_ref() {
+    uint8_t val;
+    _read_register(REG_REF, &val, 1);
+
+    if (val & 0b00001000u) {
+        return ADS124S08_ref_INTERNAL;
+    } else {
+        return ADS124S08_ref_EXTERNAL;
+    }
+}
+
+void ADS124S08_set_conv_delay(uint8_t delay) {
+    uint8_t val;
+    _read_register(REG_PGA, &val, 1);
+
+    val &= ~0b11100000u;
+    val |= (delay << 5u);
+
+    _write_register(REG_PGA, &val, 1);
+}
+
+uint8_t ADS124S08_get_conv_delay() {
+    uint8_t val;
+    _read_register(REG_PGA, &val, 1);
+
+    return (val & 0b11100000u) >> 5u;
+}
+
+
+void _configure() {// RESET status, POR event would have occurred and needs to be cleared
+    uint8_t val = 0;
+    uint8_t  new_val = 0;
+
+    ADS124S08_reset();
+
+    // Reset POR flag immediately after a reset
+    val = 0;
+    _write_register(REG_STATUS, &val, 1);
+
+
+    // Configure:
+    /*
+         7 CHOP: 1 -> Enabled
+         6 CLK: 0 -> Internal CLK
+         5 Mode: 1 -> Single Shot
+         4 Filter: -> 1 Low latency
+         3-0: datarate
+     */
+    new_val = 0b00110010;
+    _write_register(REG_DATARATE, &new_val, 1);
+    _read_register(REG_DATARATE, &val, 1);
+    ESP_ERROR_CHECK((val == new_val ? ESP_OK : ESP_ERR_INVALID_STATE));
+    
+    // Sys register
+    /*
+        7:5	SYS_MON[2:0]
+        4:3	CAL_SAMP[1:0] (10 is 8 samples)
+        2	TIMEOUT
+        1	CRC
+        0	SENDSTAT
+     */
+    new_val = 0b00010001;
+    _write_register(REG_SYS, &new_val, 1);
+    _read_register(REG_SYS, &val, 1);
+    ESP_ERROR_CHECK((val == new_val ? ESP_OK : ESP_ERR_INVALID_STATE));
+
+    // VBIAS
+    new_val = 0b00000000;
+    _write_register(REG_VBIAS, &new_val, 1);
+    _read_register(REG_VBIAS, &val, 1);
+    ESP_ERROR_CHECK((val == new_val ? ESP_OK : ESP_ERR_INVALID_STATE));
+
+    // Internal reference, set to always on
+    /*
+        7:6	FL_REF_EN[1:0]
+        5	REFP_BUF
+        4	REFN_BUF
+        3:2	REFSEL[1:0]
+        1:0	REFCON[1:0]
+     */
+    new_val = 0b00010010;
+    _write_register(REG_REF, &new_val, 1);
+    _read_register(REG_REF, &val, 1);
+    ESP_ERROR_CHECK((val == new_val ? ESP_OK : ESP_ERR_INVALID_STATE));
+    s_ref_type = ADS124S08_get_ref() == ADS124S08_ref_INTERNAL ? ADS124S08_ref_INTERNAL : ADS124S08_ref_EXTERNAL ;
+
+    // Set conversion delay to something reasonable for settling time
+    ADS124S08_set_conv_delay(ADS124S08_DELAY_1ms);
+
+    ESP_LOGI(TAG, "  >> CONFIGURED <<");
+}
+
+void ADS124S08_init(spi_host_device_t spi) {
+    // Setup RESET pin as output
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = (
+            (1ULL << PIN_OUT_ADC_RESET)
+    );
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+
+    // Pull GPIO high for RESET
+    gpio_set_level(PIN_OUT_ADC_RESET, 1);
+
+    // Add this device to the SPI bus
+    spi_device_interface_config_t deviceConfig = {};
+    deviceConfig.spics_io_num = PIN_OUT_ADC_CS;
+    deviceConfig.clock_speed_hz = SPI_MASTER_FREQ_26M;
+    deviceConfig.mode = 3;
+    deviceConfig.address_bits = 0;
+    deviceConfig.command_bits = 0;
+    deviceConfig.flags = SPI_DEVICE_HALFDUPLEX;
+    deviceConfig.queue_size = 1;
+    deviceConfig.cs_ena_pretrans = 8;
+    deviceConfig.cs_ena_posttrans = 8;
+    ESP_ERROR_CHECK(spi_bus_add_device(spi, &deviceConfig, &s_device_handle));
+
+    _configure();
+
+
+    /*
+    int count = 0;
+    do {
+        count ++;
+
+        //uint8_t status;
+        //_read_register(REG_PGA, &status, 1);
+        //printf("PGA %d\r\n", status);
+
+        //ADS124S08_mux_t mux = ADS124S08_get_mux();
+        //printf("MUX N is %d\r\n", mux.mux_n);
+        //printf("MUX P is %d\r\n", mux.mux_p);
+
+        ADS124S08_data_t data = ADS124S08_conv();
+        printf("Data: status %d, V=%f\r\n\r\n", data.status, data.value);
+
+        if (count > 10) {
+            count = 0;
+        }
+
+        //vTaskDelay(pdMS_TO_TICKS(100));
+    } while(1); */
+
+}

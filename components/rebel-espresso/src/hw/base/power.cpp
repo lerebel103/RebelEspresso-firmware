@@ -42,7 +42,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-    if (gpio_get_level(PIN_IN_STEAM_EN) == 0) {
+    if (gpio_get_level(PIN_IN_SYS_EN) == 0) {
         /*if (s_is_low_power) {
             // Enter normal power mode
             esp_pm_config_esp32_t pm_config = {
@@ -80,7 +80,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 extern "C"
 void power_standby() {
     s_active_toggled = false;
-    if (gpio_get_level(PIN_IN_STEAM_EN) != 0) {
+    if (gpio_get_level(PIN_IN_SYS_EN) != 0) {
         _standby();
     }
 }
@@ -108,7 +108,7 @@ void power_init(esp_event_loop_handle_t event_loop) {
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = ((1ULL << PIN_IN_STEAM_EN));
+    io_conf.pin_bit_mask = ((1ULL << PIN_IN_SYS_EN));
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);

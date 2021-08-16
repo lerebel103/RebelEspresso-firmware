@@ -48,7 +48,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     }
 
     // maintain setpoint_selector state with switch
-    if(gpio_get_level(PIN_IN_BREW_EN) == 0) {
+    if(gpio_get_level(PIN_IN_STEAM_EN) == 0) {
         _setpoint_selector_sw_on = true;
         _setpoint_selector_on();
     } else {
@@ -65,7 +65,7 @@ void setpoint_selector_init(esp_event_loop_handle_t event_loop) {
     io_conf.intr_type = GPIO_INTR_POSEDGE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (
-            (1ULL << PIN_IN_BREW_EN)
+            (1ULL << PIN_IN_STEAM_EN)
     );
 
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -76,7 +76,7 @@ void setpoint_selector_init(esp_event_loop_handle_t event_loop) {
     _tick(NULL, MACHINE_EVENTS, TICK, NULL);
 
     // Now install switch interrupt and event handlers for boiler refill events
-    gpio_isr_handler_add(PIN_IN_BREW_EN, _selector_switch_off, NULL);
+    gpio_isr_handler_add(PIN_IN_STEAM_EN, _selector_switch_off, NULL);
 
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
                                                     _tick, s_event_loop));

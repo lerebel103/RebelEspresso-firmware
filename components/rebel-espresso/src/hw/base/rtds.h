@@ -1,5 +1,6 @@
 #pragma once
 
+#include <hal/spi_types.h>
 #include "reading.h"
 
 struct rtds_cfg_t {
@@ -21,7 +22,7 @@ enum units_enum_t {
 
 typedef void (*rtd_update_cb_t)(uint64_t time_us, const reading_t& data, uint8_t rtd_idx);
 
-int rtds_init(const rtds_cfg_t* cfg);
+int rtds_init(spi_host_device_t spi, const rtds_cfg_t* cfg);
 
 /**
  * Causes a new read of all RTDS, invokes callbacks and caches values.

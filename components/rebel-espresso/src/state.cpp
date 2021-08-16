@@ -86,11 +86,9 @@ void state_send(time_t timestamp) {
     cJSON_AddNumberToObject(status, "ota_duration", ota_get_duration());
     cJSON_AddNumberToObject(status, "sntp.sync_duration", sntp_sync_get_sync_duration());
 
-    printf("Status\r\n");
     controller_status_to_json(root, "status.");
-    printf("Status OK\r\n");
 
-    //controller_cfg_to_json(root, "config.");
+    controller_cfg_to_json(root, "config.");
 
     char *json_unformatted = cJSON_Print(root);
     cJSON_Delete(root);

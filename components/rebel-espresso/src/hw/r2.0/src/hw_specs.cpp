@@ -4,9 +4,11 @@
 #include <driver/i2c.h>
 #include <esp_log.h>
 #include <src/hw/base/out_signals.h>
+#include <driver/spi_common.h>
 
 #include "hw_specs.h"
 #include "hw_config.h"
+#include "ADS124S08.h"
 
 #define TAG "hw_specs"
 
@@ -45,7 +47,30 @@ void _print_i2c_devices() {
     }
 }
 
+double hw_specs_read_water_level_mv() {
+    // Set mux for water level read
+    ADS124S08_mux_t mux = {
+            .mux_n  = ADS124S08_MUX_AIN3,
+            .mux_p = ADS124S08_MUX_AINCOM
+    };
+    ADS124S08_set_mux(mux);
+
+    // Set to internal voltage reference
+    ADS124S08_set_ref(ADS124S08_ref_INTERNAL);
+
+    // Go
+    ADS124S08_data_t data = ADS124S08_conv();
+    if (data.status != 0) {
+        data.value = -1;
+        ESP_LOGE(TAG, "Error reading water level");
+    }
+
+    return data.value * 1000;
+}
+
+
 void hw_specs_init(esp_event_loop_handle_t event_loop) {
+    // I2C Initialisation
     i2c_config_t conf = {
             .mode = I2C_MODE_MASTER,
             .sda_io_num = PIN_SDA,

@@ -46,12 +46,14 @@ static check_level_fn check_level;
 static void _load_nvram();
 
 bool boiler_check_level() {
-    // Enable voltage on probe
+    // Enable voltage on probe - measured settle time is 70ns, which is bugger all,
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_ON);
-    vTaskDelay(pdMS_TO_TICKS(s_cfg.stabilise_ms));
 
     s_level_voltage = hw_specs_read_water_level_mv();
     ESP_LOGI(TAG, "Water level voltage: %f", s_level_voltage);
+    if (s_level_voltage > 2500) {
+        ESP_LOGE(TAG, "*******8 WTH????? ****");
+    }
 
     // Done, disable to prevent electrolysis
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_OFF);

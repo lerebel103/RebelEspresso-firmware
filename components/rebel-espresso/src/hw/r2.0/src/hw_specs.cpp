@@ -49,17 +49,18 @@ void _print_i2c_devices() {
 
 double hw_specs_read_water_level_mv() {
     // Set mux for water level read
-    ADS124S08_mux_t mux = {
+    ADS124S08_adc_mux_t mux = {
             .mux_n  = ADS124S08_MUX_AIN3,
             .mux_p = ADS124S08_MUX_AINCOM
     };
-    ADS124S08_set_mux(mux);
+    ADS124S08_set_adc_mux(mux);
 
     // Set to internal voltage reference
     ADS124S08_set_ref(ADS124S08_ref_INTERNAL);
 
     // Go
     ADS124S08_data_t data = ADS124S08_conv();
+    printf("status %d\r\n", data.status);
     if (data.status != 0) {
         data.value = -1;
         ESP_LOGE(TAG, "Error reading water level");

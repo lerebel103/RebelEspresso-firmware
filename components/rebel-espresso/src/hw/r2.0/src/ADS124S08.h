@@ -27,9 +27,27 @@
 #define ADS124S08_DELAY_8ms         0b101
 #define ADS124S08_DELAY_16ms        0b110
 
-struct ADS124S08_mux_t {
+/* Programmable excitation current range (IDACs) */
+#define ADS124S08_IDAC_OFF           0b0000u
+#define ADS124S08_IDAC_10uA          0b0001u
+#define ADS124S08_IDAC_50uA          0b0010u
+#define ADS124S08_IDAC_100uA         0b0011u
+#define ADS124S08_IDAC_250uA         0b0100u
+#define ADS124S08_IDAC_500uA         0b0101u
+#define ADS124S08_IDAC_750uA         0b0110u
+#define ADS124S08_IDAC_1000uA        0b0111u
+#define ADS124S08_IDAC_1500uA        0b1000u
+#define ADS124S08_IDAC_2000uA        0b1001u
+
+
+struct ADS124S08_adc_mux_t {
     uint8_t mux_n : 4;
     uint8_t mux_p : 4;
+};
+
+struct ADS124S08_idac_mux_t {
+    uint8_t mux_idac1 : 4;
+    uint8_t mux_idac2 : 4;
 };
 
 struct ADS124S08_data_t {
@@ -51,11 +69,11 @@ void ADS124S08_start();
 void ADS124S08_stop();
 
 /**
- * Set inpput and output MUX as desired.
+ * Set inpput MUX to ADC (AINx) as desired.
  * @param mux
  */
-void ADS124S08_set_mux(struct ADS124S08_mux_t mux);
-struct  ADS124S08_mux_t ADS124S08_get_mux();
+void ADS124S08_set_adc_mux(struct ADS124S08_adc_mux_t mux);
+struct  ADS124S08_adc_mux_t ADS124S08_get_adc_mux();
 
 /**
  * Set voltage reference to be the internal 2.5V buffer or external reference
@@ -72,7 +90,22 @@ void ADS124S08_set_conv_delay(uint8_t delay);
 uint8_t ADS124S08_get_conv_delay();
 
 /**
+ * See ADS124S08_IDAC_*
+ */
+void ADS124S08_set_idac_current(uint8_t delay);
+uint8_t ADS124S08_get_idac_current();
+
+/**
+ * Set inpput MUX to ADC (AINx) as desired.
+ * @param mux
+ */
+void ADS124S08_set_idac_mux(struct ADS124S08_idac_mux_t mux);
+struct  ADS124S08_idac_mux_t ADS124S08_get_idac_mux();
+
+/**
  * Do a one shot conversion and return the value.
  * @return Contains status and 24-bit value just read
  */
 struct  ADS124S08_data_t ADS124S08_conv();
+
+double ADS124S08_get_vref();

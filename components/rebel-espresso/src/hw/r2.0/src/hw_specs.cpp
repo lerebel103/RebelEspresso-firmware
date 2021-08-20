@@ -53,14 +53,15 @@ double hw_specs_read_water_level_mv() {
             .mux_n  = ADS124S08_MUX_AIN3,
             .mux_p = ADS124S08_MUX_AINCOM
     };
-    ADS124S08_set_adc_mux(mux);
-
-    // Set to internal voltage reference
-    ADS124S08_set_ref(ADS124S08_ref_INTERNAL);
+    ADS124S08_idac_mux_t idac_mux = {
+            .mux_idac1 = ADS124S08_MUX_AIN0,
+            .mux_idac2 = ADS124S08_MUX_AIN1,
+    };
+    double idac_current = ADS124S08_IDAC_OFF;
+    double gain = ADS124S08_PGA_GAIN1;
 
     // Go
-    ADS124S08_data_t data = ADS124S08_conv();
-    printf("status %d\r\n", data.status);
+    ADS124S08_data_t data = ADS124S08_conv(ADS124S08_ref_INTERNAL, mux, idac_mux, idac_current, gain);
     if (data.status != 0) {
         data.value = -1;
         ESP_LOGE(TAG, "Error reading water level");

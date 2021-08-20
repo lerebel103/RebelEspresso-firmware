@@ -7,13 +7,11 @@
 #include <soc_log.h>
 #include <cstring>
 #include <cmath>
+#include <freertos/semphr.h>
 #include "ADS124S08.h"
 #include "hw_config.h"
 
 #define ADS124S08_INTERNAL_REF_VOLTAGE 2.5
-
-// Onboard reference resistor accross REFN0 and REFP0
-#define RREF 2000
 
 /* Control Commands */
 #define CMD_NOP         0b00000000u
@@ -58,8 +56,10 @@
 
 static spi_device_handle_t s_device_handle;
 
+static SemaphoreHandle_t s_conv_lock = nullptr;
 static ADS124S08_ref_t s_ref_type;
 static double s_vRef = 0;
+static double s_pga_gain = 1;
 
 static esp_err_t _write_cmd(uint8_t cmd) {
     spi_transaction_ext_t transaction = {};
@@ -216,29 +216,51 @@ double ADS124S08_get_vref() {
     return vRef;
 }
 
-struct ADS124S08_data_t ADS124S08_conv() {
-    ADS124S08_start();
-    // Delay calculated for 10FPS, LL filter and conv delay
-    vTaskDelay(pdMS_TO_TICKS(107 + 4));
+struct ADS124S08_data_t ADS124S08_conv(
+        enum ADS124S08_ref_t ref,
+        struct ADS124S08_adc_mux_t adc_mux,
+        struct ADS124S08_idac_mux_t idac_mux,
+        uint8_t idac_current, uint8_t pga_gain) {
+    struct ADS124S08_data_t data = {};
 
-    // Now read register back, it will contain status and 24-bit value
-    uint8_t status;
-    uint32_t value;
-    _read_data(&status, &value);
+    // Can only do one conversion at a time
+    xSemaphoreTake(s_conv_lock, portMAX_DELAY);
+    {
+        // Set all params before single shot conversion is started
+        ADS124S08_set_ref(ref);
+        ADS124S08_set_adc_mux(adc_mux);
+        ADS124S08_set_idac_mux(idac_mux);
+        ADS124S08_set_idac_current(idac_current);
+        ADS124S08_set_pga_gain(pga_gain);
 
-    // Convert value accordingly to a voltage
-    struct ADS124S08_data_t data = {
-            .status = status,
-            .value = 0
-    };
+        // Go - Do converstion
+        ADS124S08_start();
 
-    // Work out which reference voltage was used and convert back accordingly
-    double vRef = ADS124S08_get_vref();
+        // Delay calculated for 20FPS, LL filter, conv delay + CHOP
+        auto delay = (57 + 8) * 2;
+        vTaskDelay(pdMS_TO_TICKS(delay));
 
-    // Convert digital value into analog range one
-    double lsb = 2 * vRef / (1u << 24u);
-    double full_scale_analog = vRef - lsb;
-    data.value = value * full_scale_analog / 0x7FFFFF;
+        // Now read register back, it will contain status and 24-bit value
+        uint8_t status;
+        uint32_t value;
+        _read_data(&status, &value);
+
+        // Work out which reference voltage was used and convert back accordingly
+        double vRef = ADS124S08_get_vref() / s_pga_gain;
+
+        // Convert value accordingly to a voltage
+        data = {
+                .status = status,
+                .value = 0,
+                .v_ref = s_vRef
+        };
+
+        // Convert digital value into analog range one
+        double lsb = 2 * vRef / (1u << 24u);
+        double full_scale_analog = vRef - lsb;
+        data.value = value * full_scale_analog / 0x7FFFFF;
+    }
+    xSemaphoreGive(s_conv_lock);
 
     return data;
 }
@@ -272,10 +294,53 @@ enum ADS124S08_ref_t ADS124S08_get_ref() {
     }
 }
 
+void ADS124S08_set_idac_current(uint8_t value) {
+    uint8_t val;
+    _read_register(REG_IDACMAG, &val, 1);
+
+    val &= ~0b00001111u;
+    val |= value;
+    _write_register(REG_IDACMAG, &val, 1);
+
+    // Calculate VREF based on this
+    if (value == ADS124S08_IDAC_OFF) {
+        s_vRef = ADC_RREF;
+    } else if (value == ADS124S08_IDAC_10uA) {
+        s_vRef = ADC_RREF * 10e-6;
+    } else if (value == ADS124S08_IDAC_50uA) {
+        s_vRef = ADC_RREF * 50e-6;
+    } else if (value == ADS124S08_IDAC_100uA) {
+        s_vRef = ADC_RREF * 100e-6;
+    } else if (value == ADS124S08_IDAC_250uA) {
+        s_vRef = ADC_RREF * 250e-6;
+    } else if (value == ADS124S08_IDAC_500uA) {
+        s_vRef = ADC_RREF * 500e-6;
+    } else if (value == ADS124S08_IDAC_750uA) {
+        s_vRef = ADC_RREF * 750e-6;
+    } else if (value == ADS124S08_IDAC_1000uA) {
+        s_vRef = ADC_RREF * 1000e-6;
+    } else if (value == ADS124S08_IDAC_1500uA) {
+        s_vRef = ADC_RREF * 1500e-6;
+    } else if (value == ADS124S08_IDAC_2000uA) {
+        s_vRef = ADC_RREF * 2000e-6;
+    }
+
+    s_vRef = s_vRef * 2;
+}
+
+uint8_t ADS124S08_get_idac_current() {
+    uint8_t val;
+    _read_register(REG_IDACMAG, &val, 1);
+    return val & 0b00001111u;
+}
+
 void ADS124S08_set_conv_delay(uint8_t delay) {
     uint8_t val;
     _read_register(REG_PGA, &val, 1);
 
+    // DELAY[7:5]
+    // GAIN[4:3]
+    // PGA_EN[2:0]
     val &= ~0b11100000u;
     val |= (delay << 5u);
 
@@ -289,43 +354,47 @@ uint8_t ADS124S08_get_conv_delay() {
     return (val & 0b11100000u) >> 5u;
 }
 
-void ADS124S08_set_idac_current(uint8_t value) {
+void ADS124S08_set_pga_gain(uint8_t value) {
     uint8_t val;
-    _read_register(REG_IDACMAG, &val, 1);
+    _read_register(REG_PGA, &val, 1);
 
-    val &= ~0b00001111u;
+    // DELAY[7:5]
+    // GAIN[4:3]
+    // PGA_EN[2:0]
+    val &= ~0b00011111u;
     val |= value;
-    _write_register(REG_IDACMAG, &val, 1);
 
-    // Calculate VREF based on this
-    if (value == ADS124S08_IDAC_OFF) {
-        s_vRef = RREF;
-    } else if (value == ADS124S08_IDAC_10uA) {
-        s_vRef = RREF * 10e-6;
-    } else if (value == ADS124S08_IDAC_50uA) {
-        s_vRef = RREF * 50e-6;
-    } else if (value == ADS124S08_IDAC_100uA) {
-        s_vRef = RREF * 100e-6;
-    } else if (value == ADS124S08_IDAC_250uA) {
-        s_vRef = RREF * 250e-6;
-    } else if (value == ADS124S08_IDAC_500uA) {
-        s_vRef = RREF * 500e-6;
-    } else if (value == ADS124S08_IDAC_750uA) {
-        s_vRef = RREF * 750e-6;
-    } else if (value == ADS124S08_IDAC_1000uA) {
-        s_vRef = RREF * 1000e-6;
-    } else if (value == ADS124S08_IDAC_1500uA) {
-        s_vRef = RREF * 1500e-6;
-    } else if (value == ADS124S08_IDAC_2000uA) {
-        s_vRef = RREF * 2000e-6;
+    // Record gain to help with conversions later
+    if (value == ADS124S08_PGA_GAIN1) {
+        s_pga_gain = 1;
+    } else if (value == ADS124S08_PGA_GAIN2) {
+        s_pga_gain = 2;
+    } else if (value == ADS124S08_PGA_GAIN4) {
+        s_pga_gain = 4;
+    } else if (value == ADS124S08_PGA_GAIN8) {
+        s_pga_gain = 8;
+    } else if (value == ADS124S08_PGA_GAIN16) {
+        s_pga_gain = 16;
+    } else if (value == ADS124S08_PGA_GAIN32) {
+        s_pga_gain = 32;
+    } else if (value == ADS124S08_PGA_GAIN64) {
+        s_pga_gain = 64;
+    } else if (value == ADS124S08_PGA_GAIN128) {
+        s_pga_gain = 128;
     }
 
-    s_vRef = s_vRef * 2;
+    if (s_pga_gain > 1) {
+        // Enable PGA only if a gain is desired.
+        val |= 0b00001000u;
+    }
+
+    // Set new gain, with enable flag as needed
+    _write_register(REG_PGA, &val, 1);
 }
 
-uint8_t ADS124S08_get_idac_current() {
+uint8_t ADS124S08_get_pga_gain() {
     uint8_t val;
-    _read_register(REG_IDACMAG, &val, 1);
+    _read_register(REG_PGA, &val, 1);
     return val & 0b00000111u;
 }
 
@@ -340,8 +409,6 @@ void _configure() {// RESET status, POR event would have occurred and needs to b
     val = 0;
     _write_register(REG_STATUS, &val, 1);
 
-
-    // Configure:
     /*
          7 CHOP: 1 -> Enabled
          6 CLK: 0 -> Internal CLK
@@ -349,7 +416,7 @@ void _configure() {// RESET status, POR event would have occurred and needs to b
          4 Filter: -> 1 Low latency
          3-0: datarate
      */
-    new_val = 0b00110010;
+    new_val = 0b10110100;
     _write_register(REG_DATARATE, &new_val, 1);
     _read_register(REG_DATARATE, &val, 1);
     ESP_ERROR_CHECK((val == new_val ? ESP_OK : ESP_ERR_INVALID_STATE));
@@ -393,41 +460,20 @@ void _configure() {// RESET status, POR event would have occurred and needs to b
     // Turn off IDAC by default
     ADS124S08_set_idac_current(ADS124S08_IDAC_OFF);
 
+    // Do self-offset calibration
+    ADS124S08_wakeup();
+    _write_register(CMD_SFOCAL, &new_val, 0);
+
     ESP_LOGI(TAG, "  >> CONFIGURED <<");
 }
 
-
-static constexpr float RTD_A = 3.9083e-3;
-static constexpr float RTD_B = -5.775e-7;
-static constexpr float RTD_C = -4.183e-12;
-static constexpr float A[6] = {-242.02, 2.2228, 2.5859e-3,
-                               4.8260e-6, 2.8183e-8, 1.5243e-10};
-
-float RTDtoTemperature(double voltage) {
-    double RNominal = 1000;
-
-    double Rrtd = voltage / (ADS124S08_get_vref()/(2*RREF) );
-
-    float Z1, Z2, Z3, Z4, temperature;
-    Z1 = -RTD_A;
-    Z2 = RTD_A * RTD_A - (4 * RTD_B);
-    Z3 = (4 * RTD_B) / RNominal;
-    Z4 = 2 * RTD_B;
-    temperature = Z2 + (Z3 * Rrtd);
-    temperature = (sqrt(temperature) + Z1) / Z4;
-
-    if (temperature > 0.0) {
-        return temperature;
+void ADS124S08_init(spi_host_device_t spi) {
+    if (s_conv_lock != nullptr) {
+        ESP_LOGE(TAG, "Already initialised");
     }
 
-    Rrtd /= RNominal;
-    Rrtd *= 100.0;
-    return A[0] + A[1] * Rrtd + A[2] * pow(Rrtd, 2) + A[3] * pow(Rrtd, 3) +
-           A[4] * pow(Rrtd, 4) + A[5] * pow(Rrtd, 5);
-}
+    s_conv_lock = xSemaphoreCreateMutex();
 
-
-void ADS124S08_init(spi_host_device_t spi) {
     // Setup RESET pin as output
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
@@ -456,47 +502,4 @@ void ADS124S08_init(spi_host_device_t spi) {
     ESP_ERROR_CHECK(spi_bus_add_device(spi, &deviceConfig, &s_device_handle));
 
     _configure();
-
-    ADS124S08_set_ref(ADS124S08_ref_EXTERNAL);
-
-    // Mux for RTD1
-    ADS124S08_adc_mux_t adc_mux = {
-            .mux_n  = ADS124S08_MUX_AIN2,
-            .mux_p = ADS124S08_MUX_AIN1
-    };
-    ADS124S08_set_adc_mux(adc_mux);
-
-    // Mux for IDACs over RTD1
-    ADS124S08_idac_mux_t idac_mux = {
-            .mux_idac1  = ADS124S08_MUX_AIN0,
-            .mux_idac2 = ADS124S08_MUX_AIN3
-    };
-    ADS124S08_set_idac_mux(idac_mux);
-
-    // Set current to 250uA
-    ADS124S08_set_idac_current(ADS124S08_IDAC_250uA);
-
-    int count = 0;
-    do {
-        count++;
-
-        //uint8_t status;
-        //_read_register(REG_PGA, &status, 1);
-        //printf("PGA %d\r\n", status);
-
-        //ADS124S08_mux_t mux = ADS124S08_get_adc_mux();
-        //printf("MUX N is %d\r\n", mux.mux_n);
-        //printf("MUX P is %d\r\n", mux.mux_p);
-
-        ADS124S08_data_t data = ADS124S08_conv();
-        printf("Data: status %d, V=%f, T=%f\r\n\r\n", data.status, data.value, RTDtoTemperature(data.value));
-
-        if (count > 10) {
-            count = 0;
-        }
-
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    } while (1);
-
 }

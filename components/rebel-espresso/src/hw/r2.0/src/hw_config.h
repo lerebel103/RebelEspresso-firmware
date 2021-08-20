@@ -13,9 +13,12 @@
 #define PIN_SDA                 GPIO_NUM_19
 #define PIN_SCL                 GPIO_NUM_18
 
-// ADC pins handling (ADS124S08)
+// ADC (ADS124S08)
 #define PIN_OUT_ADC_CS          GPIO_NUM_15
 #define PIN_OUT_ADC_RESET       GPIO_NUM_16
+// Reference resistor used to create VRef
+#define ADC_RREF                2000
+
 
 // Switches (inputs)
 #define PIN_IN_SYS_EN           GPIO_NUM_35

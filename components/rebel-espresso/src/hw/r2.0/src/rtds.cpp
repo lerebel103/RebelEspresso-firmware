@@ -12,6 +12,8 @@
 #include "ADS124S08.h"
 
 #define TAG "RTDS"
+#define TEMP_RANGE_MIN -5
+#define TEMP_RANGE_MAX 200
 
 static constexpr float RTD_A = 3.9083e-3;
 static constexpr float RTD_B = -5.775e-7;
@@ -53,19 +55,20 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
 
     /*
      * Table for RTD calculated in excel
-                RTD1000	RTD100
-        RtdMax	1754	175.4
-        RTdMin	1000	100
-        Gain	2	16
-        iDac (uA)	250	500
-        Rref	2000	2000
-        VRTDMax	0.4385	0.0877
-        VRTDMin	0.25	0.05
-        VAINNLIM 	1	2
+     *
+                    RTD1000	RTD100
+        RtdMax	    1754	175.4
+        RTdMin	    1000	100
+        Gain	    2	    16
+        iDac (uA)	250	    500
+        Rref	    2000	2000
+        VRTDMax	    0.4385	0.0877
+        VRTDMin	    0.25	0.05
+        VAINNLIM 	1	    2
         VAINPLIM 	1.4385	2.0877
         VIdacMax	1.6885	2.5877
 
-        Delta	0.4385	0.0877
+        Delta	    0.4385	0.0877
         Corrected	0.877	1.4032
      */
     // Conclusion
@@ -77,21 +80,22 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
 
     // Setup muxes for the right combo of RTD reads
     if (idx == RTD_BREW_BOILER_IDX) {
-        adc_mux.mux_n  = ADS124S08_MUX_AIN2;
+        adc_mux.mux_n = ADS124S08_MUX_AIN2;
         adc_mux.mux_p = ADS124S08_MUX_AIN1;
-        idac_mux.mux_idac1  = ADS124S08_MUX_AIN0;
+        idac_mux.mux_idac1 = ADS124S08_MUX_AIN0;
         idac_mux.mux_idac2 = ADS124S08_MUX_AIN3;
 
     } else if (idx == RTD_BREW_HEAD_IDX) {
-        adc_mux.mux_n  = ADS124S08_MUX_AIN6;
+        adc_mux.mux_n = ADS124S08_MUX_AIN6;
         adc_mux.mux_p = ADS124S08_MUX_AIN5;
-        idac_mux.mux_idac1  = ADS124S08_MUX_AIN4;
+        idac_mux.mux_idac1 = ADS124S08_MUX_AIN4;
         idac_mux.mux_idac2 = ADS124S08_MUX_AIN7;
 
-    } if (idx == RTD_STEAM_BOILER_IDX) {
-        adc_mux.mux_n  = ADS124S08_MUX_AIN10;
+    }
+    if (idx == RTD_STEAM_BOILER_IDX) {
+        adc_mux.mux_n = ADS124S08_MUX_AIN10;
         adc_mux.mux_p = ADS124S08_MUX_AIN9;
-        idac_mux.mux_idac1  = ADS124S08_MUX_AIN8;
+        idac_mux.mux_idac1 = ADS124S08_MUX_AIN8;
         idac_mux.mux_idac2 = ADS124S08_MUX_AIN11;
 
     }
@@ -103,14 +107,21 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
     }
 
     // Do a read
-    auto result = ADS124S08_conv(ADS124S08_ref_EXTERNAL, adc_mux, idac_mux, idac_current, pga_gain);
-    if (result.status == 0) {
-        _rtd_array[idx].fault = RTD_NoError;
-        _rtd_array[idx].value = _rtd_to_celcius(result.v_ref, result.value, RTD_nominal);
+    auto result = ADS124S08_conv(true, ADS124S08_ref_EXTERNAL, adc_mux, idac_mux, idac_current, pga_gain);
+    auto reading = _rtd_to_celcius(result.v_ref, result.value, RTD_nominal);
+
+    // Easy with fault, just look at range bounds and error status from ADC
+    if (result.status != 0) {
+        _rtd_array[idx].fault = RTD_RefLow;
+    } else if (reading <= TEMP_RANGE_MIN) {
+        _rtd_array[idx].fault = RTD_RTDLow;
+    } else if (reading >= TEMP_RANGE_MAX) {
+        _rtd_array[idx].fault = RTD_RTDHigh;
     } else {
-        // TODO - parse errors properly
-        _rtd_array[idx].fault = RTD_Voltage;
+        _rtd_array[idx].fault = RTD_NoError;
     }
+
+    _rtd_array[idx].value = reading;
 
     // Invoke CB now
     cb(esp_timer_get_time(), _rtd_array[idx], idx);

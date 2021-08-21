@@ -128,6 +128,14 @@ void ADS124S08_set_idac_mux(struct ADS124S08_idac_mux_t mux);
 struct  ADS124S08_idac_mux_t ADS124S08_get_idac_mux();
 
 /**
+ * Global chop mode, where AINN and AINNP are swapped over
+ * in succession to zero out offset errors on conversions.
+ * @param enable
+ */
+void ADS124S08_enable_chop(bool enable);
+bool ADS124S08_is_chop_enabled();
+
+/**
  * Do a one shot conversion and return the value.
  *
  * This is thread-safe
@@ -135,6 +143,7 @@ struct  ADS124S08_idac_mux_t ADS124S08_get_idac_mux();
  * @return Contains status and 24-bit value just read
  */
 struct ADS124S08_data_t ADS124S08_conv(
+        bool enable_chop,
         enum ADS124S08_ref_t ref,
         struct ADS124S08_adc_mux_t adc_mux,
         struct ADS124S08_idac_mux_t idac_mux,

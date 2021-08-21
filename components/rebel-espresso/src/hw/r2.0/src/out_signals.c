@@ -1,5 +1,8 @@
 #include "out_signals.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #include <esp_log.h>
 #include <driver/i2c.h>
 #include "sdkconfig.h"
@@ -7,7 +10,6 @@
 
 #define TAG "out_signals"
 
-#define IO_EXPANDER_ADDRESS 0x41u
 #define ACK_CHECK_EN 1u
 #define ACK_VAL 0x0u                             /*!< I2C ack value */
 #define NACK_VAL 0x1u                            /*!< I2C nack value */
@@ -17,6 +19,9 @@
 #define REGISTER_OUT 0x01
 #define REGISTER_IN  0x00
 #define REGISTER_CFG 0x03
+
+static SemaphoreHandle_t s_lock = NULL;
+
 
 /**
  *        the data will be stored in slave buffer.
@@ -29,39 +34,53 @@
  */
 static esp_err_t _write_slave(uint8_t *data_wr, size_t size)
 {
-    i2c_port_t i2c_num = I2C_MASTER_NUM;
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    ESP_ERROR_CHECK(i2c_master_start(cmd));
-    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (IO_EXPANDER_ADDRESS << 1) | WRITE_BIT, ACK_CHECK_EN));
-    ESP_ERROR_CHECK(i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN));
-    ESP_ERROR_CHECK(i2c_master_stop(cmd));
-    esp_err_t ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
-    i2c_cmd_link_delete(cmd);
+    esp_err_t ret;
+
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    {
+        i2c_port_t i2c_num = I2C_MASTER_NUM;
+        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+        ESP_ERROR_CHECK(i2c_master_start(cmd));
+        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | WRITE_BIT, ACK_CHECK_EN));
+        ESP_ERROR_CHECK(i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN));
+        ESP_ERROR_CHECK(i2c_master_stop(cmd));
+        ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+        i2c_cmd_link_delete(cmd);
+    }
+    xSemaphoreGive(s_lock);
+
     return ret;
 }
 
 static esp_err_t _read_slave(uint8_t *data_rd, size_t size) {
-    i2c_port_t i2c_num = I2C_MASTER_NUM;
-    if (size == 0) {
-        return ESP_OK;
+    esp_err_t ret;
+
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    {
+        i2c_port_t i2c_num = I2C_MASTER_NUM;
+        if (size == 0) {
+            return ESP_OK;
+        }
+        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+        i2c_master_start(cmd);
+        i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | READ_BIT, ACK_CHECK_EN);
+        if (size > 1) {
+            i2c_master_read(cmd, data_rd, size - 1, ACK_VAL);
+        }
+        i2c_master_read_byte(cmd, data_rd + size - 1, NACK_VAL);
+        i2c_master_stop(cmd);
+        ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+        i2c_cmd_link_delete(cmd);
     }
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (IO_EXPANDER_ADDRESS << 1) | READ_BIT, ACK_CHECK_EN);
-    if (size > 1) {
-        i2c_master_read(cmd, data_rd, size - 1, ACK_VAL);
-    }
-    i2c_master_read_byte(cmd, data_rd + size - 1, NACK_VAL);
-    i2c_master_stop(cmd);
-    esp_err_t ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
-    i2c_cmd_link_delete(cmd);
+    xSemaphoreGive(s_lock);
+
     return ret;
 }
 
 
 void out_signals_set_level(enum out_signals_t slot, uint8_t level) {
     // Read current state so we can or the desired pin output state
-    static uint8_t state[] = {REGISTER_IN, 0x0};
+    uint8_t state[] = {REGISTER_IN, 0x0};
     _read_slave(state, 2);
 
     if (slot == OUT_SIGNALS_RELAY1) {
@@ -84,7 +103,7 @@ void out_signals_set_level(enum out_signals_t slot, uint8_t level) {
 
 uint8_t out_signals_get_level(enum out_signals_t slot) {
     // Read current state so we can or the desired pin output state
-    static uint8_t state[] = {REGISTER_IN, 0x0};
+     uint8_t state[] = {REGISTER_IN, 0x0};
     _read_slave(state, 2);
 
     uint8_t val = 0;
@@ -106,6 +125,8 @@ uint8_t out_signals_get_level(enum out_signals_t slot) {
 }
 
 void out_signals_init() {
+    s_lock = xSemaphoreCreateMutex();
+
     // Configure pins as output, all of them
     uint8_t init_output_cmd[] = {REGISTER_CFG, 0x0};
     ESP_ERROR_CHECK(_write_slave(init_output_cmd, 2) );

@@ -47,7 +47,7 @@ void _print_i2c_devices() {
     }
 }
 
-double hw_specs_read_water_level_mv() {
+void hw_specs_read_water_level_mv(uint8_t *status, double *value) {
     // Set mux for water level read
     ADS124S08_adc_mux_t mux = {
             .mux_n  = ADS124S08_MUX_AIN3,
@@ -61,13 +61,21 @@ double hw_specs_read_water_level_mv() {
     double gain = ADS124S08_PGA_GAIN1;
 
     // Go
-    ADS124S08_data_t data = ADS124S08_conv(ADS124S08_ref_INTERNAL, mux, idac_mux, idac_current, gain);
-    if (data.status != 0) {
-        data.value = -1;
-        ESP_LOGE(TAG, "Error reading water level");
+    ADS124S08_data_t data = ADS124S08_conv(false, ADS124S08_ref_INTERNAL, mux, idac_mux, idac_current, gain);
+    *status = data.status;
+    *value = data.value * 1000;
+
+    // Detect short circuit condition, below 100mV
+    if (*value < 100) {
+        ESP_LOGE(TAG, "Short in water level: %fmV", *value);
+        *status |= 0b00000010u;
     }
 
-    return data.value * 1000;
+    // Can also be over internal reference voltage (wrap around)
+    if (*value > 2500) {
+        ESP_LOGE(TAG, "Short in water level (over ref voltage): %fmV", *value);
+        *status |= 0b00000010u;
+    }
 }
 
 
@@ -75,8 +83,8 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
     // I2C Initialisation
     i2c_config_t conf = {
             .mode = I2C_MODE_MASTER,
-            .sda_io_num = PIN_SDA,
-            .scl_io_num = PIN_SCL,
+            .sda_io_num = I2C_PIN_SDA,
+            .scl_io_num = I2C_PIN_SCL,
             .sda_pullup_en = GPIO_PULLUP_DISABLE,
             .scl_pullup_en = GPIO_PULLUP_DISABLE,
             .master = {.clk_speed = I2C_MASTER_FREQ_HZ}
@@ -86,7 +94,7 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
 
     ESP_ERROR_CHECK(
             i2c_driver_install(I2C_MASTER_NUM, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0));
-    _print_i2c_devices();
+    //_print_i2c_devices();
 
     // Now can init I2C-dependent peripherals
     out_signals_init();

@@ -18,6 +18,7 @@ enum RefillState_t {
 };
 
 
+
 /**
  * String representation of the current state.
  */
@@ -37,7 +38,7 @@ static inline const char* state_to_str(RefillState_t state) {
 
 void boiler_refill_states_init(esp_event_loop_handle_t event_loop, const boiler_refill_cfg_t& cfg);
 
-void boiler_refill_states_process(uint64_t timestamp_ms, bool is_level_ok);
+void boiler_refill_states_process(uint64_t timestamp_ms, bool is_level_ok, bool in_error);
 
 RefillState_t boiler_refill_state();
 

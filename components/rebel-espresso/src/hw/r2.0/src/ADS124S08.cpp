@@ -2,12 +2,12 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
 
 #include <climits>
 #include <soc_log.h>
 #include <cstring>
 #include <cmath>
-#include <freertos/semphr.h>
 #include "ADS124S08.h"
 #include "hw_config.h"
 
@@ -60,6 +60,7 @@ static SemaphoreHandle_t s_conv_lock = nullptr;
 static ADS124S08_ref_t s_ref_type;
 static double s_vRef = 0;
 static double s_pga_gain = 1;
+static bool s_chop_enabled = false;
 
 static esp_err_t _write_cmd(uint8_t cmd) {
     spi_transaction_ext_t transaction = {};
@@ -84,6 +85,7 @@ static esp_err_t _read_register(uint8_t addr, uint8_t *result, uint8_t size) {
     transaction.base.length = CHAR_BIT * size;
     transaction.base.rxlength = CHAR_BIT * size;
     transaction.base.cmd = ((CMD_RREG | addr) << 8u) | (size - 0x01u);  /* n - 1 reads */
+    transaction.base.tx_buffer = nullptr;
     transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_USE_RXDATA;
     transaction.command_bits = 16;
     transaction.address_bits = 0;
@@ -107,9 +109,15 @@ static esp_err_t _write_register(uint8_t addr, uint8_t *data, uint8_t size) {
     transaction.base.length = size * CHAR_BIT;
     transaction.base.cmd = ((CMD_WREG | addr) << 8u) | (size - 0x01u);  /* n - 1 reads */
     memcpy(transaction.base.tx_data, data, size);
-    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_USE_TXDATA;
+    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR;
     transaction.command_bits = 16;
     transaction.address_bits = 0;
+
+    if (size == 0) {
+        transaction.base.tx_buffer = nullptr;
+    } else {
+        transaction.base.flags |= SPI_TRANS_USE_TXDATA;
+    }
 
     ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
     esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
@@ -123,6 +131,7 @@ static esp_err_t _read_data(uint8_t *status, uint32_t *value) {
     transaction.base.length = CHAR_BIT * 4;
     transaction.base.rxlength = CHAR_BIT * 4;
     transaction.base.cmd = CMD_RDATA;
+    transaction.base.tx_buffer = nullptr;
     transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_USE_RXDATA;
     transaction.command_bits = 8;
     transaction.address_bits = 0;
@@ -216,7 +225,26 @@ double ADS124S08_get_vref() {
     return vRef;
 }
 
+void ADS124S08_enable_chop(bool enable) {
+    uint8_t val;
+    _read_register(REG_DATARATE, &val, 1);
+    val &= ~0b10000000u; // Turn off CHOP
+    if (enable) {
+        val |= 0b10000000u;
+    }
+    _write_register(REG_DATARATE, &val, 1);
+    s_chop_enabled = enable;
+}
+
+bool ADS124S08_is_chop_enabled() {
+    uint8_t val;
+    _read_register(REG_DATARATE, &val, 1);
+    return val & 0b10000000u;
+}
+
+
 struct ADS124S08_data_t ADS124S08_conv(
+        bool enable_chop,
         enum ADS124S08_ref_t ref,
         struct ADS124S08_adc_mux_t adc_mux,
         struct ADS124S08_idac_mux_t idac_mux,
@@ -226,18 +254,26 @@ struct ADS124S08_data_t ADS124S08_conv(
     // Can only do one conversion at a time
     xSemaphoreTake(s_conv_lock, portMAX_DELAY);
     {
+        // Always reset status flag
+        uint8_t val = 0;
+        _write_register(REG_STATUS, &val, 1);
+
         // Set all params before single shot conversion is started
         ADS124S08_set_ref(ref);
         ADS124S08_set_adc_mux(adc_mux);
         ADS124S08_set_idac_mux(idac_mux);
         ADS124S08_set_idac_current(idac_current);
         ADS124S08_set_pga_gain(pga_gain);
+        ADS124S08_enable_chop(enable_chop);
 
-        // Go - Do converstion
+        // Go - Do conversion
         ADS124S08_start();
 
-        // Delay calculated for 20FPS, LL filter, conv delay + CHOP
-        auto delay = (57 + 8) * 2;
+        // Delay calculated for 20FPS, LL filter, conv delay + CHOP as required with margin
+        auto delay = (60 + 10);
+        if (enable_chop) {
+            delay *= 2;
+        }
         vTaskDelay(pdMS_TO_TICKS(delay));
 
         // Now read register back, it will contain status and 24-bit value
@@ -248,17 +284,12 @@ struct ADS124S08_data_t ADS124S08_conv(
         // Work out which reference voltage was used and convert back accordingly
         double vRef = ADS124S08_get_vref() / s_pga_gain;
 
-        // Convert value accordingly to a voltage
-        data = {
-                .status = status,
-                .value = 0,
-                .v_ref = s_vRef
-        };
-
         // Convert digital value into analog range one
         double lsb = 2 * vRef / (1u << 24u);
         double full_scale_analog = vRef - lsb;
         data.value = value * full_scale_analog / 0x7FFFFF;
+        data.status = status;
+        data.v_ref = s_vRef;
     }
     xSemaphoreGive(s_conv_lock);
 
@@ -416,7 +447,7 @@ void _configure() {// RESET status, POR event would have occurred and needs to b
          4 Filter: -> 1 Low latency
          3-0: datarate
      */
-    new_val = 0b10110100;
+    new_val = 0b00110100;
     _write_register(REG_DATARATE, &new_val, 1);
     _read_register(REG_DATARATE, &val, 1);
     ESP_ERROR_CHECK((val == new_val ? ESP_OK : ESP_ERR_INVALID_STATE));
@@ -448,8 +479,7 @@ void _configure() {// RESET status, POR event would have occurred and needs to b
         3:2	REFSEL[1:0]
         1:0	REFCON[1:0]
      */
-    new_val = 0b00010010;
-    new_val = 0b00000010;
+    new_val = 0b01000010;
     _write_register(REG_REF, &new_val, 1);
     _read_register(REG_REF, &val, 1);
     ESP_ERROR_CHECK((val == new_val ? ESP_OK : ESP_ERR_INVALID_STATE));
@@ -459,6 +489,8 @@ void _configure() {// RESET status, POR event would have occurred and needs to b
     ADS124S08_set_conv_delay(ADS124S08_DELAY_1ms);
     // Turn off IDAC by default
     ADS124S08_set_idac_current(ADS124S08_IDAC_OFF);
+    // No chop by default
+    ADS124S08_enable_chop(false);
 
     // Do self-offset calibration
     ADS124S08_wakeup();

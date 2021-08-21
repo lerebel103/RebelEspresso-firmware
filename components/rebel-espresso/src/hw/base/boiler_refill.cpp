@@ -23,6 +23,7 @@ const static char *TAG = "refill";
 #define WL_OFF  1 /* We are driving an NPN transistor, so needs to be opposite levels */
 
 #define BOILER_REFILL_NVS_CFG_STORE     "cfg.b_refill"
+#define MIN_SAMPLE_TIME_MS  300
 
 const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT = 1000;
 const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT = 5;
@@ -37,23 +38,45 @@ static boiler_refill_status_t s_status;
 
 static esp_event_loop_handle_t s_event_loop;
 static double s_level_voltage = 0;
+static uint8_t s_status_monitor = 0;
 
 typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 
 // This is the function pointer to the level check function (used by test mock)
 static check_level_fn check_level;
+static bool s_go = false;
+static TaskHandle_t s_monitor_task_handle;
 
 static void _load_nvram();
+
+void monitor_boiler_level(void *) {
+    uint32_t ulNotifiedValue;
+    uint64_t last = 0;
+    do {
+        // Read current boiler level and work out what state we need to be in
+        xTaskNotifyWait(0x00,      /* Don't clear any notification bits on entry. */
+                        ULONG_MAX, /* Reset the notification value to 0 on exit. */
+                        &ulNotifiedValue, /* Notified value pass out in
+                                                     ulNotifiedValue. */
+                        portMAX_DELAY);  /* Block indefinitely. */
+
+        auto now_ms = esp_timer_get_time() * 1e-3;
+
+        // Don't run flat out, skip if less than acceptable time
+        if ( (now_ms - last) > MIN_SAMPLE_TIME_MS) {
+            last = now_ms;
+            boiler_refill_states_process(now_ms, check_level(), s_status_monitor);
+        }
+    } while (s_go);
+
+    vTaskDelete(nullptr);
+}
 
 bool boiler_check_level() {
     // Enable voltage on probe - measured settle time is 70ns, which is bugger all,
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_ON);
 
-    s_level_voltage = hw_specs_read_water_level_mv();
-    ESP_LOGI(TAG, "Water level voltage: %f", s_level_voltage);
-    if (s_level_voltage > 2500) {
-        ESP_LOGE(TAG, "*******8 WTH????? ****");
-    }
+    hw_specs_read_water_level_mv(&s_status_monitor, &s_level_voltage);
 
     // Done, disable to prevent electrolysis
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_OFF);
@@ -79,15 +102,14 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         return;
     }
 
-        // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
+    // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
     uint64_t now_ms = 0;
     if (event_data != nullptr) {
         now_ms = *(uint64_t *) event_data;
         now_ms = now_ms / 1e3;
     }
 
-    // Read current boiler level and work out what state we need to be in
-    boiler_refill_states_process(now_ms, check_level());
+    xTaskNotify(s_monitor_task_handle, 0xfff, eSetValueWithoutOverwrite);
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -133,7 +155,7 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     // Turn off outputs
     out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_OFF);
-    
+
     // Configure ADC input
     // Configure pins for voltage divider
     ESP_LOGI(TAG, "Initialising ADC pin input");
@@ -154,6 +176,10 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
                                                     _brew_events, s_event_loop));
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
                                                     _brew_events, s_event_loop));
+
+    // Create task for boiler refill
+    s_go = true;
+    xTaskCreate(monitor_boiler_level, "monitor_level", 1024 * 2 + 512, nullptr, 2, &s_monitor_task_handle);
 
     ESP_LOGI(TAG, "Initialised");
 }
@@ -247,7 +273,7 @@ void boiler_refill_set_cfg(boiler_refill_cfg_t config) {
     } else {
         ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
     }
-    
+
     if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 30000) {
         s_cfg.max_refill_time_ms = config.max_refill_time_ms;
     } else {

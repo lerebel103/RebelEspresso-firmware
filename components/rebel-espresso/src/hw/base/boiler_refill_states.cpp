@@ -11,6 +11,7 @@ const static char *TAG = "refill";
 static StateCtx_t<RefillState_t> s_state;
 static esp_event_loop_handle_t s_event_loop;
 static bool s_current_level_ok = false;
+static bool s_in_error = false;
 static const boiler_refill_cfg_t *s_cfg = nullptr;
 static TickType_t s_level_stable_ms = 0;
 
@@ -73,7 +74,9 @@ static void _state_idle_enter(uint64_t timestamp) {
 
 static void _state_idle_process(uint64_t timestamp) {
     // Check hysteresis threshold
-    if (!s_current_level_ok) {
+    if (s_in_error) {
+        state_machine_transition(s_state, timestamp, REFILL_STATE_ERROR);
+    } else if (!s_current_level_ok) {
         if (s_level_stable_ms == 0) {
             s_level_stable_ms = timestamp;
         }
@@ -97,7 +100,7 @@ static void _state_active_enter(uint64_t timestamp) {
 
 static void _state_active_process(uint64_t timestamp) {
     // Check if we are over threshold limit
-    if (timestamp - s_state.state_begin_timestamp > s_cfg->max_refill_time_ms) {
+    if (s_in_error || (timestamp - s_state.state_begin_timestamp > s_cfg->max_refill_time_ms)) {
         state_machine_transition(s_state, timestamp, REFILL_STATE_ERROR);
     } else if (s_current_level_ok) {
         if (s_level_stable_ms == 0) {
@@ -127,13 +130,14 @@ static void _state_error_enter(uint64_t timestamp) {
 
 static void _state_error_process(uint64_t timestamp) {
     // If level recovers, get out of error state
-    if(s_current_level_ok) {
+    if(s_current_level_ok && !s_in_error) {
         state_machine_transition(s_state, timestamp, REFILL_STATE_IDLE);
     }
 }
 
-void boiler_refill_states_process(uint64_t timestamp_ms, bool is_level_ok) {
+void boiler_refill_states_process(uint64_t timestamp_ms, bool is_level_ok, bool in_error) {
     s_current_level_ok = is_level_ok;
+    s_in_error = in_error;
     state_machine_process(s_state, timestamp_ms);
 }
 

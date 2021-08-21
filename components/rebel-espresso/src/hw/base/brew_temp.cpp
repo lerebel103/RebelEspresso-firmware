@@ -124,8 +124,8 @@ void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         s_trim.active = false;
         return;
-    } else if (brew_head_data.fault != (uint8_t)RTD_NoError) {
-        ESP_LOGE(TAG, "Brew sensor error %s", Max31865::errorToString((Max31865Error)brew_head_data.fault));
+    } else if (brew_head_data.fault != RTD_NoError) {
+        ESP_LOGE(TAG, "Brew sensor error: %d", brew_head_data.fault);
         s_stats.brew_temp_read_error_count++;
         s_stats_changed = true;
         s_trim.active = false;

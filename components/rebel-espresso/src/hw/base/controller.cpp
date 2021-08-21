@@ -103,7 +103,7 @@ void controller_init(esp_event_loop_handle_t event_loop) {
 }
 
 void controller_enter_loop() {
-    static auto loop_interval_us = 200e3;
+    const static auto loop_interval_us = 100e3;
     while (_go) {
         // Keeps going regardless of power state, emit event forever
         auto now_us = esp_timer_get_time();

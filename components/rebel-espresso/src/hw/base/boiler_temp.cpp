@@ -187,7 +187,7 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
         _power_off_ssr();
         return;
     } else if (data.fault != (uint8_t)RTD_NoError) {
-        ESP_LOGE(TAG, "Boiler sensor error %s", Max31865::errorToString((Max31865Error)data.fault));
+        ESP_LOGE(TAG, "Boiler sensor error: %d", data.fault);
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
         _power_off_ssr();

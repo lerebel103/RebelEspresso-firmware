@@ -65,6 +65,9 @@ void hw_specs_read_water_level_mv(uint8_t *status, double *value) {
     *status = data.status;
     *value = data.value * 1000;
 
+    printf("Read back %f\r\n", *value);
+
+
     // Detect short circuit condition, below 100mV
     if (*value < 100) {
         ESP_LOGE(TAG, "Short in water level: %fmV", *value);
@@ -87,7 +90,8 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
             .scl_io_num = I2C_PIN_SCL,
             .sda_pullup_en = GPIO_PULLUP_DISABLE,
             .scl_pullup_en = GPIO_PULLUP_DISABLE,
-            .master = {.clk_speed = I2C_MASTER_FREQ_HZ}
+            .master = {.clk_speed = I2C_MASTER_FREQ_HZ},
+            .clk_flags = I2C_SCLK_SRC_FLAG_FOR_NOMAL
     };
 
     i2c_param_config(I2C_MASTER_NUM, &conf);

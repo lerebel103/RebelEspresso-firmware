@@ -64,7 +64,7 @@ static bool s_chop_enabled = false;
 
 static esp_err_t _write_cmd(uint8_t cmd) {
     spi_transaction_ext_t transaction = {};
-    transaction.base.length = 0;
+    transaction.base.length = 8;
     transaction.base.rxlength = 0;
     transaction.base.cmd = cmd;
     transaction.base.tx_buffer = nullptr;
@@ -73,7 +73,7 @@ static esp_err_t _write_cmd(uint8_t cmd) {
     transaction.address_bits = 0;
 
     ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
-    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    esp_err_t err = spi_device_polling_transmit(s_device_handle, &transaction.base);
     spi_device_release_bus(s_device_handle);
 
     return err;
@@ -82,7 +82,7 @@ static esp_err_t _write_cmd(uint8_t cmd) {
 static esp_err_t _read_register(uint8_t addr, uint8_t *result, uint8_t size) {
     assert(size <= 4);  // we're using the transaction buffers
     spi_transaction_ext_t transaction = {};
-    transaction.base.length = CHAR_BIT * size;
+    transaction.base.length = CHAR_BIT * (2 + size);
     transaction.base.rxlength = CHAR_BIT * size;
     transaction.base.cmd = ((CMD_RREG | addr) << 8u) | (size - 0x01u);  /* n - 1 reads */
     transaction.base.tx_buffer = nullptr;
@@ -91,7 +91,7 @@ static esp_err_t _read_register(uint8_t addr, uint8_t *result, uint8_t size) {
     transaction.address_bits = 0;
 
     ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
-    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    esp_err_t err = spi_device_polling_transmit(s_device_handle, &transaction.base);
     spi_device_release_bus(s_device_handle);
 
     if (err != ESP_OK) {
@@ -106,7 +106,7 @@ static esp_err_t _read_register(uint8_t addr, uint8_t *result, uint8_t size) {
 static esp_err_t _write_register(uint8_t addr, uint8_t *data, uint8_t size) {
     assert(size <= 4);  // we're using the transaction buffers
     spi_transaction_ext_t transaction = {};
-    transaction.base.length = size * CHAR_BIT;
+    transaction.base.length = (0 + size) * CHAR_BIT;
     transaction.base.cmd = ((CMD_WREG | addr) << 8u) | (size - 0x01u);  /* n - 1 reads */
     memcpy(transaction.base.tx_data, data, size);
     transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR;
@@ -120,24 +120,26 @@ static esp_err_t _write_register(uint8_t addr, uint8_t *data, uint8_t size) {
     }
 
     ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
-    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    esp_err_t err = spi_device_polling_transmit(s_device_handle, &transaction.base);
     spi_device_release_bus(s_device_handle);
 
     return err;
 }
 
 static esp_err_t _read_data(uint8_t *status, uint32_t *value) {
+    DMA_ATTR static uint8_t data[4];
     spi_transaction_ext_t transaction = {};
-    transaction.base.length = CHAR_BIT * 4;
+    transaction.base.length = CHAR_BIT * (1 + 4);
     transaction.base.rxlength = CHAR_BIT * 4;
     transaction.base.cmd = CMD_RDATA;
     transaction.base.tx_buffer = nullptr;
-    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_USE_RXDATA;
+    transaction.base.rx_buffer = &data;
+    transaction.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR;
     transaction.command_bits = 8;
     transaction.address_bits = 0;
 
     ESP_ERROR_CHECK(spi_device_acquire_bus(s_device_handle, portMAX_DELAY));
-    esp_err_t err = spi_device_transmit(s_device_handle, &transaction.base);
+    esp_err_t err = spi_device_polling_transmit(s_device_handle, &transaction.base);
     spi_device_release_bus(s_device_handle);
 
     if (err != ESP_OK) {
@@ -145,11 +147,10 @@ static esp_err_t _read_data(uint8_t *status, uint32_t *value) {
         return err;
     }
 
-    *status = transaction.base.rx_data[0];
-    *value = transaction.base.rx_data[3];
-    *value |= ((uint32_t) transaction.base.rx_data[2]) << 8u;
-    *value |= ((uint32_t) transaction.base.rx_data[1]) << 16u;
-
+    *status = data[0];
+    *value = data[3];
+    *value |= ((uint32_t) data[2]) << 8u;
+    *value |= ((uint32_t) data[1]) << 16u;
     return ESP_OK;
 }
 
@@ -280,6 +281,13 @@ struct ADS124S08_data_t ADS124S08_conv(
         uint8_t status;
         uint32_t value;
         _read_data(&status, &value);
+
+        /*do {
+            _read_data(&status, &value);
+            printf("status %d - value %d\r\n", status, value);
+            _spi_master_write_byte(&status, 1);
+            vTaskDelay(10);
+        } while(1); */
 
         // Work out which reference voltage was used and convert back accordingly
         double vRef = ADS124S08_get_vref() / s_pga_gain;
@@ -523,14 +531,15 @@ void ADS124S08_init(spi_host_device_t spi) {
     // Add this device to the SPI bus
     spi_device_interface_config_t deviceConfig = {};
     deviceConfig.spics_io_num = PIN_OUT_ADC_CS;
-    deviceConfig.clock_speed_hz = SPI_MASTER_FREQ_26M;
+    deviceConfig.clock_speed_hz = SPI_MASTER_FREQ_20M;
     deviceConfig.mode = 3;
     deviceConfig.address_bits = 0;
     deviceConfig.command_bits = 0;
+    deviceConfig.dummy_bits = 0;
     deviceConfig.flags = SPI_DEVICE_HALFDUPLEX;
     deviceConfig.queue_size = 1;
-    deviceConfig.cs_ena_pretrans = 8;
-    deviceConfig.cs_ena_posttrans = 8;
+    deviceConfig.cs_ena_pretrans = 1;
+    deviceConfig.cs_ena_posttrans = 1;
     ESP_ERROR_CHECK(spi_bus_add_device(spi, &deviceConfig, &s_device_handle));
 
     _configure();

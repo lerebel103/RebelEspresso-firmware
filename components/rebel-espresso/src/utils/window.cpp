@@ -20,8 +20,12 @@ void window_init(window_handle_t *window) {
 
 void window_reset(window_handle_t *window) {
     window_entry_t *item = NULL;
-    STAILQ_FOREACH(item, &window->queue, entries) {
-        free(item);
+    window_entry_t *item_temp = NULL;
+
+    if (!STAILQ_EMPTY(&window->queue)) {
+        STAILQ_FOREACH_SAFE(item, &window->queue, entries, item_temp) {
+            free(item);
+        }
     }
     window_init(window);
 }
@@ -54,6 +58,7 @@ void window_accumulate(
     new_entry->data = *result;
     new_entry->setpoint = setpoint;
 
+    printf("*************** ACCUMULATE\r\n");
     STAILQ_INSERT_TAIL(&window->queue, new_entry, entries);
 }
 

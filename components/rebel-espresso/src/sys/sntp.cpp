@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
+#include <esp_sntp.h>
 
 
 #include "events.h"

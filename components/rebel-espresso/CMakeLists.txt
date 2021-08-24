@@ -32,10 +32,12 @@ set(COMPONENT_REQUIRES
         esp_adc_cal
         esp_hap_core
         esp_hap_apple_profiles
+        spiffs
         wifi_provisioning
         qrcode
         ESP32-MAX31865
         u8g2
+        tft-driver
         )
 
 set(COMPONENT_ADD_INCLUDEDIRS

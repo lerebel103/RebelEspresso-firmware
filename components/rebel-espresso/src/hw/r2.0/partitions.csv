@@ -6,6 +6,6 @@ app1,     app,   ota_1,    , 2000K,
 nvs,      data,  nvs,      , 512K,
 nvs_factory,      data,  nvs,  , 512K,
 nvs_key,  data,  nvs_keys, , 0x1000,
-eeprom,   data,  0x99,     , 0x1000,
 coredump, data,  coredump, , 64K
-data,     data,  fat,      , 8600K,
+storage,  data,  spiffs, , 2000K,
+data,     data,  fat, , 7100K,

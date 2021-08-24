@@ -28,7 +28,7 @@ RUN apt-get install -y apt-transport-https ca-certificates gnupg wget && \
 from base as firmware-builder
 
 # Change this accordingly for the desired ESP-IDF version
-ARG ESP_IDF_VERSION=v4.2
+ARG ESP_IDF_VERSION=v4.3
 
 RUN mkdir /opt/esp && \
     cd /opt/esp && \

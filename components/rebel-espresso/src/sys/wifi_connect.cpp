@@ -122,7 +122,7 @@ static void _wifi_ip_event_handler(void *ctx,
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         wifi_config_t config = {};
-        ESP_ERROR_CHECK(esp_wifi_get_config(ESP_IF_WIFI_STA, &config));
+        ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &config));
         ESP_LOGI(WIFI_TAG, "Attempting connection to SSID: '%s'", config.sta.ssid);
 
         g_wifi_connect_start = xTaskGetTickCount() * portTICK_PERIOD_MS;

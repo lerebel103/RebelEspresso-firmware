@@ -13,6 +13,7 @@
 #include <driver/gpio.h>
 #include <esp_event.h>
 #include <cJSON.h>
+#include <driver/spi_common.h>
 
 #include "rtds.h"
 #include "process_loop.h"
@@ -58,8 +59,9 @@ void _init_spi() {
     busConfig.quadhd_io_num = -1;
     busConfig.quadwp_io_num = -1;
     busConfig.max_transfer_sz = 0;
+    busConfig.flags = SPICOMMON_BUSFLAG_MASTER;
 
-    esp_err_t err = spi_bus_initialize(s_spi, &busConfig, 0);
+    esp_err_t err = spi_bus_initialize(s_spi, &busConfig, 1);
 
     // INVALID_STATE means the host is already in use - that's OK
     if (err == ESP_ERR_INVALID_STATE) {

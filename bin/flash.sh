@@ -11,6 +11,8 @@ nvs_gen="${DIR}/../components/esp-homekit-sdk/tools/factory_nvs_gen/factory_nvs_
 
 # offset at which we are flashing the factory nvs partition
 nvs_factory_offset=0x005b2000
+# For r2.0
+nvs_factory_offset=0x00684000
 
 # Google IoT related
 gcp_namespace="giot"

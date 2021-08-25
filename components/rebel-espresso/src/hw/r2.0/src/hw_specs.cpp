@@ -65,9 +65,6 @@ void hw_specs_read_water_level_mv(uint8_t *status, double *value) {
     *status = data.status;
     *value = data.value * 1000;
 
-    printf("Read back %f\r\n", *value);
-
-
     // Detect short circuit condition, below 100mV
     if (*value < 100) {
         ESP_LOGE(TAG, "Short in water level: %fmV", *value);

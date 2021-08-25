@@ -58,7 +58,6 @@ void window_accumulate(
     new_entry->data = *result;
     new_entry->setpoint = setpoint;
 
-    printf("*************** ACCUMULATE\r\n");
     STAILQ_INSERT_TAIL(&window->queue, new_entry, entries);
 }
 

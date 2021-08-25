@@ -35,14 +35,13 @@ static void SPIFFS_Directory(char * path) {
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
-
-
-
+        lcdDisplayOff(&dev);
+        lcdBacklightOff(&dev);
     } else if (id == POWER_ACTIVE) {
         s_brew_start_time = -1;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
-
-
+        lcdDisplayOn(&dev);
+        lcdBacklightOn(&dev);
     }
 }
 

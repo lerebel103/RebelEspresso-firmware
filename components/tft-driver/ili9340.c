@@ -6,6 +6,9 @@
 
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
+#include <sys/param.h>
+#include <hal/ledc_types.h>
+#include <driver/ledc.h>
 #include "esp_log.h"
 
 #include "ili9340.h"
@@ -21,14 +24,32 @@
 #define LCD_HOST    SPI2_HOST
 #endif
 
+#define LEDC_TIMER              LEDC_TIMER_0
+#define LEDC_MODE               LEDC_LOW_SPEED_MODE
+#define LEDC_CHANNEL            LEDC_CHANNEL_0
+#define LEDC_DUTY_RES           LEDC_TIMER_13_BIT
+#define LEDC_DUTY               (4095) // Set duty to 50%. ((2 ** 13) - 1) * 50% = 4095
+#define LEDC_FREQUENCY          (5000) // Frequency in Hertz. Set frequency at 5 kHz
+
+#define MADCTL_MY  0x80
+#define MADCTL_MX  0x40
+#define MADCTL_MV  0x20
+#define MADCTL_ML  0x10
+#define MADCTL_RGB 0x00
+#define MADCTL_BGR 0x08
+#define MADCTL_MH  0x04
 
 static const int SPI_Command_Mode = 0;
 static const int SPI_Data_Mode = 1;
-//static const int SPI_Frequency = SPI_MASTER_FREQ_20M;
+static const int SPI_Frequency = SPI_MASTER_FREQ_20M;
 // static const int SPI_Frequency = SPI_MASTER_FREQ_26M;
-static const int SPI_Frequency = SPI_MASTER_FREQ_40M;
+//static const int SPI_Frequency = SPI_MASTER_FREQ_40M;
 //static const int SPI_Frequency = SPI_MASTER_FREQ_80M;
 
+static uint8_t s_brigthness_perc = 100;
+
+#define DMA_SIZE (1024*3)
+DMA_ATTR static uint8_t s_dma_buffer[DMA_SIZE];
 
 void
 spi_master_init(TFT_t *dev, int16_t GPIO_MOSI, int16_t GPIO_SCLK, int16_t GPIO_CS, int16_t GPIO_DC, int16_t GPIO_RESET,
@@ -70,15 +91,35 @@ spi_master_init(TFT_t *dev, int16_t GPIO_MOSI, int16_t GPIO_SCLK, int16_t GPIO_C
             .queue_size = 1,
             .flags = SPI_DEVICE_HALFDUPLEX //SPI_DEVICE_NO_DUMMY,
     };
-    //devcfg.cs_ena_pretrans = 8;
-    //devcfg.cs_ena_posttrans = 8;
-
 
     ret = spi_bus_add_device(LCD_HOST, &devcfg, &dev->_SPIHandle);
     ESP_LOGD(TAG, "spi_bus_add_device=%d", ret);
     assert(ret == ESP_OK);
     dev->_dc = GPIO_DC;
     dev->_bl = GPIO_BL;
+
+    // Prepare and then apply the LEDC PWM timer configuration
+    ledc_timer_config_t ledc_timer = {
+            .speed_mode       = LEDC_MODE,
+            .timer_num        = LEDC_TIMER,
+            .duty_resolution  = LEDC_DUTY_RES,
+            .freq_hz          = LEDC_FREQUENCY,
+            .clk_cfg          = LEDC_AUTO_CLK
+    };
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+
+    // Prepare and then apply the LEDC PWM channel configuration
+    ledc_channel_config_t ledc_channel = {
+            .speed_mode     = LEDC_MODE,
+            .channel        = LEDC_CHANNEL,
+            .timer_sel      = LEDC_TIMER,
+            .intr_type      = LEDC_INTR_DISABLE,
+            .gpio_num       = GPIO_BL,
+            .duty           = 0, // Set duty to 0%
+            .hpoint         = 0
+    };
+    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
 }
 
 bool spi_master_write_byte(spi_device_handle_t SPIHandle, const uint8_t *Data, size_t DataLength) {
@@ -88,7 +129,9 @@ bool spi_master_write_byte(spi_device_handle_t SPIHandle, const uint8_t *Data, s
     if (DataLength > 0) {
         SPITransaction.length = DataLength * 8;
         SPITransaction.tx_buffer = Data;
-        ret = spi_device_polling_transmit( SPIHandle, &SPITransaction );
+        //spi_device_acquire_bus(SPIHandle, portMAX_DELAY);
+        ret = spi_device_transmit( SPIHandle, &SPITransaction );
+        //spi_device_release_bus(SPIHandle);
         assert(ret == ESP_OK);
     }
 
@@ -96,14 +139,14 @@ bool spi_master_write_byte(spi_device_handle_t SPIHandle, const uint8_t *Data, s
 }
 
 bool spi_master_write_comm_byte(TFT_t *dev, uint8_t cmd) {
-    static uint8_t Byte = 0;
+    DMA_ATTR static uint8_t Byte = 0;
     Byte = cmd;
     gpio_set_level(dev->_dc, SPI_Command_Mode);
     return spi_master_write_byte(dev->_SPIHandle, &Byte, 1);
 }
 
 bool spi_master_write_comm_word(TFT_t *dev, uint16_t cmd) {
-    static uint8_t Byte[2];
+    DMA_ATTR static uint8_t Byte[2];
     Byte[0] = (cmd >> 8) & 0xFF;
     Byte[1] = cmd & 0xFF;
     gpio_set_level(dev->_dc, SPI_Command_Mode);
@@ -112,7 +155,7 @@ bool spi_master_write_comm_word(TFT_t *dev, uint16_t cmd) {
 
 
 bool spi_master_write_data_byte(TFT_t *dev, uint8_t data) {
-    static uint8_t Byte = 0;
+    DMA_ATTR static uint8_t Byte = 0;
     Byte = data;
     gpio_set_level(dev->_dc, SPI_Data_Mode);
     return spi_master_write_byte(dev->_SPIHandle, &Byte, 1);
@@ -120,7 +163,7 @@ bool spi_master_write_data_byte(TFT_t *dev, uint8_t data) {
 
 
 bool spi_master_write_data_word(TFT_t *dev, uint16_t data) {
-    static uint8_t Byte[2];
+    DMA_ATTR static uint8_t Byte[2];
     Byte[0] = (data >> 8) & 0xFF;
     Byte[1] = data & 0xFF;
     gpio_set_level(dev->_dc, SPI_Data_Mode);
@@ -128,7 +171,7 @@ bool spi_master_write_data_word(TFT_t *dev, uint16_t data) {
 }
 
 bool spi_master_write_addr(TFT_t *dev, uint16_t addr1, uint16_t addr2) {
-    static uint8_t Byte[4];
+    DMA_ATTR static uint8_t Byte[4];
     Byte[0] = (addr1 >> 8) & 0xFF;
     Byte[1] = addr1 & 0xFF;
     Byte[2] = (addr2 >> 8) & 0xFF;
@@ -138,26 +181,35 @@ bool spi_master_write_addr(TFT_t *dev, uint16_t addr1, uint16_t addr2) {
 }
 
 bool spi_master_write_color(TFT_t *dev, uint16_t color, uint16_t size) {
-    static uint8_t Byte[1024];
-    int index = 0;
-    for (int i = 0; i < size; i++) {
-        Byte[index++] = (color >> 8) & 0xFF;
-        Byte[index++] = color & 0xFF;
+    int fill_count = 0;
+    bool ret = false;
+
+    // Pre-fill DMA buffer once
+    for (int index = 0; index < DMA_SIZE; ) {
+        s_dma_buffer[index++] = (color >> 8) & 0xFF;
+        s_dma_buffer[index++] = color & 0xFF;
     }
-    gpio_set_level(dev->_dc, SPI_Data_Mode);
-    return spi_master_write_byte(dev->_SPIHandle, Byte, size * 2);
+
+    do {
+        int chunk = MIN(DMA_SIZE/2  , (size - fill_count)/2);
+        gpio_set_level(dev->_dc, SPI_Data_Mode);
+        ret = spi_master_write_byte(dev->_SPIHandle, s_dma_buffer, chunk*2);
+
+        fill_count += chunk;
+    } while(fill_count < size-1);
+
+    return ret;
 }
 
 // Add 202001
 bool spi_master_write_colors(TFT_t *dev, uint16_t *colors, uint16_t size) {
-    static uint8_t Byte[1024];
     int index = 0;
     for (int i = 0; i < size; i++) {
-        Byte[index++] = (colors[i] >> 8) & 0xFF;
-        Byte[index++] = colors[i] & 0xFF;
+        s_dma_buffer[index++] = (colors[i] >> 8) & 0xFF;
+        s_dma_buffer[index++] = colors[i] & 0xFF;
     }
     gpio_set_level(dev->_dc, SPI_Data_Mode);
-    return spi_master_write_byte(dev->_SPIHandle, Byte, size * 2);
+    return spi_master_write_byte(dev->_SPIHandle, s_dma_buffer, size * 2);
 }
 
 
@@ -268,11 +320,15 @@ void lcdInit(TFT_t *dev, uint16_t model, int width, int height, int offsetx, int
         spi_master_write_data_byte(dev, 0x86);
 
         spi_master_write_comm_byte(dev, 0x36);    //Memory Access Control
-        spi_master_write_data_byte(dev, 0x08);    //Right top start, BGR color filter panel
+        //spi_master_write_comm_byte(dev, 0x80);    //Memory Access Control
+
+        // Rotation and color scheme
+        spi_master_write_data_byte(dev, MADCTL_MX | MADCTL_MV | MADCTL_BGR);
         //spi_master_write_data_byte(dev, 0x00);//Right top start, RGB color filter panel
 
         spi_master_write_comm_byte(dev, 0x3A);    //Pixel Format Set
         spi_master_write_data_byte(dev, 0x55);    //65K color: 16-bit/pixel
+        //spi_master_write_data_byte(dev, 0x5);    //65K color: 16-bit/pixel
 
         spi_master_write_comm_byte(dev, 0x20);    //Display Inversion OFF
 
@@ -326,7 +382,7 @@ void lcdInit(TFT_t *dev, uint16_t model, int width, int height, int offsetx, int
         spi_master_write_comm_byte(dev, 0x11);    //Sleep Out
         delayMS(120);
 
-        spi_master_write_comm_byte(dev, 0x29);    //Display ON
+        //spi_master_write_comm_byte(dev, 0x29);    //Display ON
     } // endif 0x9340/0x9341/0x7735
 
     if (dev->_model == 0x9225) {
@@ -441,10 +497,6 @@ void lcdInit(TFT_t *dev, uint16_t model, int width, int height, int offsetx, int
         delayMS(50);
         lcdWriteRegisterByte(dev, 0x07, 0x1017);
     } // endif 0x9226
-
-    if (dev->_bl >= 0) {
-        gpio_set_level(dev->_bl, 1);
-    }
 }
 
 
@@ -598,10 +650,15 @@ void lcdDrawFillRect(TFT_t *dev, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t
         spi_master_write_data_word(dev, _y1);
         spi_master_write_data_word(dev, _y2);
         spi_master_write_comm_byte(dev, 0x2C);    //  Memory Write
-        for (int i = _x1; i <= _x2; i++) {
+
+        /*for (int i = _x1; i <= _x2; i++) {
             uint16_t size = _y2 - _y1 + 1;
             spi_master_write_color(dev, color, size);
-        }
+        }*/
+
+        // Fast write
+        uint16_t size = _y2 - _y1 + 1;
+        spi_master_write_color(dev, color, size * (_x2 -_x1 + 1));
     } // 0x7735
 
     if (dev->_model == 0x9225) {
@@ -1115,8 +1172,8 @@ int lcdDrawChar(TFT_t *dev, FontxFile *fxs, uint16_t x, uint16_t y, uint8_t asci
         y1 = y;
     }
 
-    if (dev->_font_fill) lcdDrawFillRect(dev, x0, y0, x1, y1, dev->_font_fill_color);
-
+    //if (dev->_font_fill) lcdDrawFillRect(dev, x0, y0, x1, y1, dev->_font_fill_color);
+    int count = 0;
     int bits;
     if (_DEBUG_)printf("xss=%d yss=%d\n", xss, yss);
     ofs = 0;
@@ -1132,16 +1189,24 @@ int lcdDrawChar(TFT_t *dev, FontxFile *fxs, uint16_t x, uint16_t y, uint8_t asci
             for (bit = 0; bit < 8; bit++) {
                 bits--;
                 if (bits < 0) continue;
-                //if(_DEBUG_)printf("xx=%d yy=%d mask=%02x fonts[%d]=%02x\n",xx,yy,mask,ofs,fonts[ofs]);
                 if (fonts[ofs] & mask) {
-                    lcdDrawPixel(dev, xx, yy, color);
+                    s_dma_buffer[count++] = (color >> 8) & 0xFF;
+                    s_dma_buffer[count++] = color & 0xFF;
                 } else {
                     //if (dev->_font_fill) lcdDrawPixel(dev, xx, yy, dev->_font_fill_color);
+                    s_dma_buffer[count++] = (dev->_font_fill_color >> 8) & 0xFF;
+                    s_dma_buffer[count++] = dev->_font_fill_color & 0xFF;
                 }
-                if (h == (ph - 2) && dev->_font_underline)
-                    lcdDrawPixel(dev, xx, yy, dev->_font_underline_color);
-                if (h == (ph - 1) && dev->_font_underline)
-                    lcdDrawPixel(dev, xx, yy, dev->_font_underline_color);
+                if (h == (ph - 2) && dev->_font_underline) {
+                    // +++ lcdDrawPixel(dev, xx, yy, dev->_font_underline_color);
+                    s_dma_buffer[count++] = (dev->_font_underline_color >> 8) & 0xFF;
+                    s_dma_buffer[count++] = dev->_font_underline_color & 0xFF;
+                }
+                if (h == (ph - 1) && dev->_font_underline) {
+                    // +++ lcdDrawPixel(dev, xx, yy, dev->_font_underline_color);
+                    s_dma_buffer[count++] = (dev->_font_underline_color >> 8) & 0xFF;
+                    s_dma_buffer[count++] = dev->_font_underline_color & 0xFF;
+                }
                 xx = xx + xd1;
                 yy = yy + yd2;
                 mask = mask >> 1;
@@ -1151,6 +1216,27 @@ int lcdDrawChar(TFT_t *dev, FontxFile *fxs, uint16_t x, uint16_t y, uint8_t asci
         yy = yy + yd1;
         xx = xx + xd2;
     }
+
+    uint16_t _x1 = dev->_offsetx + x0;
+    uint16_t _y1 = dev->_offsety + y0;
+    uint16_t _x2 = dev->_offsetx + x1;
+    uint16_t _y2 = dev->_offsety + y1;
+
+    // Send address box
+    spi_master_write_comm_byte(dev, 0x2A);    // set column(x) address
+    spi_master_write_data_word(dev, _x1);
+    spi_master_write_data_word(dev, _x2);
+    spi_master_write_comm_byte(dev, 0x2B);    // set Page(y) address
+    spi_master_write_data_word(dev, _y1);
+    spi_master_write_data_word(dev, _y2);
+    spi_master_write_comm_byte(dev, 0x2C);    //  Memory Write
+
+    // Send DMA data
+    spi_transaction_t SPITransaction = {};
+    SPITransaction.length = count * 8; // Length in bits!
+    SPITransaction.tx_buffer = s_dma_buffer;
+    gpio_set_level(dev->_dc, SPI_Data_Mode);
+    spi_device_transmit( dev->_SPIHandle, &SPITransaction );
 
     if (next < 0) next = 0;
     return next;
@@ -1360,18 +1446,21 @@ void lcdUnsetFontUnderLine(TFT_t *dev) {
     dev->_font_underline = false;
 }
 
+void lcdSetBrightness(uint8_t brightness_perc) {
+    s_brigthness_perc = brightness_perc;
+}
+
 // Backlight OFF
 void lcdBacklightOff(TFT_t *dev) {
-    if (dev->_bl >= 0) {
-        gpio_set_level(dev->_bl, 0);
-    }
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 0));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL));
 }
 
 // Backlight ON
 void lcdBacklightOn(TFT_t *dev) {
-    if (dev->_bl >= 0) {
-        gpio_set_level(dev->_bl, 1);
-    }
+    uint32_t duty = (uint32_t)((8192-1) * s_brigthness_perc / 100.0f);
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, duty));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL));
 }
 
 // Vertical Scrolling Definition

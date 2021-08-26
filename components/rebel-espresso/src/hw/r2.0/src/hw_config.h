@@ -3,6 +3,7 @@
 #include <driver/adc.h>
 
 // SPI bus
+#define MAX_SPI_WAIT_TICKS     (5000 / portTICK_PERIOD_MS)
 #define PIN_MISO                GPIO_NUM_12
 #define PIN_MOSI                GPIO_NUM_13
 #define PIN_SCK                 GPIO_NUM_14
@@ -50,4 +51,5 @@
 #define RTD_BREW_BOILER_IDX     0
 #define RTD_BREW_HEAD_IDX       1
 #define RTD_STEAM_BOILER_IDX    2
+
 

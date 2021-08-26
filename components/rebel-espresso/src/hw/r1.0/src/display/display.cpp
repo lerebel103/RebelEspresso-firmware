@@ -157,7 +157,7 @@ void display_draw_brew_tec(u8g2_t *u8g2, int *y) {
 
 void display_draw_boiler_temp(u8g2_t *u8g2, int *y) {
     reading_t result;
-    rtds_get(&result, 0);
+    rtds_get(&result, RTD_BREW_BOILER_IDX);
 
     char tempBuf[16];
     auto temp_val = result.value;

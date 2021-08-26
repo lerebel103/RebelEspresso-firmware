@@ -175,7 +175,7 @@ double boiler_temp_get_trimmed_setpoint() {
 
 void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
-        ESP_LOGW(TAG, "In standby, not running.");
+        ESP_LOGD(TAG, "In standby, not running.");
         _power_off_ssr();
         return;
     } else if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {

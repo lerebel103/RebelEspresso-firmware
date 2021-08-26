@@ -1,27 +1,38 @@
 #include "display.h"
+#include <cstring>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_event.h>
+#include <src/hw/base/rtds.h>
+#include <src/hw/base/boiler_refill.h>
+#include <src/hw/base/boiler_temp.h>
+#include <src/hw/base/brew_temp.h>
 
-#include <hal/gpio_types.h>
-#include <esp_spiffs.h>
-#include <dirent.h>
-#include <fontx.h>
-#include <ili9340.h>
-
+extern "C" {
+    #include <hal/gpio_types.h>
+    #include <esp_spiffs.h>
+    #include <dirent.h>
+    #include <fontx.h>
+    #include <ili9340.h>
+}
 #include "hw_config.h"
 #include "events.h"
 
 #define TAG "tft"
 
+#define TEMP_ERROR_STR "---"
+
 static esp_event_loop_handle_t s_event_loop;
 static time_t s_brew_start_time = -1;
 static TFT_t dev;
 static uint16_t model;
+static bool s_event_received = false;
+static bool s_on = false;
+static bool s_go = false;
 
 
-static void SPIFFS_Directory(char * path) {
+static void SPIFFS_Directory(const char * path) {
     DIR* dir = opendir(path);
     assert(dir != NULL);
     while (true) {
@@ -34,14 +45,14 @@ static void SPIFFS_Directory(char * path) {
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
+        s_event_received = true;
+        s_on = false;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
-        lcdDisplayOff(&dev);
-        lcdBacklightOff(&dev);
     } else if (id == POWER_ACTIVE) {
+        s_event_received = true;
+        s_on = true;
         s_brew_start_time = -1;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
-        lcdDisplayOn(&dev);
-        lcdBacklightOn(&dev);
     }
 }
 
@@ -55,114 +66,60 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 }
 
-TickType_t ColorBarTest(TFT_t * dev, int width, int height) {
-    TickType_t startTick, endTick, diffTick;
-    startTick = xTaskGetTickCount();
 
-    if (width < height) {
-        uint16_t y1,y2;
-        y1 = height/3;
-        y2 = (height/3)*2;
-        lcdDrawFillRect(dev, 0, 0, width-1, y1-1, RED);
-        vTaskDelay(1);
-        lcdDrawFillRect(dev, 0, y1-1, width-1, y2-1, GREEN);
-        vTaskDelay(1);
-        lcdDrawFillRect(dev, 0, y2-1, width-1, height-1, BLUE);
+void _draw_temperature(const reading_t &result, FontxFile* fx1, FontxFile* fx2, int x, int y, uint16_t color) {
+    double temp_val = result.value;
+    const static int len = 16;
+    char tempBuf[len];
+
+    // Integral part of temperature, in larger font
+    if (result.fault == RTD_NoError) {
+        sprintf(tempBuf, "%3d", (int)temp_val);
     } else {
-        uint16_t x1,x2;
-        x1 = width/3;
-        x2 = (width/3)*2;
-        lcdDrawFillRect(dev, 0, 0, x1-1, height-1, RED);
-        vTaskDelay(1);
-        lcdDrawFillRect(dev, x1-1, 0, x2-1, height-1, GREEN);
-        vTaskDelay(1);
-        lcdDrawFillRect(dev, x2-1, 0, width-1, height-1, BLUE);
+        sprintf(tempBuf, "%s", TEMP_ERROR_STR);
     }
+    int char_width = 16;
 
-    endTick = xTaskGetTickCount();
-    diffTick = endTick - startTick;
-    ESP_LOGI(__FUNCTION__, "elapsed time[ms]:%d",diffTick*portTICK_RATE_MS);
-    return diffTick;
+    // Draw integral part
+    lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
+    int width = strlen(tempBuf) * char_width;
+
+    // Draw floating point now, as '.x'
+    int point = static_cast<int>(temp_val * 100 - static_cast<int>(temp_val) * 100);
+    sprintf(tempBuf, ".%d", point);
+    lcdDrawString(&dev, fx2, x + width, y - 3, (uint8_t *) tempBuf, color);
 }
 
-#include <string.h>
+void _draw_setpoint(double setpoint, FontxFile* fx1, int x, int y, uint16_t color) {
+    const static int len = 16;
+    char tempBuf[len];
+    sprintf(tempBuf, "/%.1f", setpoint);
+    lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
+}
 
-TickType_t ArrowTest(TFT_t * dev, FontxFile *fx, int width, int height) {
-    TickType_t startTick, endTick, diffTick;
-    startTick = xTaskGetTickCount();
+void _draw_duty(int duty, FontxFile* fx1, int x, int y, uint16_t color) {
+    const static int len = 16;
+    char tempBuf[len];
+    sprintf(tempBuf, "%5d%%", duty);
+    lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
+}
 
-    // get font width & height
-    uint8_t buffer[FontxGlyphBufSize];
-    uint8_t fontWidth;
-    uint8_t fontHeight;
-    GetFontx(fx, 0, buffer, &fontWidth, &fontHeight);
-    ESP_LOGD(__FUNCTION__,"fontWidth=%d fontHeight=%d",fontWidth,fontHeight);
-
-    uint16_t xpos;
-    uint16_t ypos;
-    int	stlen;
-    uint8_t ascii[24];
-    uint16_t color;
-
-    lcdFillScreen(dev, BLACK);
-
-    if (model == 0x9225) strcpy((char *)ascii, "ILI9225");
-    if (model == 0x9226) strcpy((char *)ascii, "ILI9225G");
-    if (model == 0x9340) strcpy((char *)ascii, "ILI9340");
-    if (model == 0x9341) strcpy((char *)ascii, "ILI9341");
-    if (model == 0x7735) strcpy((char *)ascii, "ST7735");
-    if (model == 0x7796) strcpy((char *)ascii, "ST7796S");
-    if (width < height) {
-        xpos = ((width - fontHeight) / 2) - 1;
-        ypos = (height - (strlen((char *)ascii) * fontWidth)) / 2;
-        lcdSetFontDirection(dev, DIRECTION90);
-    } else {
-        ypos = ((height - fontHeight) / 2) - 1;
-        xpos = (width - (strlen((char *)ascii) * fontWidth)) / 2;
-        lcdSetFontDirection(dev, DIRECTION0);
+void _ensure_powere_state_ok() {
+    // look at last event received
+    if (s_event_received) {
+        if (s_on) {
+            lcdDisplayOn(&dev);
+            lcdBacklightOn(&dev);
+        } else {
+            lcdDisplayOff(&dev);
+            lcdBacklightOff(&dev);
+        }
+        s_event_received = false;
     }
-    color = WHITE;
-    lcdDrawString(dev, fx, xpos, ypos, ascii, color);
-
-    lcdSetFontDirection(dev, 0);
-    //lcdFillScreen(dev, WHITE);
-    color = RED;
-    lcdDrawFillArrow(dev, 10, 10, 0, 0, 5, color);
-    strcpy((char *)ascii, "0,0");
-    lcdDrawString(dev, fx, 0, 30, ascii, color);
-
-    color = GREEN;
-    lcdDrawFillArrow(dev, width-11, 10, width-1, 0, 5, color);
-    //strcpy((char *)ascii, "79,0");
-    sprintf((char *)ascii, "%d,0",width-1);
-    stlen = strlen((char *)ascii);
-    xpos = (width-1) - (fontWidth*stlen);
-    lcdDrawString(dev, fx, xpos, 30, ascii, color);
-
-    color = GRAY;
-    lcdDrawFillArrow(dev, 10, height-11, 0, height-1, 5, color);
-    //strcpy((char *)ascii, "0,159");
-    sprintf((char *)ascii, "0,%d",height-1);
-    ypos = (height-11) - (fontHeight) + 5;
-    lcdDrawString(dev, fx, 0, ypos, ascii, color);
-
-    color = CYAN;
-    lcdDrawFillArrow(dev, width-11, height-11, width-1, height-1, 5, color);
-    //strcpy((char *)ascii, "79,159");
-    sprintf((char *)ascii, "%d,%d",width-1, height-1);
-    stlen = strlen((char *)ascii);
-    xpos = (width-1) - (fontWidth*stlen);
-    lcdDrawString(dev, fx, xpos, ypos, ascii, color);
-
-    endTick = xTaskGetTickCount();
-    diffTick = endTick - startTick;
-    ESP_LOGI(__FUNCTION__, "elapsed time[ms]:%d",diffTick*portTICK_RATE_MS);
-    return diffTick;
 }
 
 void _tft_loop(void * arg) {
     // set font file
-    spi_device_acquire_bus(dev._SPIHandle, portMAX_DELAY);
     FontxFile fx16G[2];
     FontxFile fx24G[2];
     FontxFile fx32G[2];
@@ -176,20 +133,55 @@ void _tft_loop(void * arg) {
     InitFontx(fx16M,"/spiffs/ILMH16XB.FNT",""); // 8x16Dot Mincyo
     InitFontx(fx24M,"/spiffs/ILMH24XB.FNT",""); // 12x24Dot Mincyo
     InitFontx(fx32M,"/spiffs/ILMH32XB.FNT",""); // 16x32Dot Mincyo
-    spi_device_release_bus(dev._SPIHandle);
 
-    do {
-            spi_device_acquire_bus(dev._SPIHandle, portMAX_DELAY);
-            ColorBarTest(&dev, CONFIG_WIDTH, CONFIG_HEIGHT);
-            spi_device_release_bus(dev._SPIHandle);
-            vTaskDelay(100);
 
-            spi_device_acquire_bus(dev._SPIHandle, portMAX_DELAY);
-            ArrowTest(&dev, fx16G, CONFIG_WIDTH, CONFIG_HEIGHT);
-            spi_device_release_bus(dev._SPIHandle);
-            vTaskDelay(100);
-    } while(1);
+    int delay = 1000;
 
+    // We want fonts to re-draw on background color
+    lcdSetFontFill(&dev, BLACK);
+    lcdFillScreen(&dev, BLACK);
+
+    const int len = 16;
+    char tempBuf[len];
+    reading_t result;
+
+    lcdSetBrightness(40);
+
+    while (s_go) {
+        TickType_t  startTick = xTaskGetTickCount();
+
+        _ensure_powere_state_ok();
+
+        if (s_on) {
+            int setpoint_offset_x = (3 + 1) * 16 + 8 + 2;
+            int x = 0;
+            int y = 0;
+
+            y += 32;
+            rtds_get(&result, RTD_BREW_BOILER_IDX);
+            double brew_setpoint = brew_temp_get_setpoint();
+            _draw_temperature(result, fx32M, fx16M, x, y, GREEN);
+            _draw_setpoint(brew_setpoint, fx16G, x + setpoint_offset_x, y - 3, RED);
+            lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
+
+            y += 42;
+            rtds_get(&result, RTD_BREW_HEAD_IDX);
+            double actual_setpoint = boiler_temp_get_trimmed_setpoint();
+            _draw_temperature(result, fx32M, fx16M, x, y, CYAN);
+            _draw_duty(boiler_temp_get_duty(), fx16M, x + setpoint_offset_x, y - 22, WHITE);
+            _draw_setpoint(actual_setpoint, fx16M, x + setpoint_offset_x, y - 3, RED);
+            lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
+
+            y += 32;
+            double level_voltage = boiler_refill_level_mv() / 1e3;
+            sprintf(tempBuf, "   Level %.1fV", level_voltage);
+            lcdDrawString(&dev, fx16M, 0, y, (uint8_t *) tempBuf, WHITE);
+
+            TickType_t endTick = xTaskGetTickCount();
+            ESP_LOGI(TAG, "Render Took %dms\r\n", (endTick - startTick) * portTICK_PERIOD_MS);
+        }
+        xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
+    }
 }
 
 
@@ -265,9 +257,7 @@ void display_init(esp_event_loop_handle_t event_loop) {
 #if CONFIG_ST7796
     model = 0x7796;
 #endif
-    spi_device_acquire_bus(dev._SPIHandle, portMAX_DELAY);
-    lcdInit(&dev, model, CONFIG_WIDTH, CONFIG_HEIGHT, CONFIG_OFFSETX, CONFIG_OFFSETY);
-    spi_device_release_bus(dev._SPIHandle);
+    lcdInit(&dev, model, CONFIG_WIDTH, CONFIG_HEIGHT, CONFIG_OFFSETY, CONFIG_OFFSETX); //, );
 
 #if CONFIG_INVERSION
     ESP_LOGI(TAG, "Enable Display Inversion");
@@ -280,6 +270,6 @@ void display_init(esp_event_loop_handle_t event_loop) {
 #endif
 
     ESP_LOGI(TAG, "########### TFT READY ###########");
-
+    s_go = true;
     xTaskCreate(_tft_loop, "tft_loop", 1024*6, NULL, 2, NULL);
 }

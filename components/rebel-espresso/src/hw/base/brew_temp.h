@@ -124,12 +124,6 @@ double brew_temp_get_setpoint();
 
 void brew_temp_set_setpoint(double setpoint);
 
-/**
- * Get current duty value applied to the SSR
- * @return
- */
-double brew_temp_get_duty();
-
 brew_temp_trim_t brew_temp_get_trim();
 
 /**

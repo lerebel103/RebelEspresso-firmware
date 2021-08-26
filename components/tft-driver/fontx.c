@@ -197,7 +197,6 @@ uint8_t getFortHeight(FontxFile *fx) {
 
 bool GetFontx(FontxFile *fxs, uint8_t ascii , uint8_t *pGlyph, uint8_t *pw, uint8_t *ph)
 {
-  
 	int i;
 	uint32_t offset;
 

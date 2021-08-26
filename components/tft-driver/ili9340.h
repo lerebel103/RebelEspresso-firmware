@@ -81,6 +81,7 @@ void lcdSetFontUnderLine(TFT_t * dev, uint16_t color);
 void lcdUnsetFontUnderLine(TFT_t * dev);
 void lcdBacklightOff(TFT_t * dev);
 void lcdBacklightOn(TFT_t * dev);
+void lcdSetBrightness(uint8_t brightness_perc);
 void lcdSetScrollArea(TFT_t * dev, uint16_t tfa, uint16_t vsa, uint16_t bfa);
 void lcdResetScrollArea(TFT_t * dev, uint16_t vsa);
 void lcdScroll(TFT_t * dev, uint16_t vsp);

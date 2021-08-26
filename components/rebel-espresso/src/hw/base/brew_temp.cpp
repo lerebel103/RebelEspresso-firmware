@@ -113,7 +113,7 @@ void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
         s_trim.active = false;
         return;
     } else if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
-        ESP_LOGW(TAG, "In standby, not running.");
+        ESP_LOGD(TAG, "In standby, not running.");
         s_trim.active = false;
         return;
     } else if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
@@ -163,7 +163,7 @@ void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
         // I = P / 10 = 0.0016
         // D = 60 = 60
 
-        ESP_LOGI(TAG, "************************* brew temp: %f, Trim: %f, P=%f, I=%f, D=%f",
+        ESP_LOGI(TAG, "Brew temp: %f, Trim: %f, P=%f, I=%f, D=%f",
                  brew_head_data.value, s_trim.value,
                  s_cfg.pid.P * (brew_temp_get_setpoint() - brew_head_data.value),
                  s_cfg.pid.I * wdata.error_integral, s_cfg.pid.D * wdata.derivative);

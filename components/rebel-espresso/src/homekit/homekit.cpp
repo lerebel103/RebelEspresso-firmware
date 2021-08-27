@@ -11,7 +11,7 @@
 #include <hap_apple_chars.h>
 #include <hap_apple_servs.h>
 #include <src/thing_info.h>
-#include <Max31865.h>
+#include <hw_config.h>
 #include "power.h"
 #include "rtds.h"
 #include "brew_temp.h"
@@ -102,7 +102,7 @@ static int brew_char_read(hap_char_t *hc, hap_status_t *status_code,
     }
 
     // Brew temperature
-    rtds_get(&result, 1);
+    rtds_get(&result, RTD_BREW_HEAD_IDX);
 
     if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_NAME)) {
         new_val.s = (char *) BREW_NAME;
@@ -210,8 +210,8 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
         hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
         brew_char_read(hc, &status_code, nullptr, nullptr);
-        hc = hap_serv_get_char_by_uuid(s_boiler_service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
-        boiler_char_read(hc, &status_code, nullptr, nullptr);
+        //hc = hap_serv_get_char_by_uuid(s_boiler_service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
+        //boiler_char_read(hc, &status_code, nullptr, nullptr);
 
         last_send = now;
     }
@@ -282,7 +282,7 @@ static void switch_thread_entry(void *arg) {
     /* Add a dummy Product Data */
     hap_acc_add_product_data(accessory, product_data, sizeof(product_data));
 
-    rtds_get(&result, 1);
+    rtds_get(&result, RTD_BREW_HEAD_IDX);
     brew_temp = (result.fault == (uint8_t)RTD_NoError ? result.value : 21);
 
     /* Create the RebelEspresso Switch Service. Include the "name" since this is a user visible service  */

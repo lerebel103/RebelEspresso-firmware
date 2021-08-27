@@ -157,15 +157,15 @@ void _tft_loop(void * arg) {
             int x = 0;
             int y = 0;
 
-            y += 32;
-            rtds_get(&result, RTD_BREW_BOILER_IDX);
+            y += 40;
+            rtds_get(&result, RTD_BREW_HEAD_IDX);
             double brew_setpoint = brew_temp_get_setpoint();
             _draw_temperature(result, fx32M, fx16M, x, y, GREEN);
             _draw_setpoint(brew_setpoint, fx16G, x + setpoint_offset_x, y - 3, RED);
             lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
 
             y += 42;
-            rtds_get(&result, RTD_BREW_HEAD_IDX);
+            rtds_get(&result, RTD_BREW_BOILER_IDX);
             double actual_setpoint = boiler_temp_get_trimmed_setpoint();
             _draw_temperature(result, fx32M, fx16M, x, y, CYAN);
             _draw_duty(boiler_temp_get_duty(), fx16M, x + setpoint_offset_x, y - 22, WHITE);

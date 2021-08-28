@@ -110,11 +110,11 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
         }
         case U8X8_MSG_BYTE_START_TRANSFER:
             //ESP_LOGW(TAG, "Start tx");
-            spi_device_acquire_bus(handle_spi, portMAX_DELAY);
+            //spi_device_acquire_bus(handle_spi, portMAX_DELAY);
             break;
         case U8X8_MSG_BYTE_END_TRANSFER:
             //ESP_LOGW(TAG, "End tx");
-            spi_device_release_bus(handle_spi);
+            //spi_device_release_bus(handle_spi);
             break;
     }
     return 0;

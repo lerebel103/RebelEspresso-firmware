@@ -73,12 +73,12 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 
     bool is_pump_powered = out_signals_get_level(OUT_SIGNALS_RELAY1);
 
-    if (s_descaled_entered && gpio_get_level(PIN_IN_BREW_IN) == 1) {
+    if (s_descaled_entered && gpio_get_level(PIN_IN_BREW_EN) == 1) {
         // Don't run normal pump on/off if we are in descale mode until the pump switch is cycled once.
         s_descaled_entered = false;
     } else if (!s_descaled_entered) {
         // maintain pump state with switch
-        if (gpio_get_level(PIN_IN_BREW_IN) == 0 && !is_pump_powered) {
+        if (gpio_get_level(PIN_IN_BREW_EN) == 0 && !is_pump_powered) {
             _pump_sw_on = true;
 
             // Send start event then
@@ -88,7 +88,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
                                       portMAX_DELAY));
 
             _pump_on();
-        } else if (gpio_get_level(PIN_IN_BREW_IN) == 1 && is_pump_powered) {
+        } else if (gpio_get_level(PIN_IN_BREW_EN) == 1 && is_pump_powered) {
             _brew_switch_off(nullptr);
         }
     } else {
@@ -104,7 +104,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
         s_descaled_entered = false;
     } else if (id == POWER_ACTIVE) {
         // If pump switch is on when active, we enter descaling mode
-        if (gpio_get_level(PIN_IN_BREW_IN) == 0) {
+        if (gpio_get_level(PIN_IN_BREW_EN) == 0) {
             xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
             s_descaled_entered = true;
         }
@@ -121,7 +121,7 @@ void pump_init(esp_event_loop_handle_t event_loop) {
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (
-            (1ULL << PIN_IN_BREW_IN)
+            (1ULL << PIN_IN_BREW_EN)
     );
 
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;

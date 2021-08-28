@@ -23,7 +23,7 @@
 
 // Switches (inputs)
 #define PIN_IN_SYS_EN           GPIO_NUM_35
-#define PIN_IN_BREW_IN          GPIO_NUM_34
+#define PIN_IN_BREW_EN          GPIO_NUM_34
 #define PIN_IN_STEAM_EN         GPIO_NUM_17
 #define PIN_IN_AUX_EN           GPIO_NUM_39
 

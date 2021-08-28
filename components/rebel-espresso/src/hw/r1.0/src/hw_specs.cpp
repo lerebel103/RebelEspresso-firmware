@@ -1,3 +1,4 @@
+#include <esp_adc_cal.h>
 #include "hw_specs.h"
 
 #include "hw_config.h"
@@ -6,8 +7,39 @@
 #include "brew_tec.h"
 #include "ready_indicator.h"
 
+#define DEFAULT_VREF                1100
+static const adc_unit_t unit = ADC_UNIT_1;
+static esp_adc_cal_characteristics_t *adc_chars;
+
+void hw_specs_read_water_level_mv(uint8_t* status, double* value) {
+    static int num_readings = 25;
+
+    // Let things stabilise
+    vTaskDelay(pdMS_TO_TICKS(5));
+
+    double level_voltage = 0.0;
+    for (int i = 0; i < 25; i++) {
+        auto raw = adc1_get_raw(PIN_WATER_LEVEL_SENSE);
+        level_voltage += esp_adc_cal_raw_to_voltage(raw, adc_chars);
+        ets_delay_us(250);
+    }
+
+    *value = level_voltage / num_readings;
+}
+
 
 void hw_specs_init(esp_event_loop_handle_t event_loop) {
+    // Configure ADC input
+
+    // Configure ADC
+    auto attenuation = ADC_ATTEN_DB_11;
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(PIN_WATER_LEVEL_SENSE, attenuation);
+
+    //Characterize ADC
+    adc_chars = static_cast<esp_adc_cal_characteristics_t *>(calloc(1, sizeof(esp_adc_cal_characteristics_t)));
+    esp_adc_cal_characterize(unit, attenuation, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);
+
     brew_tec_init(event_loop);
     ready_indicator_init(event_loop);
 

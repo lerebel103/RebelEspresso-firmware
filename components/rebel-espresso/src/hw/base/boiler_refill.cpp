@@ -18,10 +18,6 @@
 
 const static char *TAG = "refill";
 
-
-#define WL_ON   0 /* We are driving an NPN transistor, so needs to be opposite levels */
-#define WL_OFF  1 /* We are driving an NPN transistor, so needs to be opposite levels */
-
 #define BOILER_REFILL_NVS_CFG_STORE     "cfg.b_refill"
 #define MIN_SAMPLE_TIME_MS  300
 
@@ -74,12 +70,13 @@ void monitor_boiler_level(void *) {
 
 bool boiler_check_level() {
     // Enable voltage on probe - measured settle time is 70ns, which is bugger all,
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_ON);
+    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_ON);
 
     hw_specs_read_water_level_mv(&s_status_monitor, &s_level_voltage);
+    printf("%f\r\n", s_level_voltage);
 
     // Done, disable to prevent electrolysis
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_OFF);
+    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);
     return s_level_voltage <= s_cfg.refill_mv_threshold;
 }
 
@@ -154,7 +151,7 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
 
     // Turn off outputs
     out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WL_OFF);
+    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);
 
     // Configure ADC input
     // Configure pins for voltage divider

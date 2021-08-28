@@ -378,6 +378,8 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
     int time_in_high_contrast = 0;
     while (g_go) {
+        TickType_t  startTick = xTaskGetTickCount();
+
         EventBits_t uxBits = xEventGroupWaitBits(
                 status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT, false, true, 0);
 
@@ -406,9 +408,6 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
                 time_in_high_contrast = 0;
             }
 
-            time_in_high_contrast += delay / 1000;
-
-
             if (!(WIFI_CONNECTED_BIT & uxBits) && !(MQTT_CONNECTED_BIT & uxBits)) {
                 drawWifi = !drawWifi;
                 delay = 500;
@@ -422,6 +421,8 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
             }
 
             _draw_active_mode(u8g2, drawWifi);
+
+            time_in_high_contrast += ((xTaskGetTickCount()-startTick)*portTICK_PERIOD_MS) / 1000;
         } else {
             time_in_high_contrast = 0;
             u8g2_ClearDisplay(&u8g2);

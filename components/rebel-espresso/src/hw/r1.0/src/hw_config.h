@@ -25,9 +25,9 @@
 #define PIN_OUT_REL3_EN         GPIO_NUM_27
 
 // Switches
-#define PIN_IN_SYS_EN           GPIO_NUM_35
-#define PIN_IN_BREW_EN          GPIO_NUM_34
-#define PIN_IN_STEAM_EN         GPIO_NUM_2
+#define PIN_IN_SYS_EN           GPIO_NUM_2
+#define PIN_IN_BREW_EN          GPIO_NUM_35
+#define PIN_IN_STEAM_EN         GPIO_NUM_34
 
 // Water sensing
 #define PIN_WATER_LEVEL_ENABLE  GPIO_NUM_32
@@ -48,3 +48,6 @@
 #define RTD_BREW_HEAD_IDX   1
 #define RTD_TEC_HOT_IDX     2
 #define RTD_TEC_COLD_IDX    3
+
+#define WATER_LEVEL_SENSE_ON   1
+#define WATER_LEVEL_SENSE_OFF  0

@@ -52,4 +52,6 @@
 #define RTD_BREW_HEAD_IDX       1
 #define RTD_STEAM_BOILER_IDX    2
 
+#define WATER_LEVEL_SENSE_ON   0 /* We are driving an NPN transistor, so needs to be opposite levels */
+#define WATER_LEVEL_SENSE_OFF  1 /* We are driving an NPN transistor, so needs to be opposite levels */
 

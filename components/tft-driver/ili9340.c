@@ -51,6 +51,15 @@ static uint8_t s_brigthness_perc = 100;
 #define DMA_SIZE (1024*3)
 DMA_ATTR static uint8_t s_dma_buffer[DMA_SIZE];
 
+bool spi_master_write_byte(spi_device_handle_t SPIHandle, const uint8_t* Data, size_t DataLength);
+bool spi_master_write_comm_byte(TFT_t * dev, uint8_t cmd);
+bool spi_master_write_comm_word(TFT_t * dev, uint16_t cmd);
+bool spi_master_write_data_byte(TFT_t * dev, uint8_t data);
+bool spi_master_write_data_word(TFT_t * dev, uint16_t data);
+bool spi_master_write_addr(TFT_t * dev, uint16_t addr1, uint16_t addr2);
+bool spi_master_write_color(TFT_t * dev, uint16_t color, uint16_t size);
+bool spi_master_write_colors(TFT_t * dev, uint16_t * colors, uint16_t size);
+
 void
 spi_master_init(TFT_t *dev, int16_t GPIO_MOSI, int16_t GPIO_SCLK, int16_t GPIO_CS, int16_t GPIO_DC, int16_t GPIO_RESET,
                 int16_t GPIO_BL) {
@@ -70,9 +79,6 @@ spi_master_init(TFT_t *dev, int16_t GPIO_MOSI, int16_t GPIO_SCLK, int16_t GPIO_C
     if (GPIO_RESET >= 0) {
         gpio_pad_select_gpio(GPIO_RESET);
         gpio_set_direction(GPIO_RESET, GPIO_MODE_OUTPUT);
-        gpio_set_level(GPIO_RESET, 0);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        gpio_set_level(GPIO_RESET, 1);
     }
 
     ESP_LOGI(TAG, "GPIO_BL=%d", GPIO_BL);
@@ -97,6 +103,7 @@ spi_master_init(TFT_t *dev, int16_t GPIO_MOSI, int16_t GPIO_SCLK, int16_t GPIO_C
     assert(ret == ESP_OK);
     dev->_dc = GPIO_DC;
     dev->_bl = GPIO_BL;
+    dev->_reset = GPIO_RESET;
 
     // Prepare and then apply the LEDC PWM timer configuration
     ledc_timer_config_t ledc_timer = {
@@ -242,6 +249,8 @@ void lcdInit(TFT_t *dev, uint16_t model, int width, int height, int offsetx, int
     dev->_font_direction = DIRECTION0;
     dev->_font_fill = false;
     dev->_font_underline = false;
+
+    lcdReset(dev);
 
     if (dev->_model == 0x7796) {
         ESP_LOGI(TAG, "Your TFT is ST7796");
@@ -701,7 +710,6 @@ void lcdDisplayOff(TFT_t *dev) {
     if (dev->_model == 0x9225 || dev->_model == 0x9226) {
         lcdWriteRegisterByte(dev, 0x07, 0x1014);
     } // endif 0x9225/0x9226
-
 }
 
 // Display ON
@@ -1522,3 +1530,8 @@ void lcdScroll(TFT_t *dev, uint16_t vsp) {
     } // endif 0x9225/0x9226
 }
 
+void lcdReset(TFT_t* dev) {
+    gpio_set_level(dev->_reset, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(dev->_reset, 1);
+}

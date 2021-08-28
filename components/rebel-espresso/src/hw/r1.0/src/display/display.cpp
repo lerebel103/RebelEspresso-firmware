@@ -238,7 +238,7 @@ void _draw_brew_counter(u8g2_t &u8g2) {
     u8g2_SendBuffer(&u8g2);
 }
 
-void esp_qrcode_print(u8g2_t &u8g2, int x_off, int y_off, const uint8_t* qrcode, int size)
+static void esp_qrcode_print(u8g2_t &u8g2, int x_off, int y_off, const uint8_t* qrcode, int size)
 {
     // Draw a square for the QR with a white border
     int border = 1;

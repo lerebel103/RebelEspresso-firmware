@@ -8,6 +8,11 @@
 #include <src/hw/base/boiler_refill.h>
 #include <src/hw/base/boiler_temp.h>
 #include <src/hw/base/brew_temp.h>
+#include <src/thing_info.h>
+#include <version.h>
+#include <qrcodegen.h>
+#include <src/sys/wifi_connect.h>
+#include <src/hw/base/power.h>
 
 extern "C" {
     #include <hal/gpio_types.h>
@@ -27,9 +32,10 @@ static esp_event_loop_handle_t s_event_loop;
 static time_t s_brew_start_time = -1;
 static TFT_t dev;
 static uint16_t model;
-static bool s_event_received = false;
 static bool s_on = false;
+static bool s_last_on_state = false;
 static bool s_go = false;
+static bool s_qr_displayed = false;
 
 
 static void SPIFFS_Directory(const char * path) {
@@ -45,11 +51,9 @@ static void SPIFFS_Directory(const char * path) {
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
     if (id == POWER_STANDBY) {
-        s_event_received = true;
         s_on = false;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     } else if (id == POWER_ACTIVE) {
-        s_event_received = true;
         s_on = true;
         s_brew_start_time = -1;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
@@ -104,18 +108,141 @@ void _draw_duty(int duty, FontxFile* fx1, int x, int y, uint16_t color) {
     lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
 }
 
-void _ensure_powere_state_ok() {
+void _display_info(FontxFile* fx1) {
+    uint8_t x = 12;
+    uint8_t y= 40;
+    lcdDrawString(&dev, fx1, x, y, (uint8_t *) "RebelEspresso", GREEN);
+
+    y += 25;
+    lcdDrawString(&dev, fx1, x, y, (uint8_t *)("v" FIRMWARE_VERSION), WHITE);
+
+    y += 25;
+    lcdDrawString(&dev, fx1, x, y, (uint8_t *)thing_info_id(), WHITE);
+}
+
+static void _qrcode_print(int x_off, int y_off, const uint8_t* qrcode, int size)
+{
+    if (s_qr_displayed) {
+        return;
+    }
+
+    lcdFillScreen(&dev, BLACK);
+
+    // Draw a square for the QR with a white border
+    int border = 1;
+    for (int y = -border; y < size + border ; y+=1) {
+        for (int x = -border; x < size + border ; x+=1) {
+            if (qrcodegen_getModule(qrcode, x, y) and x >= 0 and y >= 0 and x < size and y < size) {
+                lcdDrawPixel(&dev, x + x_off, y + y_off, BLACK);
+            } else {
+                lcdDrawPixel(&dev, x + x_off, y + y_off, WHITE);
+            }
+        }
+    }
+
+    s_qr_displayed = true;
+}
+
+
+void _ensure_power_state_ok() {
     // look at last event received
-    if (s_event_received) {
+    bool on = s_on;
+    if (s_last_on_state != on) {
         if (s_on) {
+#if CONFIG_ILI9225
+            model = 0x9225;
+#endif
+#if CONFIG_ILI9225G
+            model = 0x9226;
+#endif
+#if CONFIG_ILI9340
+            model = 0x9340;
+#endif
+#if CONFIG_ILI9341
+            model = 0x9341;
+#endif
+#if CONFIG_ST7735
+            model = 0x7735;
+#endif
+#if CONFIG_ST7796
+            model = 0x7796;
+#endif
+            lcdInit(&dev, model, CONFIG_WIDTH, CONFIG_HEIGHT, CONFIG_OFFSETY, CONFIG_OFFSETX);
             lcdDisplayOn(&dev);
+            lcdFillScreen(&dev, BLACK);
+            lcdSetFontFill(&dev, BLACK);
+            lcdSetBrightness(40);
             lcdBacklightOn(&dev);
         } else {
             lcdDisplayOff(&dev);
             lcdBacklightOff(&dev);
+            s_qr_displayed = false;
         }
-        s_event_received = false;
+        s_last_on_state = on;
     }
+}
+
+static void _draw_active(FontxFile *fx16M, FontxFile *fx32M) {
+    const int len = 16;
+    reading_t result = {};
+    char tempBuf[len];
+
+    TickType_t  startTick = xTaskGetTickCount();
+    int setpoint_offset_x = (3 + 1) * 16 + 8 + 2;
+    int x = 0;
+    int y = 0;
+
+    y += 40;
+    rtds_get(&result, RTD_BREW_HEAD_IDX);
+    double brew_setpoint = brew_temp_get_setpoint();
+    _draw_temperature(result, fx32M, fx16M, x, y, GREEN);
+    _draw_setpoint(brew_setpoint, fx16M, x + setpoint_offset_x, y - 3, RED);
+    lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
+
+    y += 42;
+    rtds_get(&result, RTD_BREW_BOILER_IDX);
+    double actual_setpoint = boiler_temp_get_trimmed_setpoint();
+    _draw_temperature(result, fx32M, fx16M, x, y, CYAN);
+    _draw_duty(boiler_temp_get_duty(), fx16M, x + setpoint_offset_x, y - 22, WHITE);
+    _draw_setpoint(actual_setpoint, fx16M, x + setpoint_offset_x, y - 3, RED);
+    lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
+
+    y += 32;
+    double level_voltage = boiler_refill_level_mv() / 1e3;
+    sprintf(tempBuf, "   Level %.1fV", level_voltage);
+    lcdDrawString(&dev, fx16M, 0, y, (uint8_t *) tempBuf, WHITE);
+
+    TickType_t endTick = xTaskGetTickCount();
+    ESP_LOGI(TAG, "Render Took %dms\r\n", (endTick - startTick) * portTICK_PERIOD_MS);
+}
+
+static void _draw_provisioning(FontxFile *fx16M) {
+    int x = 18;
+    int y = 20;
+
+    lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Scan to set", WHITE);
+    lcdDrawString(&dev, fx16M, x + 36, y + 18, (uint8_t *) "WiFi", WHITE);
+
+    int xPos = 45;
+    int yPos = 45;
+    _qrcode_print(xPos, yPos, wifi_get_prov_qr(), wifi_get_prov_qr_len());
+}
+
+static void _draw_descale_mode(FontxFile *fx16M) {
+
+}
+
+static void _draw_brew_counter(FontxFile *fx16M, FontxFile *fx32M) {
+    char buf[64];
+    sprintf(buf, "%ds", (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time));
+
+    int x = 22;
+    int y = 42;
+    lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Brew Time", WHITE);
+
+    x = 38;
+    y += 50;
+    lcdDrawString(&dev, fx32M, x, y, (uint8_t *) buf, WHITE);
 }
 
 void _tft_loop(void * arg) {
@@ -135,50 +262,51 @@ void _tft_loop(void * arg) {
     InitFontx(fx32M,"/spiffs/ILMH32XB.FNT",""); // 16x32Dot Mincyo
 
 
+    // Display info, but turn on first
+    s_on = true;
+    _ensure_power_state_ok();
+    _display_info(fx16G);
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+
+
     int delay = 1000;
-
-    // We want fonts to re-draw on background color
-    lcdSetFontFill(&dev, BLACK);
-    lcdFillScreen(&dev, BLACK);
-
-    const int len = 16;
-    char tempBuf[len];
-    reading_t result;
-
-    lcdSetBrightness(40);
-
+    int state = 0;
+    int last_state = 0;
     while (s_go) {
-        TickType_t  startTick = xTaskGetTickCount();
+        EventBits_t uxBits = xEventGroupWaitBits(
+                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT, false, true, 0);
+        _ensure_power_state_ok();
 
-        _ensure_powere_state_ok();
-
-        if (s_on) {
-            int setpoint_offset_x = (3 + 1) * 16 + 8 + 2;
-            int x = 0;
-            int y = 0;
-
-            y += 40;
-            rtds_get(&result, RTD_BREW_HEAD_IDX);
-            double brew_setpoint = brew_temp_get_setpoint();
-            _draw_temperature(result, fx32M, fx16M, x, y, GREEN);
-            _draw_setpoint(brew_setpoint, fx16G, x + setpoint_offset_x, y - 3, RED);
-            lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
-
-            y += 42;
-            rtds_get(&result, RTD_BREW_BOILER_IDX);
-            double actual_setpoint = boiler_temp_get_trimmed_setpoint();
-            _draw_temperature(result, fx32M, fx16M, x, y, CYAN);
-            _draw_duty(boiler_temp_get_duty(), fx16M, x + setpoint_offset_x, y - 22, WHITE);
-            _draw_setpoint(actual_setpoint, fx16M, x + setpoint_offset_x, y - 3, RED);
-            lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
-
-            y += 32;
-            double level_voltage = boiler_refill_level_mv() / 1e3;
-            sprintf(tempBuf, "   Level %.1fV", level_voltage);
-            lcdDrawString(&dev, fx16M, 0, y, (uint8_t *) tempBuf, WHITE);
-
-            TickType_t endTick = xTaskGetTickCount();
-            ESP_LOGI(TAG, "Render Took %dms\r\n", (endTick - startTick) * portTICK_PERIOD_MS);
+        if (PROVISIONING_BIT & uxBits) {
+            state = 1;
+            if (state != last_state) {
+                lcdFillScreen(&dev, BLACK);
+                last_state = state;
+            }
+            _draw_provisioning(fx16M);
+        } else if (DESCALE_MODE_BIT & uxBits) {
+            state = 2;
+            if (state != last_state) {
+                lcdFillScreen(&dev, BLACK);
+                last_state = state;
+            }
+            _draw_descale_mode(fx16M);
+        } else if (s_brew_start_time >= 0) {
+            state = 3;
+            if (state != last_state) {
+                lcdFillScreen(&dev, BLACK);
+                last_state = state;
+            }
+            _draw_brew_counter(fx16M, fx32M);
+            delay = 500;
+        } else if (power_is_active()) {
+            state = 4;
+            if (state != last_state) {
+                lcdFillScreen(&dev, BLACK);
+                last_state = state;
+            }
+            delay = 1000;
+            _draw_active(fx16M, fx32M);
         }
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
     }
@@ -239,35 +367,6 @@ void display_init(esp_event_loop_handle_t event_loop) {
                     PIN_OUT_DISPLAY_DC,
                     PIN_OUT_DISPLAY_RESET,
                     PIN_OUT_DISPLAY_LED);
-#if CONFIG_ILI9225
-    model = 0x9225;
-#endif
-#if CONFIG_ILI9225G
-    model = 0x9226;
-#endif
-#if CONFIG_ILI9340
-    model = 0x9340;
-#endif
-#if CONFIG_ILI9341
-    model = 0x9341;
-#endif
-#if CONFIG_ST7735
-    model = 0x7735;
-#endif
-#if CONFIG_ST7796
-    model = 0x7796;
-#endif
-    lcdInit(&dev, model, CONFIG_WIDTH, CONFIG_HEIGHT, CONFIG_OFFSETY, CONFIG_OFFSETX); //, );
-
-#if CONFIG_INVERSION
-    ESP_LOGI(TAG, "Enable Display Inversion");
-	lcdInversionOn(&dev);
-#endif
-
-#if CONFIG_RGB_COLOR
-    ESP_LOGI(TAG, "Change BGR filter to RGB filter");
-	lcdBGRFilter(&dev);
-#endif
 
     ESP_LOGI(TAG, "########### TFT READY ###########");
     s_go = true;

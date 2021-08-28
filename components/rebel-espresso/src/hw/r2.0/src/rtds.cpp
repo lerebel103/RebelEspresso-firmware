@@ -107,7 +107,7 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
     }
 
     // Do a read
-    auto result = ADS124S08_conv(false, ADS124S08_ref_EXTERNAL, adc_mux, idac_mux, idac_current, pga_gain);
+    auto result = ADS124S08_conv(true, ADS124S08_ref_EXTERNAL, adc_mux, idac_mux, idac_current, pga_gain);
     auto reading = _rtd_to_celcius(result.v_ref, result.value, RTD_nominal);
 
     // Easy with fault, just look at range bounds and error status from ADC

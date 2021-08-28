@@ -16,7 +16,7 @@ void out_signals_set_level(enum out_signals_t slot, uint8_t level) {
         gpio_set_level(PIN_OUT_REL3_EN, level);
     } else if (slot == OUT_SIGNALS_AUX) {
         // Unsupported
-        ESP_LOGE(TAG, "Auxiliary pin not supported");
+        ESP_LOGW(TAG, "Auxiliary pin not supported");
     } else {
         // Unsupported
         ESP_LOGE(TAG, "Slot %d not supported", slot);
@@ -34,7 +34,7 @@ uint8_t out_signals_get_level(enum out_signals_t slot) {
         val = (GPIO_REG_READ(GPIO_OUT_REG) >> PIN_OUT_REL3_EN) & 1U;
     } else if (slot == OUT_SIGNALS_AUX) {
         // Unsupported
-        ESP_LOGE(TAG, "Auxiliary pin not supported");
+        ESP_LOGW(TAG, "Auxiliary pin not supported");
     } else {
         // Unsupported
         ESP_LOGE(TAG, "Slot %d not supported", slot);

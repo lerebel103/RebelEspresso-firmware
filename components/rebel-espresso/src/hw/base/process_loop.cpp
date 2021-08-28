@@ -18,6 +18,7 @@
 #include "events.h"
 #include "brew_temp.h"
 #include "hw_specs.h"
+#include "out_signals.h"
 
 #ifdef PIN_OUT_HBRIDGE_PWM
 #include "brew_tec.h"
@@ -83,20 +84,12 @@ static void _process_task(void *) {
 
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-    /*if (id == POWER_STANDBY) {
-        ESP_LOGI(TAG, "Stopping process loop");
-
-        esp_task_wdt_delete(_process_task_handle);
-        vTaskSuspend(_process_task_handle);
-        ESP_ERROR_CHECK(timer_pause(s_timer_group, s_timer_idx));
+    // Drive auxiliary output high/low
+    if (id == POWER_STANDBY) {
+        out_signals_set_level(OUT_SIGNALS_AUX, 0);
     } else if (id == POWER_ACTIVE) {
-        ESP_LOGI(TAG, "Activating process loop");
-
-        // We want a strict watchdog timer on this one
-        ESP_ERROR_CHECK(timer_start(s_timer_group, s_timer_idx));
-        vTaskResume(_process_task_handle);
-        ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
-    }*/
+        out_signals_set_level(OUT_SIGNALS_AUX, 1);
+    }
 }
 
 

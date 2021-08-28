@@ -129,13 +129,21 @@ static void _qrcode_print(int x_off, int y_off, const uint8_t* qrcode, int size)
     lcdFillScreen(&dev, BLACK);
 
     // Draw a square for the QR with a white border
+    int x1;
+    int x2;
+    int y1;
+    int y2;
     int border = 1;
     for (int y = -border; y < size + border ; y+=1) {
         for (int x = -border; x < size + border ; x+=1) {
+            x1 = x*2 + x_off;
+            y1 = y*2 + y_off;
+            x2 = x1 + 2;
+            y2 = y1 + 2;
             if (qrcodegen_getModule(qrcode, x, y) and x >= 0 and y >= 0 and x < size and y < size) {
-                lcdDrawPixel(&dev, x + x_off, y + y_off, BLACK);
+                lcdDrawFillRect(&dev, x1, y1, x2, y2, BLACK);
             } else {
-                lcdDrawPixel(&dev, x + x_off, y + y_off, WHITE);
+                lcdDrawFillRect(&dev, x1, y1, x2, y2, WHITE);
             }
         }
     }
@@ -223,8 +231,8 @@ static void _draw_provisioning(FontxFile *fx16M) {
     lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Scan to set", WHITE);
     lcdDrawString(&dev, fx16M, x + 36, y + 18, (uint8_t *) "WiFi", WHITE);
 
-    int xPos = 45;
-    int yPos = 45;
+    int xPos = 32;
+    int yPos = 42;
     _qrcode_print(xPos, yPos, wifi_get_prov_qr(), wifi_get_prov_qr_len());
 }
 
@@ -240,7 +248,7 @@ static void _draw_brew_counter(FontxFile *fx16M, FontxFile *fx32M) {
     int y = 42;
     lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Brew Time", WHITE);
 
-    x = 38;
+    x = 42;
     y += 50;
     lcdDrawString(&dev, fx32M, x, y, (uint8_t *) buf, WHITE);
 }

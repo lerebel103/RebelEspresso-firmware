@@ -48,6 +48,7 @@ steps:
   # Now build project
   - name: 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest'
     args: ['ci/build.sh']
+    timeout: 1800s
     volumes:
       - name: 'ssh'
         path: /root/.ssh

@@ -12,7 +12,6 @@ steps:
     volumes:
       - name: 'ssh'
         path: /root/.ssh
-  timeout: 1800s
   # Set up git with key and domain
   - name: 'gcr.io/cloud-builders/git'
     entrypoint: 'bash'
@@ -56,3 +55,5 @@ steps:
   # Place artifacts on GS
   - name: 'gcr.io/cloud-builders/gsutil'
     args: ['-m', 'cp', '-r', 'build-*/firmware/*/', 'gs://rebelthings-firmware/release']
+
+  timeout: 1800s

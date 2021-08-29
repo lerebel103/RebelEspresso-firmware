@@ -1,4 +1,5 @@
 #include <esp_adc_cal.h>
+#include <src/hw/base/out_signals.h>
 #include "hw_specs.h"
 
 #include "hw_config.h"
@@ -25,11 +26,12 @@ void hw_specs_read_water_level_mv(uint8_t* status, double* value) {
     }
 
     *value = level_voltage / num_readings;
+    printf("\r\nwater level %f\r\n", *value);
 }
 
 
 void hw_specs_init(esp_event_loop_handle_t event_loop) {
-    // Configure ADC input
+    out_signals_init();
 
     // Configure ADC
     auto attenuation = ADC_ATTEN_DB_11;
@@ -42,7 +44,6 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
 
     brew_tec_init(event_loop);
     ready_indicator_init(event_loop);
-
 }
 
 void hw_specs_cfg_to_json(cJSON *root, const char *base_key) {

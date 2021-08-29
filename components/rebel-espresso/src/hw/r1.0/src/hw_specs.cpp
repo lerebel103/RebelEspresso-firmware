@@ -26,7 +26,7 @@ void hw_specs_read_water_level_mv(uint8_t* status, double* value) {
     }
 
     *value = level_voltage / num_readings;
-    printf("\r\nwater level %f\r\n", *value);
+    // printf("\r\nwater level %f\r\n", *value);
 }
 
 

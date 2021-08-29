@@ -95,7 +95,8 @@ static void _state_active_enter(uint64_t timestamp) {
     xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
     _start_refill();
 
-    s_current_level_ok = 0;
+    s_current_level_ok = false;
+    s_level_stable_ms = 0;
 }
 
 static void _state_active_process(uint64_t timestamp) {

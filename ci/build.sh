@@ -13,13 +13,13 @@ source "${IDF_PATH}"/export.sh
 # Go, build
 mkdir build-r1.0 && cd build-r1.0
 rm ../sdkconfig || true
-cmake .. -DCMAKE_BUILD_TYPE=Release -DHARDWARE_REVISION=1.0
+cmake .. -DCMAKE_BUILD_TYPE=Release -DHARDWARE_REVISION=1.0 -DGIT_SUBMODULE=OFF
 make -j4
 cd ..
 
 mkdir build-r2.0 && cd build-r2.0
 rm ../sdkconfig || true
-cmake .. -DCMAKE_BUILD_TYPE=Release -DHARDWARE_REVISION=2.0
+cmake .. -DCMAKE_BUILD_TYPE=Release -DHARDWARE_REVISION=2.0 -DGIT_SUBMODULE=OFF
 make -j4
 cd ..
 

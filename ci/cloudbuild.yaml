@@ -54,4 +54,4 @@ steps:
 
   # Place artifacts on GS
   - name: 'gcr.io/cloud-builders/gsutil'
-    args: ['-m', 'cp', '-r', 'build/firmware/*/', 'gs://rebelthings-firmware/release']
+    args: ['-m', 'cp', '-r', 'build-*/firmware/*/', 'gs://rebelthings-firmware/release']

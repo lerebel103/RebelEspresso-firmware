@@ -9,7 +9,6 @@
 #include "boiler_refill_states.h"
 #include "out_signals.h"
 #include "hw_specs.h"
-#include <esp_adc_cal.h>
 #include <src/events.h>
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
@@ -19,15 +18,15 @@
 const static char *TAG = "refill";
 
 #define BOILER_REFILL_NVS_CFG_STORE     "cfg.b_refill"
-#define MIN_SAMPLE_TIME_MS  300
+#define MIN_SAMPLE_TIME_MS  250
 
 const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT = 1000;
 const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT = 5;
 const uint16_t BOILER_REFILL_ADC_NUM_READINGS_DEFAULT = 25;
-const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT = 1500;
+const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT = 2400;
 const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 15000;
-const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 500;
-const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 750;
+const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 750;
+const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 1000;
 
 static boiler_refill_cfg_t s_cfg;
 static boiler_refill_status_t s_status;
@@ -73,7 +72,6 @@ bool boiler_check_level() {
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_ON);
 
     hw_specs_read_water_level_mv(&s_status_monitor, &s_level_voltage);
-    printf("%f\r\n", s_level_voltage);
 
     // Done, disable to prevent electrolysis
     gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);

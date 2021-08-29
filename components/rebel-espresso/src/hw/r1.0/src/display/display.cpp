@@ -422,7 +422,6 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
 
             _draw_active_mode(u8g2, drawWifi);
 
-            time_in_high_contrast += ((xTaskGetTickCount()-startTick)*portTICK_PERIOD_MS) / 1000;
         } else {
             time_in_high_contrast = 0;
             u8g2_ClearDisplay(&u8g2);
@@ -437,6 +436,7 @@ static void display_draw_panel(u8g2_t &u8g2, bool drawWifi, int delay) {
         }
 
         xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
+        time_in_high_contrast += ((xTaskGetTickCount()-startTick)*portTICK_PERIOD_MS) / 1000;
     }
 }
 

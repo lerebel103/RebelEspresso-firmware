@@ -1,3 +1,4 @@
+timeout: '2000s'
 steps:
   # See https://cloud.google.com/cloud-build/docs/access-private-github-repos
   # Also need 'gcloud config set gcloudignore/enabled false'

@@ -191,16 +191,24 @@ void _ensure_power_state_ok() {
 }
 
 static void _draw_active(FontxFile *fx16M, FontxFile *fx32M) {
+    static bool show_circle = true;
     const int len = 16;
     reading_t result = {};
     char tempBuf[len];
 
+    if (show_circle) {
+        lcdDrawFillCircle(&dev, 6, 6, 3, GREEN);
+    } else {
+        lcdDrawFillCircle(&dev, 6, 6, 3, BLACK);
+    }
+    show_circle = !show_circle;
+
     TickType_t  startTick = xTaskGetTickCount();
     int setpoint_offset_x = (3 + 1) * 16 + 8 + 2;
     int x = 0;
-    int y = 0;
+    int y = 8;
 
-    y += 40;
+    y += 32;
     rtds_get(&result, RTD_BREW_HEAD_IDX);
     double brew_setpoint = brew_temp_get_setpoint();
     _draw_temperature(result, fx32M, fx16M, x, y, GREEN);
@@ -316,7 +324,8 @@ void _tft_loop(void * arg) {
             delay = 1000;
             _draw_active(fx16M, fx32M);
         }
-        xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
+        vTaskDelay(delay / portTICK_PERIOD_MS);
+        //xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
     }
 }
 

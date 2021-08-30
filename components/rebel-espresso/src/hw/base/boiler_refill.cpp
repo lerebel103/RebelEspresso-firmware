@@ -13,8 +13,6 @@
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
 
-#define DEFAULT_VREF                1100
-
 const static char *TAG = "refill";
 
 #define BOILER_REFILL_NVS_CFG_STORE     "cfg.b_refill"

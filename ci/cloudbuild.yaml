@@ -1,3 +1,4 @@
+timeout: '2000s'
 steps:
   # See https://cloud.google.com/cloud-build/docs/access-private-github-repos
   # Also need 'gcloud config set gcloudignore/enabled false'
@@ -48,10 +49,13 @@ steps:
   # Now build project
   - name: 'gcr.io/$PROJECT_ID/rebelespresso-fw-build:latest'
     args: ['ci/build.sh']
+    timeout: '1800s'
     volumes:
       - name: 'ssh'
         path: /root/.ssh
 
   # Place artifacts on GS
   - name: 'gcr.io/cloud-builders/gsutil'
-    args: ['-m', 'cp', '-r', 'build/firmware/*/', 'gs://rebelthings-firmware/release']
+    args: ['-m', 'cp', '-r', 'build-*/firmware/*/', 'gs://rebelthings-firmware/release']
+
+

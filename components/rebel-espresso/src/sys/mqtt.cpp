@@ -52,7 +52,7 @@ static mqtt_connect_init_t config = {};
 static uint32_t g_mqtt_error_count = 0;
 static TickType_t s_last_connect_attempt = 0;
 
-char *subscribe_topic_command, *subscribe_topic_config;
+char *subscribe_topic_command, *subscribe_topic_config, *publish_status_topic;
 
 static void (*g_cfg_cb)(const cJSON *) = nullptr;
 
@@ -196,12 +196,10 @@ void on_connection_state_changed(iotc_context_handle_t in_context_handle,
         case IOTC_CONNECTION_STATE_OPENED:
             ESP_LOGI(TAG, "connected!");
 
-            asprintf(&subscribe_topic_command, SUBSCRIBE_TOPIC_COMMAND, thing_info_id());
             ESP_LOGI(TAG, "Subscribe to topic: \"%s\"", subscribe_topic_command);
             iotc_subscribe(in_context_handle, subscribe_topic_command, IOTC_MQTT_QOS_AT_LEAST_ONCE,
                            &command_cb, /*user_data=*/nullptr);
 
-            asprintf(&subscribe_topic_config, SUBSCRIBE_TOPIC_CONFIG, thing_info_id());
             ESP_LOGI(TAG, "Subscribe to topic: \"%s\"", subscribe_topic_config);
             iotc_subscribe(in_context_handle, subscribe_topic_config, IOTC_MQTT_QOS_AT_LEAST_ONCE,
                            &config_cb, /*user_data=*/nullptr);
@@ -220,8 +218,6 @@ void on_connection_state_changed(iotc_context_handle_t in_context_handle,
             break;
 
         case IOTC_CONNECTION_STATE_CLOSED:
-            free(subscribe_topic_command);
-            free(subscribe_topic_config);
             /* When the connection is closed it's better to cancel some of previously
                registered activities. Using cancel function on handler will remove the
                handler from the timed queue which prevents the registered handle to be
@@ -272,6 +268,10 @@ void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connecti
 
 
 static void mqtt_task(void *pvParameters) {
+    asprintf(&publish_status_topic, PUBLISH_TOPIC_STATE, thing_info_id());
+    asprintf(&subscribe_topic_command, SUBSCRIBE_TOPIC_COMMAND, thing_info_id());
+    asprintf(&subscribe_topic_config, SUBSCRIBE_TOPIC_CONFIG, thing_info_id());
+
     /* initialize iotc library and create a context to use to connect to the
     * GCP IoT Core Service. */
     iotc_state_t error_init = iotc_initialize();
@@ -320,6 +320,10 @@ static void mqtt_task(void *pvParameters) {
     iotc_delete_context(iotc_context);
 
     iotc_shutdown();
+
+    free(subscribe_topic_command);
+    free(subscribe_topic_config);
+    free(publish_status_topic);
 
     vTaskDelete(nullptr);
 }
@@ -383,15 +387,12 @@ void mqtt_terminate() {
 
 
 bool mqtt_send_status(const char *msg) {
-    char *publish_topic = nullptr;
-    asprintf(&publish_topic, PUBLISH_TOPIC_STATE, thing_info_id());
 
-    ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_topic);
+    ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_status_topic);
 
-    iotc_publish(iotc_context, publish_topic, msg,
+    iotc_publish(iotc_context, publish_status_topic, msg,
                  IOTC_MQTT_QOS_AT_MOST_ONCE,
             /*callback=*/nullptr, /*user_data=*/nullptr);
-    free(publish_topic);
 
     return true;
 }

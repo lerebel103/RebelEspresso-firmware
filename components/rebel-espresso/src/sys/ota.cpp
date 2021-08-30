@@ -28,6 +28,8 @@
 
 const static char *TAG = "OTA";
 
+extern const uint8_t server_root_cert_pem_start[] asm("_binary_google_server_root_cert_pem_start");
+extern const uint8_t server_root_cert_pem_end[]   asm("_binary_google_server_root_cert_pem_end");
 
 struct ota_config_t {
     char url[MAX_OTA_URI] = {0};
@@ -123,7 +125,7 @@ static void ota_get_latest_version(char *latest_version) {
             .non_block = false,
             .use_secure_element = false,
             .timeout_ms = (int) g_ota_config.timeout_ms,
-            .use_global_ca_store = false,
+            .use_global_ca_store = true,
             .common_name = nullptr,
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
@@ -324,7 +326,7 @@ static bool ota_download_firmware(char *version) {
             .non_block = false,
             .use_secure_element = false,
             .timeout_ms =(int) g_ota_config.timeout_ms,
-            .use_global_ca_store = false,
+            .use_global_ca_store = true,
             .common_name = nullptr,
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
@@ -429,6 +431,18 @@ static void do_ota(void *) {
             false, true, 1000 * store_get_operation_timeout_seconds() / portTICK_PERIOD_MS);
 
     if ((uxBits & WIFI_CONNECTED_BIT) && strlen(g_ota_config.url) > 0) {
+        // init global CA store
+        if (esp_tls_get_global_ca_store() == nullptr) {
+            ESP_LOGI(TAG, "Initialising Global CA store");
+            ESP_ERROR_CHECK(esp_tls_init_global_ca_store());
+        }
+
+        esp_err_t  esp_ret = esp_tls_set_global_ca_store(server_root_cert_pem_start, server_root_cert_pem_end - server_root_cert_pem_start);
+        if (esp_ret != ESP_OK) {
+            ESP_LOGE(TAG, "Error in setting the global ca store: [%02X] (%s),could not complete the https_request using global_ca_store", esp_ret, esp_err_to_name(esp_ret));
+            goto error;
+        }
+
         TickType_t start_tick = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         // Get latest firmware available please, or pinned version
@@ -465,6 +479,7 @@ static void do_ota(void *) {
         ESP_LOGE(TAG, "Wifi or OTA URL not available.");
     }
 
+    error:
     // Tell everyone we are done..
     xEventGroupSetBits(status_event_group, OTA_PERFORMED_BIT);
 
@@ -575,6 +590,7 @@ void ota_run() {
         ESP_LOGW(TAG, "OTA already in progress");
         return;
     }
+
 
     // Do we need to verify this image first?
     auto partition = esp_ota_get_running_partition();

@@ -50,11 +50,9 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "../u8g2/csrc"
         )
 
-set(COMPONENT_SRCEXCLUDE
-        )
-
-register_component()
-
-add_definitions(
-        -DARDUINO=102
+idf_component_register(
+        SRC_DIRS ${COMPONENT_SRCDIRS}
+        REQUIRES ${COMPONENT_REQUIRES}
+        INCLUDE_DIRS ${COMPONENT_ADD_INCLUDEDIRS}
+        EMBED_TXTFILES "certs/google_server_root_cert.pem"
 )

@@ -13,6 +13,7 @@
 #include <qrcodegen.h>
 #include <src/sys/wifi_connect.h>
 #include <src/hw/base/power.h>
+#include <src/hw/base/boiler_refill_states.h>
 
 extern "C" {
     #include <hal/gpio_types.h>
@@ -89,7 +90,7 @@ void _draw_temperature(const reading_t &result, FontxFile* fx1, FontxFile* fx2, 
     int width = strlen(tempBuf) * char_width;
 
     // Draw floating point now, as '.x'
-    int point = static_cast<int>(temp_val * 100 - static_cast<int>(temp_val) * 100);
+    int point = static_cast<int>(temp_val * 10 - static_cast<int>(temp_val) * 10);
     sprintf(tempBuf, ".%d", point);
     lcdDrawString(&dev, fx2, x + width, y - 3, (uint8_t *) tempBuf, color);
 }
@@ -104,7 +105,7 @@ void _draw_setpoint(double setpoint, FontxFile* fx1, int x, int y, uint16_t colo
 void _draw_duty(int duty, FontxFile* fx1, int x, int y, uint16_t color) {
     const static int len = 16;
     char tempBuf[len];
-    sprintf(tempBuf, "%5d%%", duty);
+    sprintf(tempBuf, "%3d%%", duty);
     lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
 }
 
@@ -191,42 +192,93 @@ void _ensure_power_state_ok() {
 }
 
 static void _draw_active(FontxFile *fx16M, FontxFile *fx32M) {
+    TickType_t  startTick = xTaskGetTickCount();
     static bool show_circle = true;
     const int len = 16;
     reading_t result = {};
     char tempBuf[len];
 
     if (show_circle) {
-        lcdDrawFillCircle(&dev, 6, 6, 3, GREEN);
+        lcdDrawFillCircle(&dev, 5, 5, 3, GREEN);
     } else {
-        lcdDrawFillCircle(&dev, 6, 6, 3, BLACK);
+        lcdDrawFillCircle(&dev, 5, 5, 3, BLACK);
     }
     show_circle = !show_circle;
 
-    TickType_t  startTick = xTaskGetTickCount();
-    int setpoint_offset_x = (3 + 1) * 16 + 8 + 2;
-    int x = 0;
-    int y = 8;
+    // Draw WiFi symbol
+    if (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) {
+        lcdDrawCircle(&dev, 128, 0, 2, WHITE);
+        lcdDrawCircle(&dev, 128, 0, 5, WHITE);
+        lcdDrawCircle(&dev, 128, 0, 9, WHITE);
+    } else {
+        lcdDrawFillRect(&dev, 128-11, 0, 128, 11, BLACK);
+    }
+
+    // Draw mqtt connection
+    int x2 = CONFIG_WIDTH - 16;
+    int y2 = 5;
+    if (xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
+        lcdDrawTriangle(&dev, x2 - 8, y2, 8 , 8, 0, WHITE);
+        lcdDrawTriangle(&dev, x2, y2, 8, 8, 180, WHITE);
+    } else {
+        lcdDrawFillRect(&dev, x2 - 8, y2, x2 + 8, 8, BLACK);
+    };
+
+    // Header separator
+    lcdDrawFillRect(&dev, 0, 13, CONFIG_WIDTH, 13, GRAY);
+
+    int setpoint_offset_x = (3 + 1) * 16 + 2;
+    int x = 4;
+    int y = 16;
 
     y += 32;
     rtds_get(&result, RTD_BREW_HEAD_IDX);
     double brew_setpoint = brew_temp_get_setpoint();
-    _draw_temperature(result, fx32M, fx16M, x, y, GREEN);
-    _draw_setpoint(brew_setpoint, fx16M, x + setpoint_offset_x, y - 3, RED);
+    double brew_temp = result.value;
+    _draw_temperature(result, fx32M, fx16M, x, y, BREW_COLOR);
+    _draw_setpoint(brew_setpoint, fx16M, x + setpoint_offset_x, y - 3, BREW_COLOR);
     lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
 
-    y += 42;
-    rtds_get(&result, RTD_BREW_BOILER_IDX);
-    double actual_setpoint = boiler_temp_get_trimmed_setpoint();
-    _draw_temperature(result, fx32M, fx16M, x, y, CYAN);
-    _draw_duty(boiler_temp_get_duty(), fx16M, x + setpoint_offset_x, y - 22, WHITE);
-    _draw_setpoint(actual_setpoint, fx16M, x + setpoint_offset_x, y - 3, RED);
-    lcdDrawFillRect(&dev, 0, y + 2, CONFIG_WIDTH, y + 2, GRAY);
+    y += 40;
+    static bool boiler_error_message = false;
+    if (boiler_refill_state() == REFILL_STATE_ERROR) {
+        if (!boiler_error_message) {
+            lcdDrawFillRect(&dev, 0, y - 36, CONFIG_WIDTH, y, BLACK);
+        }
+        boiler_error_message = true;
+        lcdDrawString(&dev, fx16M, x + 12, y - 4, (uint8_t *) "Refill Error", RED);
+    } else {
+        if (boiler_error_message) {
+            lcdDrawFillRect(&dev, 0, y - 36, CONFIG_WIDTH, y, BLACK);
+        }
+        boiler_error_message = false;
+        // All OK
+        rtds_get(&result, RTD_BREW_BOILER_IDX);
+        double actual_setpoint = boiler_temp_get_trimmed_setpoint();
+        _draw_temperature(result, fx32M, fx16M, x, y, BOILER_COLOR);
+        _draw_setpoint(actual_setpoint, fx16M, x + setpoint_offset_x, y - 3, BOILER_COLOR);
+        lcdDrawFillRect(&dev, 0, y + 1, CONFIG_WIDTH, y + 1, GRAY);
+    }
 
-    y += 32;
+    // Draw border around duty / water level voltage
+    y = y - 22;
+    lcdDrawFillRect(&dev, CONFIG_WIDTH - 9*4 + 2, y + 1 - 18, CONFIG_WIDTH - 9*4 + 2, y + 1, GRAY);
+
     double level_voltage = boiler_refill_level_mv() / 1e3;
-    sprintf(tempBuf, "   Level %.1fV", level_voltage);
-    lcdDrawString(&dev, fx16M, 0, y, (uint8_t *) tempBuf, WHITE);
+    sprintf(tempBuf, "%.1fV", level_voltage);
+    lcdDrawString(&dev, fx16M, CONFIG_WIDTH - 9*8 + 4, y, (uint8_t *) tempBuf, GRAY);
+    _draw_duty(boiler_temp_get_duty(), fx16M, CONFIG_WIDTH - 4*8, y, GRAY);
+
+    // Status
+    if (abs(brew_temp - brew_setpoint) < 0.8) {
+        lcdDrawString(&dev, fx16M, 45, CONFIG_HEIGHT-10, (uint8_t *) "READY", GREEN);
+    } else {
+        if (brew_temp > brew_setpoint) {
+            lcdDrawString(&dev, fx16M, 32, CONFIG_HEIGHT - 8, (uint8_t *) "TOO HOT", RED);
+        } else {
+            lcdDrawString(&dev, fx16M, 24, CONFIG_HEIGHT - 8 , (uint8_t *) "WARMING UP", WHITE);
+        }
+    }
 
     TickType_t endTick = xTaskGetTickCount();
     ESP_LOGI(TAG, "Render Took %dms\r\n", (endTick - startTick) * portTICK_PERIOD_MS);
@@ -245,7 +297,10 @@ static void _draw_provisioning(FontxFile *fx16M) {
 }
 
 static void _draw_descale_mode(FontxFile *fx16M) {
+    int x = 18;
+    int y = 52;
 
+    lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Descaling Mode", WHITE);
 }
 
 static void _draw_brew_counter(FontxFile *fx16M, FontxFile *fx32M) {

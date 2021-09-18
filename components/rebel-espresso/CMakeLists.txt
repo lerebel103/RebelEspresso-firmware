@@ -27,6 +27,7 @@ set(COMPONENT_REQUIRES
         nvs_flash
 
         app_update
+        console
         esp-tls
         esp-google-iot
         esp_adc_cal

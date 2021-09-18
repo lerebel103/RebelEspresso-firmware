@@ -11,10 +11,8 @@
 #define TAG "out_signals"
 
 #define ACK_CHECK_EN 1u
-#define ACK_VAL 0x0u                             /*!< I2C ack value */
-#define NACK_VAL 0x1u                            /*!< I2C nack value */
-#define WRITE_BIT I2C_MASTER_WRITE
-#define READ_BIT I2C_MASTER_READ
+#define READ_BIT I2C_MASTER_WRITE
+#define WRITE_BIT I2C_MASTER_READ
 
 #define REGISTER_OUT 0x01
 #define REGISTER_IN  0x00
@@ -41,7 +39,7 @@ static esp_err_t _write_slave(uint8_t *data_wr, size_t size)
         i2c_port_t i2c_num = I2C_MASTER_NUM;
         i2c_cmd_handle_t cmd = i2c_cmd_link_create();
         ESP_ERROR_CHECK(i2c_master_start(cmd));
-        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | WRITE_BIT, ACK_CHECK_EN));
+        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | READ_BIT, ACK_CHECK_EN));
         ESP_ERROR_CHECK(i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN));
         ESP_ERROR_CHECK(i2c_master_stop(cmd));
         ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
@@ -63,11 +61,11 @@ static esp_err_t _read_slave(uint8_t *data_rd, size_t size) {
         }
         i2c_cmd_handle_t cmd = i2c_cmd_link_create();
         i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | READ_BIT, ACK_CHECK_EN);
+        i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | WRITE_BIT, ACK_CHECK_EN);
         if (size > 1) {
-            i2c_master_read(cmd, data_rd, size - 1, ACK_VAL);
+            i2c_master_read(cmd, data_rd, size - 1, I2C_MASTER_ACK);
         }
-        i2c_master_read_byte(cmd, data_rd + size - 1, NACK_VAL);
+        i2c_master_read_byte(cmd, data_rd + size - 1, I2C_MASTER_NACK);
         i2c_master_stop(cmd);
         ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
         i2c_cmd_link_delete(cmd);

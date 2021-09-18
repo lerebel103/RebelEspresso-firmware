@@ -25,7 +25,6 @@ static bool _go = true;
 
 static void send_iot_events(TickType_t tick) {
     if (tick >= (g_last_iot_send + IOT_SEND_INTERVAL)) {
-
         g_last_iot_send = tick;
     }
 }
@@ -61,6 +60,9 @@ void _iot_task(void *) {
                 xEventGroupClearBits(status_event_group, SEND_STATE_BIT);
             }
             send_iot_events(time_millis);
+
+            // Ok, se we assume OTA did not brick this device if we got here
+            ota_check_pending_validate_end();
         }
 
         // Approximately every second...

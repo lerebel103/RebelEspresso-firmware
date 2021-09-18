@@ -10,6 +10,7 @@ extern "C" {
 
 #include <sys/ota.h>
 #include <esp_event.h>
+#include <src/hw/base/hw_specs.h>
 #include "state.h"
 #include "controller.h"
 #include "thing_info.h"
@@ -34,6 +35,11 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(esp_event_loop_create(&event_loop_args, &event_loop));
     status_event_group = xEventGroupCreate();
 
+    // Init hardware as early as possible
+    hw_specs_init(event_loop);
+    thing_info_init();
+    ota_check_pending_validate_begin();
+
     esp_log_level_set("gpio", ESP_LOG_ERROR);
 
     // Do core initialisations first
@@ -42,7 +48,6 @@ extern "C" void app_main() {
     nvram_store_init();
     store_inc_cycle_count(); // Record number of power cycles.
 
-    thing_info_init();
     state_print_system_info();
     controller_init(event_loop);
 

@@ -24,7 +24,7 @@ registry_id="RebelEspresso"
 # Get thing id
 mac=$(${esp_tool} flash_id | grep MAC | sed -e "s/MAC: //g")
 thing_id=m${mac//:/}
-
+thing_id="re-2.0-0000002"
 
 echo "Generating Elliptic Curve keys for ${thing_id}"
 private_key=$(openssl ecparam -genkey -name prime256v1 -noout)

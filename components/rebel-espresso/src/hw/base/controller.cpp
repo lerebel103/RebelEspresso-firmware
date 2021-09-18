@@ -27,7 +27,6 @@
 #include "brew_temp.h"
 #include "schedules.h"
 #include "display.h"
-#include "out_signals.h"
 
 
 #define KEY_ENABLED "ctrl_enabled"
@@ -85,7 +84,6 @@ void controller_init(esp_event_loop_handle_t event_loop) {
 
     // Hardware-specific implementation
     _init_spi();
-    hw_specs_init(event_loop);
 
     // Common hw initialisation
     display_init(event_loop);

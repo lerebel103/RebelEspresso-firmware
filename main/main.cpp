@@ -21,8 +21,6 @@ extern "C" {
 // Event group pointer so we get system events to sync up
 EventGroupHandle_t status_event_group;
 
-
-
 extern "C" void app_main() {
     esp_event_loop_args_t event_loop_args = {
             .queue_size = 10,
@@ -36,21 +34,16 @@ extern "C" void app_main() {
     status_event_group = xEventGroupCreate();
 
     // Init hardware as early as possible
+    nvram_store_init();
+    store_inc_cycle_count();
     hw_specs_init(event_loop);
     thing_info_init();
     ota_check_pending_validate_begin();
 
     esp_log_level_set("gpio", ESP_LOG_ERROR);
 
-    // Do core initialisations first
-
-    // force NVS partition delete
-    nvram_store_init();
-    store_inc_cycle_count(); // Record number of power cycles.
-
     state_print_system_info();
     controller_init(event_loop);
-
 
     // Here's our control loop
     controller_enter_loop();

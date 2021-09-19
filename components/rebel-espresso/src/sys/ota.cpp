@@ -620,7 +620,7 @@ void ota_check_pending_validate_begin() {
 
 void ota_check_pending_validate_end() {
     if (s_pending_validate) {
-        ESP_LOGD(TAG, "New OTA is good, cancelling rollback");
+        ESP_LOGI(TAG, "New OTA is good, cancelling rollback");
         esp_ota_mark_app_valid_cancel_rollback();
         s_pending_validate = false;
     }

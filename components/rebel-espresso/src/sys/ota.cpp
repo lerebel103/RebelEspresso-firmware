@@ -8,6 +8,8 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <mbedtls/ssl.h>
+#include <src/thing_info.h>
+#include <_generated/version.h>
 
 #include "ota.h"
 #include "nvram_store.h"
@@ -28,6 +30,8 @@
 
 const static char *TAG = "OTA";
 
+extern const uint8_t server_root_cert_pem_start[] asm("_binary_google_server_root_cert_pem_start");
+extern const uint8_t server_root_cert_pem_end[]   asm("_binary_google_server_root_cert_pem_end");
 
 struct ota_config_t {
     char url[MAX_OTA_URI] = {0};
@@ -48,7 +52,7 @@ static bool s_enabled = false;
 static TaskHandle_t g_ota_task_handle = nullptr;
 static ota_config_t g_ota_config;
 static int g_ota_duration = -1;
-
+static bool s_pending_validate = false;
 static uint32_t g_ota_error_count = 0;
 
 
@@ -123,7 +127,7 @@ static void ota_get_latest_version(char *latest_version) {
             .non_block = false,
             .use_secure_element = false,
             .timeout_ms = (int) g_ota_config.timeout_ms,
-            .use_global_ca_store = false,
+            .use_global_ca_store = true,
             .common_name = nullptr,
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
@@ -324,7 +328,7 @@ static bool ota_download_firmware(char *version) {
             .non_block = false,
             .use_secure_element = false,
             .timeout_ms =(int) g_ota_config.timeout_ms,
-            .use_global_ca_store = false,
+            .use_global_ca_store = true,
             .common_name = nullptr,
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
@@ -429,6 +433,21 @@ static void do_ota(void *) {
             false, true, 1000 * store_get_operation_timeout_seconds() / portTICK_PERIOD_MS);
 
     if ((uxBits & WIFI_CONNECTED_BIT) && strlen(g_ota_config.url) > 0) {
+        // init global CA store
+        if (esp_tls_get_global_ca_store() == nullptr) {
+            ESP_LOGI(TAG, "Initialising Global CA store");
+            ESP_ERROR_CHECK(esp_tls_init_global_ca_store());
+        }
+
+        esp_err_t  esp_ret = esp_tls_set_global_ca_store(server_root_cert_pem_start, server_root_cert_pem_end - server_root_cert_pem_start);
+        if (esp_ret != ESP_OK) {
+            ESP_LOGE(TAG, "Error in setting the global ca store: [%02X] (%s),could not complete the https_request using global_ca_store", esp_ret, esp_err_to_name(esp_ret));
+            if (s_pending_validate) {
+                esp_ota_mark_app_invalid_rollback_and_reboot();
+            }
+            goto error;
+        }
+
         TickType_t start_tick = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         // Get latest firmware available please, or pinned version
@@ -444,6 +463,9 @@ static void do_ota(void *) {
 
         if (strlen(latest_version) == 0) {
             ESP_LOGE(TAG, "Could not get latest firmware version.");
+            if (s_pending_validate) {
+                esp_ota_mark_app_invalid_rollback_and_reboot();
+            }
             ota_inc_error_count();
         } else if (ota_can_upgrade(latest_version)) {
             // Download firmware - note we don't do anything smart here, just apply whatever version it says
@@ -465,6 +487,7 @@ static void do_ota(void *) {
         ESP_LOGE(TAG, "Wifi or OTA URL not available.");
     }
 
+    error:
     // Tell everyone we are done..
     xEventGroupSetBits(status_event_group, OTA_PERFORMED_BIT);
 
@@ -562,46 +585,51 @@ void ota_cfg_to_json(cJSON* config, const char* base_key) {
     free(buf);
 }
 
-/**
- * Placeholder to perform diagnostics to validate a new firmware after it is downloaded and booted for the first time.
- * @return True if all is ok and we can keep this OTA update.
- */
-static bool ota_perform_diagnostics() {
-    return true;
-}
 
-void ota_run() {
-    if (g_ota_task_handle != nullptr) {
-        ESP_LOGW(TAG, "OTA already in progress");
-        return;
-    }
-
+void ota_check_pending_validate_begin() {
     // Do we need to verify this image first?
     auto partition = esp_ota_get_running_partition();
     esp_ota_img_states_t state;
     auto check = esp_ota_get_state_partition(partition, &state);
     if (check == ESP_OK) {
         if (state == ESP_OTA_IMG_PENDING_VERIFY) {
-            ESP_LOGI(TAG, " ... ");
-            ESP_LOGI(TAG, " ... ");
-            ESP_LOGI(TAG, " ... ");
-            ESP_LOGI(TAG, " ... ");
-            // run diagnostic function ...
-            bool diagnostic_is_ok = ota_perform_diagnostics();
-            if (diagnostic_is_ok) {
-                ESP_LOGI(TAG, "Diagnostics completed successfully! Continuing execution ...");
-                esp_ota_mark_app_valid_cancel_rollback();
-            } else {
-                ESP_LOGE(TAG, "Diagnostics failed! Start rollback to the previous version ...");
+            ESP_LOGI(TAG, "Verifying new firmware");
+
+            auto* hw_info = thing_info_ext();
+            if (strcmp(hw_info->thing_type, THING_TYPE) != 0) {
+                ESP_LOGE(TAG, "Firmware is not for this thing type %s vs %s", hw_info->thing_type, THING_TYPE);
                 esp_ota_mark_app_invalid_rollback_and_reboot();
             }
-            ESP_LOGI(TAG, " ... ");
-            ESP_LOGI(TAG, " ... ");
-            ESP_LOGI(TAG, " ... ");
-            ESP_LOGI(TAG, " ... ");
+
+            int major_hw_version = 0;
+            int minor_hw_version = 0;
+            sscanf(HARDWARE_REVISION, "%d.%d", &major_hw_version, &minor_hw_version);
+            if (major_hw_version != hw_info->hardware_version_major) {
+                ESP_LOGE(TAG, "Firmware is not for this hardware major revision %d vs %d",
+                        hw_info->hardware_version_major, major_hw_version);
+                esp_ota_mark_app_invalid_rollback_and_reboot();
+            }
+
+            // We need validation then
+            s_pending_validate = true;
         }
     } else {
         ESP_LOGD(TAG, "Could not get OTA partition state: %d.", check);
+    }
+}
+
+void ota_check_pending_validate_end() {
+    if (s_pending_validate) {
+        ESP_LOGI(TAG, "New OTA is good, cancelling rollback");
+        esp_ota_mark_app_valid_cancel_rollback();
+        s_pending_validate = false;
+    }
+}
+
+void ota_run() {
+    if (g_ota_task_handle != nullptr) {
+        ESP_LOGW(TAG, "OTA already in progress");
+        return;
     }
 
     // Good to go! Put it all in a task

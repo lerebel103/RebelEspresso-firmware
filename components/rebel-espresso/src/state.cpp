@@ -20,8 +20,8 @@ const char *DIAG_TAG = "state";
 state_t g_diagnostics;
 
 void state_print_system_info() {
-    ESP_LOGI(DIAG_TAG, "\n\n%s: firwmware v%s, hardware r%s, ID: %s\n\n",
-             THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION, thing_info_id());
+    ESP_LOGI(DIAG_TAG, "\n\n%s: FW v%s for r%s, PCB version: %s, Thing ID: %s\n\n",
+             THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION, thing_info_hardware_revision(), thing_info_id());
     ESP_LOGI(DIAG_TAG, "Written using ESP-IDF %s", esp_get_idf_version());
 
     /* Print chip information */
@@ -61,7 +61,10 @@ void state_send(time_t timestamp) {
     cJSON_AddNumberToObject(status, "timestamp", timestamp);
     cJSON_AddStringToObject(status, "thing.id", thing_info_id());
     cJSON_AddStringToObject(status, "thing.type", THING_TYPE);
-    cJSON_AddStringToObject(status, "thing.hardware_revision", HARDWARE_REVISION);
+    cJSON_AddStringToObject(status, "thing.hardware_revision", thing_info_hardware_revision());
+    cJSON_AddNumberToObject(status, "thing.serial", thing_info_ext()->serial);
+    cJSON_AddNumberToObject(status, "thing.manufacture_id", thing_info_ext()->manufacturer_id);
+    cJSON_AddNumberToObject(status, "thing.build_epoch_s", thing_info_ext()->build_epoch_s);
 
     cJSON_AddNumberToObject(status, "sys.uptime", xTaskGetTickCount() * portTICK_PERIOD_MS);
     cJSON_AddNumberToObject(status, "sys.boot_count", store_get_cycle_count());

@@ -5,6 +5,17 @@
 #define OTA_CFG_JSON_KEY "ota."
 
 /**
+ * Checks if a new OTA just came in and make sure it runs ok
+ */
+void ota_check_pending_validate_begin();
+
+/**
+ * We are happy, everything is working ok, done
+ */
+void ota_check_pending_validate_end();
+
+
+/**
  * This is an async call, we compare our current firmware version
  * to what is available from the cloud side. If the cloud side is not
  * the same, we go ahead and pull that down, activate the new partition

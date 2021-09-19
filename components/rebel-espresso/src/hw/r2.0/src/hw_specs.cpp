@@ -9,13 +9,14 @@
 #include "hw_specs.h"
 #include "hw_config.h"
 #include "ADS124S08.h"
+#include "eeprom.h"
 
 #define TAG "hw_specs"
 
 #define I2C_MASTER_TX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
-#define WRITE_BIT I2C_MASTER_WRITE  /*!< I2C master write */
-#define READ_BIT I2C_MASTER_READ    /*!< I2C master read */
+#define READ_BIT I2C_MASTER_WRITE  /*!< I2C master write */
+#define WRITE_BIT I2C_MASTER_READ    /*!< I2C master read */
 #define ACK_CHECK_EN 0x1            /*!< I2C master will check ack from slave*/
 #define ACK_CHECK_DIS 0x0           /*!< I2C master will not check ack from slave */
 #define ACK_VAL 0x0                 /*!< I2C ack value */
@@ -31,7 +32,7 @@ void _print_i2c_devices() {
             address = i + j;
             i2c_cmd_handle_t cmd = i2c_cmd_link_create();
             i2c_master_start(cmd);
-            i2c_master_write_byte(cmd, (address << 1) | WRITE_BIT, ACK_CHECK_EN);
+            i2c_master_write_byte(cmd, (address << 1) | READ_BIT, ACK_CHECK_EN);
             i2c_master_stop(cmd);
             esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 50 / portTICK_RATE_MS);
             i2c_cmd_link_delete(cmd);
@@ -87,8 +88,8 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
             .scl_io_num = I2C_PIN_SCL,
             .sda_pullup_en = GPIO_PULLUP_DISABLE,
             .scl_pullup_en = GPIO_PULLUP_DISABLE,
-            .master = {.clk_speed = I2C_MASTER_FREQ_HZ},
-            .clk_flags = I2C_SCLK_SRC_FLAG_FOR_NOMAL
+            .master = {.clk_speed = I2C_MASTER_FREQ_HZ },
+            .clk_flags =  I2C_SCLK_SRC_FLAG_FOR_NOMAL
     };
 
     i2c_param_config(I2C_MASTER_NUM, &conf);

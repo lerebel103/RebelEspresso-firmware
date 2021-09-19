@@ -10,3 +10,6 @@
 [submodule "components/esp-homekit-sdk"]
 	path = components/esp-homekit-sdk
 	url = https://github.com/espressif/esp-homekit-sdk.git
+[submodule "components/esp-wolfssl"]
+	path = components/esp-wolfssl
+	url = https://github.com/espressif/esp-wolfssl.git

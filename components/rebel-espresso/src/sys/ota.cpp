@@ -116,18 +116,18 @@ static void ota_get_latest_version(char *latest_version) {
 
     esp_tls_cfg_t cfg = {
             .alpn_protos = nullptr,
-            .cacert_pem_buf  = nullptr, //mqtt_conf.ca,
-            .cacert_pem_bytes = (unsigned int) 0, //strlen(mqtt_conf.ca),
-            .clientcert_pem_buf = nullptr, //(const unsigned char*)mqtt_conf.client_cert,
-            .clientcert_pem_bytes = (unsigned int) 0, //strlen(mqtt_conf.client_cert),
-            .clientkey_pem_buf = nullptr, //mqtt_conf.client_pk,
-            .clientkey_pem_bytes = (unsigned int) 0, //strlen(mqtt_conf.client_pk),
+            .cacert_pem_buf  = server_root_cert_pem_start,
+            .cacert_pem_bytes = (unsigned int)(server_root_cert_pem_end - server_root_cert_pem_start),
+            .clientcert_pem_buf = nullptr, 
+            .clientcert_pem_bytes = (unsigned int) 0,
+            .clientkey_pem_buf = nullptr,
+            .clientkey_pem_bytes = (unsigned int) 0,
             .clientkey_password = nullptr,
             .clientkey_password_len = 0,
             .non_block = false,
             .use_secure_element = false,
             .timeout_ms = (int) g_ota_config.timeout_ms,
-            .use_global_ca_store = true,
+            .use_global_ca_store = false,
             .common_name = nullptr,
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
@@ -317,18 +317,18 @@ static bool ota_download_firmware(char *version) {
 
     esp_tls_cfg_t cfg = {
             .alpn_protos = nullptr,
-            .cacert_pem_buf  = nullptr, //mqtt_conf.ca,
-            .cacert_pem_bytes = 0, //strlen(mqtt_conf.ca),
-            .clientcert_pem_buf = nullptr, //(const unsigned char*)mqtt_conf.client_cert,
-            .clientcert_pem_bytes = 0, //strlen(mqtt_conf.client_cert),
-            .clientkey_pem_buf = nullptr, //mqtt_conf.client_pk,
-            .clientkey_pem_bytes = 0, //strlen(mqtt_conf.client_pk),
+            .cacert_pem_buf  = server_root_cert_pem_start,
+            .cacert_pem_bytes = (unsigned int)(server_root_cert_pem_end - server_root_cert_pem_start),
+            .clientcert_pem_buf = nullptr, 
+            .clientcert_pem_bytes = 0,
+            .clientkey_pem_buf = nullptr,
+            .clientkey_pem_bytes = 0,
             .clientkey_password = nullptr,
             .clientkey_password_len = 0,
             .non_block = false,
             .use_secure_element = false,
             .timeout_ms =(int) g_ota_config.timeout_ms,
-            .use_global_ca_store = true,
+            .use_global_ca_store = false,
             .common_name = nullptr,
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
@@ -433,21 +433,6 @@ static void do_ota(void *) {
             false, true, 1000 * store_get_operation_timeout_seconds() / portTICK_PERIOD_MS);
 
     if ((uxBits & WIFI_CONNECTED_BIT) && strlen(g_ota_config.url) > 0) {
-        // init global CA store
-        if (esp_tls_get_global_ca_store() == nullptr) {
-            ESP_LOGI(TAG, "Initialising Global CA store");
-            ESP_ERROR_CHECK(esp_tls_init_global_ca_store());
-        }
-
-        esp_err_t  esp_ret = esp_tls_set_global_ca_store(server_root_cert_pem_start, server_root_cert_pem_end - server_root_cert_pem_start);
-        if (esp_ret != ESP_OK) {
-            ESP_LOGE(TAG, "Error in setting the global ca store: [%02X] (%s),could not complete the https_request using global_ca_store", esp_ret, esp_err_to_name(esp_ret));
-            if (s_pending_validate) {
-                esp_ota_mark_app_invalid_rollback_and_reboot();
-            }
-            goto error;
-        }
-
         TickType_t start_tick = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         // Get latest firmware available please, or pinned version
@@ -487,7 +472,7 @@ static void do_ota(void *) {
         ESP_LOGE(TAG, "Wifi or OTA URL not available.");
     }
 
-    error:
+    //error:
     // Tell everyone we are done..
     xEventGroupSetBits(status_event_group, OTA_PERFORMED_BIT);
 

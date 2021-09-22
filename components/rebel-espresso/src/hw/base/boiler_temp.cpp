@@ -169,8 +169,14 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 }
 
-double boiler_temp_get_trimmed_setpoint() {
-    return s_trimmed_setpoint;
+bool is_primary_setpoint() { return s_cfg.pid.active_setpoint == 0; }
+
+double boiler_temp_get_current_setpoint() {
+    if (is_primary_setpoint()) {
+        return s_trimmed_setpoint;
+    } else {
+        return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
+    }
 }
 
 void boiler_temp_process(uint64_t time_us, const reading_t &data) {
@@ -214,10 +220,10 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     // No errors from RTD, all good reset.
     s_boiler_error_sec = 0;
 
-    // Add trim as needed to target setpoint to maintain brew temp
+    // Add trim as needed to target setpoint to maintain brew temp, but only for index == 0
     auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
     auto trim = brew_temp_get_trim();
-    if (trim.active) {
+    if (trim.active && is_primary_setpoint()) {
         // Safety guard
         if (s_trimmed_setpoint == 0) {
             s_trimmed_setpoint = setpoint;
@@ -229,8 +235,8 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
         // Cap trim always
         if (s_trimmed_setpoint > s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]) {
             s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
-        } else if (s_trimmed_setpoint < 108) {
-            s_trimmed_setpoint = 108;
+        } else if (s_trimmed_setpoint < 102) {
+            s_trimmed_setpoint = 102;
         }
         setpoint = s_trimmed_setpoint;
     }

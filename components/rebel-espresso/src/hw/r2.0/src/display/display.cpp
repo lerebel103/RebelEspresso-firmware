@@ -254,7 +254,7 @@ static void _draw_active(FontxFile *fx16M, FontxFile *fx32M) {
         boiler_error_message = false;
         // All OK
         rtds_get(&result, RTD_BREW_BOILER_IDX);
-        double actual_setpoint = boiler_temp_get_trimmed_setpoint();
+        double actual_setpoint = boiler_temp_get_current_setpoint();
         _draw_temperature(result, fx32M, fx16M, x, y, BOILER_COLOR);
         _draw_setpoint(actual_setpoint, fx16M, x + setpoint_offset_x, y - 3, BOILER_COLOR);
         lcdDrawFillRect(&dev, 0, y + 1, CONFIG_WIDTH, y + 1, GRAY);

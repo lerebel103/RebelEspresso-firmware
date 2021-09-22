@@ -72,7 +72,7 @@ void setpoint_selector_init(esp_event_loop_handle_t event_loop) {
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
 
-    // Get eveything synced up
+    // Get everything synced up
     _tick(NULL, MACHINE_EVENTS, TICK, NULL);
 
     // Now install switch interrupt and event handlers for boiler refill events

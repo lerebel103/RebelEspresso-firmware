@@ -6,10 +6,10 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <esp_log.h>
-#include "pump.h"
+#include "brew.h"
 #include "out_signals.h"
 
-#define TAG "pump"
+#define TAG "brew"
 
 static esp_event_loop_handle_t s_event_loop;
 static bool _pump_sw_on = false;
@@ -22,6 +22,14 @@ static void _pump_on() {
 
 static void IRAM_ATTR _pump_off() {
     out_signals_set_level(OUT_SIGNALS_RELAY1, 0);
+}
+
+static void _three_way_valve_on() {
+    out_signals_set_level(OUT_SIGNALS_RELAY3, 1);
+}
+
+static void IRAM_ATTR _three_way_valve_off() {
+    out_signals_set_level(OUT_SIGNALS_RELAY3, 0);
 }
 
 static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -47,6 +55,8 @@ static void IRAM_ATTR _brew_switch_off(void *arg) {
     }
 
     if (is_on) {
+        _three_way_valve_off();
+
         // Only send end event if switch was previously on
         auto now_us = esp_timer_get_time();
         ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, (void *) &now_us, 0,
@@ -87,6 +97,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
                     esp_event_post_to(s_event_loop, MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, sizeof(uint64_t),
                                       portMAX_DELAY));
 
+            _three_way_valve_on();
             _pump_on();
         } else if (gpio_get_level(PIN_IN_BREW_EN) == 1 && is_pump_powered) {
             _brew_switch_off(nullptr);
@@ -112,7 +123,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 }
 
 
-void pump_init(esp_event_loop_handle_t event_loop) {
+void brew_init(esp_event_loop_handle_t event_loop) {
     s_event_loop = event_loop;
     s_descaled_entered = false;
 

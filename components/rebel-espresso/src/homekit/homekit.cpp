@@ -20,7 +20,6 @@ static esp_event_loop_handle_t s_event_loop;
 static bool s_init = false;
 
 static hap_serv_t *service;
-static hap_serv_t *s_boiler_service;
 
 #define TAG "hk"
 

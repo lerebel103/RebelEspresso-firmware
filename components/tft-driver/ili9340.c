@@ -48,7 +48,7 @@ static const int SPI_Frequency = SPI_MASTER_FREQ_20M;
 
 static uint8_t s_brigthness_perc = 100;
 
-#define DMA_SIZE (1024*3)
+#define DMA_SIZE (2048*4)
 DMA_ATTR static uint8_t s_dma_buffer[DMA_SIZE];
 
 bool spi_master_write_byte(spi_device_handle_t SPIHandle, const uint8_t* Data, size_t DataLength);
@@ -136,9 +136,7 @@ bool spi_master_write_byte(spi_device_handle_t SPIHandle, const uint8_t *Data, s
     if (DataLength > 0) {
         SPITransaction.length = DataLength * 8;
         SPITransaction.tx_buffer = Data;
-        //spi_device_acquire_bus(SPIHandle, portMAX_DELAY);
         ret = spi_device_transmit( SPIHandle, &SPITransaction );
-        //spi_device_release_bus(SPIHandle);
         assert(ret == ESP_OK);
     }
 
@@ -639,7 +637,7 @@ void lcdDrawFillRect(TFT_t *dev, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t
     uint16_t _y1 = y1 + dev->_offsety;
     uint16_t _y2 = y2 + dev->_offsety;
 
-    if (dev->_model == 0x9340 || dev->_model == 0x9341 || dev->_model == 0x7796) {
+    if (dev->_model == 0x9340 || dev->_model == 0x9341) {
         spi_master_write_comm_byte(dev, 0x2A);    // set column(x) address
         spi_master_write_addr(dev, _x1, _x2);
         spi_master_write_comm_byte(dev, 0x2B);    // set Page(y) address
@@ -651,7 +649,7 @@ void lcdDrawFillRect(TFT_t *dev, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t
         }
     } // endif 0x9340/0x9341/0x7796
 
-    if (dev->_model == 0x7735) {
+    if (dev->_model == 0x7735 || dev->_model == 0x7796) {
         spi_master_write_comm_byte(dev, 0x2A);    // set column(x) address
         spi_master_write_data_word(dev, _x1);
         spi_master_write_data_word(dev, _x2);
@@ -659,11 +657,6 @@ void lcdDrawFillRect(TFT_t *dev, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t
         spi_master_write_data_word(dev, _y1);
         spi_master_write_data_word(dev, _y2);
         spi_master_write_comm_byte(dev, 0x2C);    //  Memory Write
-
-        /*for (int i = _x1; i <= _x2; i++) {
-            uint16_t size = _y2 - _y1 + 1;
-            spi_master_write_color(dev, color, size);
-        }*/
 
         // Fast write
         uint16_t size = _y2 - _y1 + 1;
@@ -1094,7 +1087,7 @@ uint16_t rgb565_conv(uint16_t r, uint16_t g, uint16_t b) {
 // color:color
 int lcdDrawChar(TFT_t *dev, FontxFile *fxs, uint16_t x, uint16_t y, uint8_t ascii, uint16_t color) {
     uint16_t xx, yy, bit, ofs;
-    unsigned char fonts[128]; // font pattern
+    unsigned char fonts[2048]; // font pattern
     unsigned char pw, ph;
     int h, w;
     uint16_t mask;

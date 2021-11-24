@@ -255,11 +255,11 @@ void  brew_temp_set_cfg(brew_temp_cfg_t config) {
 
     s_cfg.enabled = config.enabled;
 
-    if (config.max_damping_perc > 0 && config.max_damping_perc < 100) {
+    if (config.max_damping_perc >= 0 && config.max_damping_perc < 100) {
         s_cfg.max_damping_perc = config.max_damping_perc;
     }
 
-    if (config.reset_time_sec > 0 && config.reset_time_sec < 10 * 60) {
+    if (config.reset_time_sec >= 0 && config.reset_time_sec < 10 * 60) {
         s_cfg.reset_time_sec = config.reset_time_sec;
     }
 

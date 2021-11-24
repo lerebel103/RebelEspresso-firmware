@@ -57,7 +57,7 @@ void _init_spi() {
     busConfig.sclk_io_num = PIN_SCK;
     busConfig.quadhd_io_num = -1;
     busConfig.quadwp_io_num = -1;
-    busConfig.max_transfer_sz = 0;
+    busConfig.max_transfer_sz = 8192;
     busConfig.flags = SPICOMMON_BUSFLAG_MASTER;
 
     esp_err_t err = spi_bus_initialize(s_spi, &busConfig, 1);

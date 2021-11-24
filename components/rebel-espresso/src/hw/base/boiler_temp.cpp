@@ -27,6 +27,7 @@ static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
 static boiler_temp_status_t s_stats = {};
 static int s_last_duty = 0;
+static double s_acc_duty = 0;
 static double s_boiler_error_sec = 0;
 static pid_struct_t s_pid;
 double s_trimmed_setpoint = 0;
@@ -149,6 +150,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     } else if (id == POWER_ACTIVE) {
         ESP_LOGI(TAG, "Resuming Boiler SSR");
         pid_reset(s_pid);
+        s_acc_duty = 0;
         // Trimmed setpoin is not reset
     }
 }
@@ -255,27 +257,20 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
         s_stats_changed = true;
     }
 
-    // Clamp to min duty band
-    result.duty = ceil(result.duty);
-    if (result.duty > 0) {
-        if (fabs(s_pid.last_pid_err) > 0.5) {
-            if (result.duty < ABSOLUTE_MIN_DUTY) {
-                // Lower duties are far too slow in period (6s for 1%)
-                result.duty = ABSOLUTE_MIN_DUTY;
-            }
-        } else if (result.duty < pid_cfg.min_duty_band) {
-            // Helps to maintain a tighter band by using more power
-            result.duty = pid_cfg.min_duty_band;
-        }
+    s_acc_duty += result.duty;
+    if (s_acc_duty < 0) {
+        s_acc_duty = 0;
+    } else if (s_acc_duty > 100) {
+        s_acc_duty = 100;
     }
-    
-    if (result.duty == 0) {
+
+    if (s_acc_duty == 0) {
         _power_off_ssr();
     } else {
-        boiler_temp_set_duty(result.duty);
+        boiler_temp_set_duty((int)s_acc_duty);
     }
-    ESP_LOGI(TAG, "Boiler temp=%f, duty=%d, setpoint=%f",
-             data.value, s_last_duty, setpoint);
+    ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f",
+             data.value, result.duty, s_acc_duty, setpoint);
 }
 
 

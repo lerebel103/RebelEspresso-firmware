@@ -1,6 +1,6 @@
 #ifndef MAIN_FONTX_H_
 #define MAIN_FONTX_H_
-#define FontxGlyphBufSize (32*32/8)
+#define FontxGlyphBufSize (32*64/8)
 
 typedef struct {
 	const char *path;

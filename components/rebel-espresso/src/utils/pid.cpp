@@ -79,7 +79,7 @@ void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
     if (src.I >= 0 && src.I < 100 ) {
         dest.I = src.I;
     }
-    if (src.D >= 0 && src.D < 800) {
+    if (src.D >= 0 && src.D < 5000) {
         dest.D = src.D;
     }
     if (src.I_reset_sec >= 0 && src.I_reset_sec < 60 * 10) {

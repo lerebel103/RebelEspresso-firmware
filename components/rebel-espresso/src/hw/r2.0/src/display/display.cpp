@@ -269,13 +269,13 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
     static bool boiler_error_message = false;
     if (boiler_refill_state() == REFILL_STATE_ERROR) {
         if (!boiler_error_message) {
-            lcdDrawFillRect(&dev, 0, y - 36, CONFIG_WIDTH - 1, y, BLACK);
+            lcdDrawFillRect(&dev, 0, y - vert_space + 1, CONFIG_WIDTH - 1, y + 16, BLACK);
         }
         boiler_error_message = true;
-        lcdDrawString(&dev, fx16M, x + 12, y - 4, (uint8_t *) "Refill Error", RED);
+        lcdDrawString(&dev, fx16M, x + 20, y - 16, (uint8_t *) "Refill Error", RED);
     } else {
         if (boiler_error_message) {
-            lcdDrawFillRect(&dev, 0, y - 36, CONFIG_WIDTH - 1, y, BLACK);
+            lcdDrawFillRect(&dev, 0, y - vert_space + 1, CONFIG_WIDTH - 1, y + 16, BLACK);
         }
         boiler_error_message = false;
         // All OK

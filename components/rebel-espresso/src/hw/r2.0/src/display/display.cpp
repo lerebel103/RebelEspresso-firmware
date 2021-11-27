@@ -203,7 +203,6 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
     static bool show_circle = true;
     const int len = 16;
     reading_t result = {};
-    char tempBuf[len];
 
     int header_width = 26;
 

@@ -10,6 +10,7 @@
 #include <mbedtls/ssl.h>
 #include <src/thing_info.h>
 #include <_generated/version.h>
+#include <esp_crt_bundle.h>
 
 #include "ota.h"
 #include "nvram_store.h"
@@ -29,9 +30,6 @@
 #define KEY_OTA_BUILD_TYPE "build_type"
 
 const static char *TAG = "OTA";
-
-extern const uint8_t server_root_cert_pem_start[] asm("_binary_google_server_root_cert_pem_start");
-extern const uint8_t server_root_cert_pem_end[]   asm("_binary_google_server_root_cert_pem_end");
 
 struct ota_config_t {
     char url[MAX_OTA_URI] = {0};
@@ -116,8 +114,8 @@ static void ota_get_latest_version(char *latest_version) {
 
     esp_tls_cfg_t cfg = {
             .alpn_protos = nullptr,
-            .cacert_pem_buf  = server_root_cert_pem_start,
-            .cacert_pem_bytes = (unsigned int)(server_root_cert_pem_end - server_root_cert_pem_start),
+            .cacert_pem_buf  = nullptr,
+            .cacert_pem_bytes = 0,
             .clientcert_pem_buf = nullptr, 
             .clientcert_pem_bytes = (unsigned int) 0,
             .clientkey_pem_buf = nullptr,
@@ -132,8 +130,9 @@ static void ota_get_latest_version(char *latest_version) {
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
             .psk_hint_key = nullptr,
-            .crt_bundle_attach = nullptr,
+            .crt_bundle_attach = esp_crt_bundle_attach,
             .ds_data = nullptr
+
     };
 
     ESP_LOGI(TAG, "Connecting to '%s'", url);
@@ -317,8 +316,8 @@ static bool ota_download_firmware(char *version) {
 
     esp_tls_cfg_t cfg = {
             .alpn_protos = nullptr,
-            .cacert_pem_buf  = server_root_cert_pem_start,
-            .cacert_pem_bytes = (unsigned int)(server_root_cert_pem_end - server_root_cert_pem_start),
+            .cacert_pem_buf  = nullptr,
+            .cacert_pem_bytes = 0,
             .clientcert_pem_buf = nullptr, 
             .clientcert_pem_bytes = 0,
             .clientkey_pem_buf = nullptr,
@@ -333,7 +332,7 @@ static bool ota_download_firmware(char *version) {
             .skip_common_name = false,
             .keep_alive_cfg = nullptr,
             .psk_hint_key = nullptr,
-            .crt_bundle_attach = nullptr,
+            .crt_bundle_attach = esp_crt_bundle_attach,
             .ds_data = nullptr
     };
 

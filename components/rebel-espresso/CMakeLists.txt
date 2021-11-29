@@ -33,6 +33,7 @@ set(COMPONENT_REQUIRES
         esp_adc_cal
         esp_hap_core
         esp_hap_apple_profiles
+        esp_rom
         spiffs
         wifi_provisioning
         qrcode

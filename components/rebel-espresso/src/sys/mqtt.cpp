@@ -9,12 +9,12 @@
 #include <cJSON.h>
 
 #include <esp_log.h>
-#include <esp32/rom/md5_hash.h>
 #include <iotc_types.h>
 #include <iotc_connection_data.h>
 #include <iotc_tuple.h>
 #include <iotc_jwt.h>
 #include <iotc.h>
+#include <esp_rom_md5.h>
 
 #include "nvram_store.h"
 #include "thing_info.h"
@@ -122,11 +122,11 @@ static void config_cb(
         cJSON *root = cJSON_Parse(msg);
         if (root) {
             // If md5 is the same as what was previously processed, then no need to take it in again.
-            MD5Context ctx;
-            MD5Init(&ctx);
-            MD5Update(&ctx, (uint8_t *) (msg), strlen(msg));
+            md5_context_t ctx;
+            esp_rom_md5_init(&ctx);
+            esp_rom_md5_update(&ctx, (uint8_t *) (msg), strlen(msg));
             uint8_t digest[16] = {0};
-            MD5Final(digest, &ctx);
+            esp_rom_md5_final(digest, &ctx);
             char md5[17];
             strncpy(md5, (char *) digest, 16);
             md5[16] = '\0';

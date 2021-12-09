@@ -255,9 +255,13 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
         ESP_LOGW(TAG, "Over temp threshold exceeded");
         s_stats.temp_over_limit_count++;
         s_stats_changed = true;
+
+        // Then stop
+        s_acc_duty = 0;
+    } else {
+        s_acc_duty += result.duty;
     }
 
-    s_acc_duty += result.duty;
     if (s_acc_duty < 0) {
         s_acc_duty = 0;
     } else if (s_acc_duty > 100) {

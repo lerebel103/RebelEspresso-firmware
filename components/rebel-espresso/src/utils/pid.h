@@ -20,7 +20,7 @@ extern "C" const double PID_SETPOINT1_DEFAULT;
 extern "C" const double PID_OVER_SETPOINT_PERC_DEFAULT;
 
 #define SETPOINT0_MIN 50
-#define SETPOINT0_MAX 125
+#define SETPOINT0_MAX 140
 #define SETPOINT1_MIN 80
 #define SETPOINT1_MAX 140
 

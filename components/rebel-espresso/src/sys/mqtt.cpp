@@ -44,15 +44,14 @@ struct mqtt_connect_init_t {
 #define SUBSCRIBE_TOPIC_COMMAND "/devices/%s/commands/#"
 #define SUBSCRIBE_TOPIC_CONFIG "/devices/%s/config"
 #define PUBLISH_TOPIC_STATE "/devices/%s/state"
+#define PUBLISH_TOPIC_TELEMETRY "/devices/%s/events/telemetry"
 
-// #define PUBLISH_TOPIC_EVENT_TEMPERATURE "/devices/%s/events/temperature"
-// #define PUBLISH_TOPIC_EVENT_FAN "/devices/%s/events/fan"
 
 static mqtt_connect_init_t config = {};
 static uint32_t g_mqtt_error_count = 0;
 static TickType_t s_last_connect_attempt = 0;
 
-char *subscribe_topic_command, *subscribe_topic_config, *publish_status_topic;
+char *subscribe_topic_command, *subscribe_topic_config, *publish_status_topic, *publish_telemetry_topic;
 
 static void (*g_cfg_cb)(const cJSON *) = nullptr;
 
@@ -268,6 +267,7 @@ void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connecti
 
 
 static void mqtt_task(void *pvParameters) {
+    asprintf(&publish_telemetry_topic, PUBLISH_TOPIC_TELEMETRY, thing_info_id());
     asprintf(&publish_status_topic, PUBLISH_TOPIC_STATE, thing_info_id());
     asprintf(&subscribe_topic_command, SUBSCRIBE_TOPIC_COMMAND, thing_info_id());
     asprintf(&subscribe_topic_config, SUBSCRIBE_TOPIC_CONFIG, thing_info_id());
@@ -324,6 +324,7 @@ static void mqtt_task(void *pvParameters) {
     free(subscribe_topic_command);
     free(subscribe_topic_config);
     free(publish_status_topic);
+    free(publish_telemetry_topic);
 
     vTaskDelete(nullptr);
 }
@@ -387,7 +388,6 @@ void mqtt_terminate() {
 
 
 bool mqtt_send_status(const char *msg) {
-
     ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_status_topic);
 
     iotc_publish(iotc_context, publish_status_topic, msg,
@@ -396,6 +396,17 @@ bool mqtt_send_status(const char *msg) {
 
     return true;
 }
+
+bool mqtt_send_telemetry(const char* msg) {
+    ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_telemetry_topic);
+
+    iotc_publish(iotc_context, publish_telemetry_topic, msg,
+                 IOTC_MQTT_QOS_AT_MOST_ONCE,
+            /*callback=*/nullptr, /*user_data=*/nullptr);
+
+    return true;
+}
+
 
 
 void mqtt_set_project_id(const char *val) {

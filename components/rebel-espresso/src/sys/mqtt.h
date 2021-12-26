@@ -11,6 +11,7 @@ void mqtt_init();
 void mqtt_terminate();
 
 bool mqtt_send_status(const char* message);
+bool mqtt_send_telemetry(const char* message);
 
 void mqtt_set_project_id(const char *val);
 

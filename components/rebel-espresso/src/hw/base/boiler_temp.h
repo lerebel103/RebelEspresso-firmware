@@ -16,8 +16,9 @@
 #define NVS_BOILER_CFG_STORE                "cfg.boiler_temp"
 #define NVS_BOILER_STATS_STORE              "sts.boiler_temp"
 
-#define KEY_BOILER_MAINS_HZ                 "pid.mains_hz"
-#define KEY_BOILER_TEMP_ERROR_RESTART_SEC   "pid.t_err_rest"
+#define KEY_BOILER_MAINS_HZ                     "pid.mains_hz"
+#define KEY_BOILER_TEMP_ERROR_RESTART_SEC       "pid.t_err_rest"
+#define KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD   "pid.full_err_t"
 
 #define KEY_BOILER_STATS_OVER_TEMP          "t_over_limit"
 #define KEY_BOILER_STATS_TEMP_ERROR         "t_read_error"
@@ -50,6 +51,11 @@ struct boiler_temp_cfg_t {
     uint8_t mains_hz;
 
     /**
+     * When (setpoint - current temperature) < full_duty_pid_error_threshold 100% duty is applied.
+     */
+    uint8_t full_duty_pid_error_threshold;
+
+    /**
      * Apply new configuration
      */
     void from_json(const cJSON *config) {
@@ -61,7 +67,10 @@ struct boiler_temp_cfg_t {
                 mains_hz = item->valuedouble;
             } else if (strend(item->string, BOILER_CFG_JSON_KEY "temp_error_restart_time_sec")) {
                 temp_error_restart_time_sec = item->valueint;
+            } else if (strend(item->string, BOILER_CFG_JSON_KEY "full_duty_pid_error_threshold")) {
+                full_duty_pid_error_threshold = item->valueint;
             }
+
             item = item->next;
         }
     }
@@ -80,6 +89,9 @@ struct boiler_temp_cfg_t {
 
         sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_error_restart_time_sec", base_key);
         cJSON_AddNumberToObject(config, buf, temp_error_restart_time_sec);
+
+        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "full_duty_pid_error_threshold", base_key);
+        cJSON_AddNumberToObject(config, buf, full_duty_pid_error_threshold);
 
         free(buf);
     }

@@ -10,7 +10,7 @@
 
 #define KEY_BREW_TEMP_ENABLED             "enabled"
 #define KEY_BREW_TEMP_PERC                "damping_perc"
-#define KEY_BREW_TEMP_RESET_SEC           "reset_sec"
+#define KEY_BREW_SETPOINT_HOLD_SEC           "setp_hold_sec"
 
 #define KEY_BREW_TEMP_STATS_OVER_TEMP           "t_over_limit"
 #define KEY_BREW_TEMP_STATS_TEMP_ERROR          "t_read_error"
@@ -18,7 +18,7 @@
 
 // Defined here so unit tests can find these
 extern "C" const double BREW_TEMP_PERC_DEFAULT;
-extern "C" const double BREW_TEMP_RESET_SEC_DEFAULT;
+extern "C" const double BREW_SETPOINT_HOLD_SEC_DEFAULT;
 
 /**
  * Wrapper around brew damper configuration
@@ -39,7 +39,7 @@ struct brew_temp_cfg_t {
     /**
      * Reset time in seconds, period during which the damper will not be applied when a brew was just completed
      */
-    double reset_time_sec;
+    double boiler_setpoint_hold_sec;
 
     /**
      * Apply new configuration
@@ -53,8 +53,8 @@ struct brew_temp_cfg_t {
                 enabled = cJSON_IsTrue(item);
             } else  if (strend(item->string, BREW_TEMP_CFG_JSON_KEY "max_damping_perc")) {
                 max_damping_perc = item->valuedouble;
-            } else if (strend(item->string, BREW_TEMP_CFG_JSON_KEY "reset_time_sec")) {
-                reset_time_sec = item->valuedouble;
+            } else if (strend(item->string, BREW_TEMP_CFG_JSON_KEY "boiler_setpoint_hold_sec")) {
+                boiler_setpoint_hold_sec = item->valuedouble;
             }
 
             item = item->next;
@@ -76,8 +76,8 @@ struct brew_temp_cfg_t {
         sprintf(buf, "%s" BREW_TEMP_CFG_JSON_KEY "max_damping_perc", base_key);
         cJSON_AddNumberToObject(config, buf, max_damping_perc);
 
-        sprintf(buf, "%s" BREW_TEMP_CFG_JSON_KEY "reset_time_sec", base_key);
-        cJSON_AddNumberToObject(config, buf, reset_time_sec);
+        sprintf(buf, "%s" BREW_TEMP_CFG_JSON_KEY "boiler_setpoint_hold_sec", base_key);
+        cJSON_AddNumberToObject(config, buf, boiler_setpoint_hold_sec);
 
         free(buf);
     }

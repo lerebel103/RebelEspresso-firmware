@@ -14,7 +14,7 @@
 
 const uint8_t BREW_TEMP_ENABLED_DEFAULT = 1;
 const double BREW_TEMP_PERC_DEFAULT = 10.0;
-const double BREW_TEMP_RESET_SEC_DEFAULT = 3 * 60;
+const double BREW_SETPOINT_HOLD_SEC_DEFAULT = 3 * 60;
 
 static esp_event_loop_handle_t s_event_loop;
 static brew_temp_trim_t s_trim = {};
@@ -74,8 +74,8 @@ static void _load_nvram() {
                        (void *) &BREW_TEMP_ENABLED_DEFAULT);
     nvram_store_get_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *) &s_cfg.max_damping_perc,
                         (void *) &BREW_TEMP_PERC_DEFAULT);
-    nvram_store_get_u64(my_handle, KEY_BREW_TEMP_RESET_SEC, (uint64_t *) &s_cfg.reset_time_sec,
-                        (void *) &BREW_TEMP_RESET_SEC_DEFAULT);
+    nvram_store_get_u64(my_handle, KEY_BREW_SETPOINT_HOLD_SEC, (uint64_t *) &s_cfg.boiler_setpoint_hold_sec,
+                        (void *) &BREW_SETPOINT_HOLD_SEC_DEFAULT);
     nvs_close(my_handle);
 }
 
@@ -86,7 +86,7 @@ static void _save_nvram() {
     pid_save_nvram(my_handle, s_cfg.pid);
     nvram_store_set_u8(my_handle, KEY_BREW_TEMP_ENABLED, (uint8_t *) &s_cfg.enabled);
     nvram_store_set_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *) &s_cfg.max_damping_perc);
-    nvram_store_set_u64(my_handle, KEY_BREW_TEMP_RESET_SEC, (uint64_t *) &s_cfg.reset_time_sec);
+    nvram_store_set_u64(my_handle, KEY_BREW_SETPOINT_HOLD_SEC, (uint64_t *) &s_cfg.boiler_setpoint_hold_sec);
 
     nvs_close(my_handle);
 }
@@ -136,7 +136,7 @@ void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
         s_stats_changed = true;
         s_trim.active = false;
         return;
-    } else if (s_last_brew_time != 0 && time_us - s_last_brew_time < s_cfg.reset_time_sec * 1e6) {
+    } else if (s_last_brew_time != 0 && time_us - s_last_brew_time < s_cfg.boiler_setpoint_hold_sec * 1e6) {
         // Then brew just happened, don't worry about it
         s_trim.active = false;
         return;
@@ -259,8 +259,8 @@ void  brew_temp_set_cfg(brew_temp_cfg_t config) {
         s_cfg.max_damping_perc = config.max_damping_perc;
     }
 
-    if (config.reset_time_sec >= 0 && config.reset_time_sec < 10 * 60) {
-        s_cfg.reset_time_sec = config.reset_time_sec;
+    if (config.boiler_setpoint_hold_sec >= 0 && config.boiler_setpoint_hold_sec < 10 * 60) {
+        s_cfg.boiler_setpoint_hold_sec = config.boiler_setpoint_hold_sec;
     }
 
     // Save what we can then

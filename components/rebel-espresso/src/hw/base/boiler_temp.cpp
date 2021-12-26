@@ -15,10 +15,10 @@
 
 #define RMT_CLK_DIV 160
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
-#define ABSOLUTE_MIN_DUTY 4
 
 const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
+const uint16_t BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT = 10;
 
 static esp_event_loop_handle_t s_event_loop;
 static boiler_temp_cfg_t s_cfg;
@@ -73,6 +73,8 @@ static void _load_nvram() {
                        (void *) &BOILER_MAINS_HZ_DEFAULT);
     nvram_store_get_u16(my_handle, KEY_BOILER_TEMP_ERROR_RESTART_SEC, &s_cfg.temp_error_restart_time_sec,
                        (void *) &BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT);
+    nvram_store_get_u8(my_handle, KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD, &s_cfg.full_duty_pid_error_threshold,
+                        (void *) &BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT);
 
     nvs_close(my_handle);
 }
@@ -84,6 +86,7 @@ static void _save_nvram() {
     pid_save_nvram(my_handle, s_cfg.pid);
     nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz);
     nvram_store_set_u16(my_handle, KEY_BOILER_TEMP_ERROR_RESTART_SEC, &s_cfg.temp_error_restart_time_sec);
+    nvram_store_set_u8(my_handle, KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD, &s_cfg.full_duty_pid_error_threshold);
 
     nvs_close(my_handle);
 }
@@ -225,14 +228,16 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     // Add trim as needed to target setpoint to maintain brew temp, but only for index == 0
     auto setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
     auto trim = brew_temp_get_trim();
-    if (trim.active && is_primary_setpoint()) {
+    if (is_primary_setpoint()) {
         // Safety guard
         if (s_trimmed_setpoint == 0) {
             s_trimmed_setpoint = setpoint;
         }
 
-        // Apply
-        s_trimmed_setpoint += trim.value;
+        if (trim.active) {
+            // Apply trim
+            s_trimmed_setpoint += trim.value;
+        }
 
         // Cap trim always
         if (s_trimmed_setpoint > s_cfg.pid.setpoints[s_cfg.pid.active_setpoint]) {
@@ -240,6 +245,7 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
         } else if (s_trimmed_setpoint < 102) {
             s_trimmed_setpoint = 102;
         }
+
         setpoint = s_trimmed_setpoint;
     }
 
@@ -258,6 +264,9 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
 
         // Then stop
         s_acc_duty = 0;
+    } else if ((setpoint - data.value) > s_cfg.full_duty_pid_error_threshold) {
+        // Then we are not wanting PID, apply 100% duty
+        s_acc_duty = 100;
     } else {
         s_acc_duty += result.duty;
     }
@@ -320,6 +329,7 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t config) {
         s_cfg.mains_hz = MAINS_60HZ;
     }
     s_cfg.temp_error_restart_time_sec = config.temp_error_restart_time_sec;
+    s_cfg.full_duty_pid_error_threshold = config.full_duty_pid_error_threshold;
 
     // Save what we can then
     _save_nvram();

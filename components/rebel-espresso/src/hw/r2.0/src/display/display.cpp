@@ -201,7 +201,6 @@ void _ensure_power_state_ok() {
 static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
     TickType_t startTick = xTaskGetTickCount();
     static bool show_circle = true;
-    const int len = 16;
     reading_t result = {};
 
     int header_width = 26;

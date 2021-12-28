@@ -86,20 +86,15 @@ void window_data(window_handle_t *window, window_data_t *data) {
                 double this_error = item->setpoint - item->data.value;
                 data->error_integral += this_error * dt;
 
-                if(data->count > 2) {
-                    data->derivative += (this_error - last_error) / dt;
-                }
+                // Derivative is only meaningful for the last two points, keep recalculating, doesn't matter
+                data->derivative = (this_error - last_error) / dt;
                 last_error = this_error;
             }
             previous = item;
         }
     }
 
-    // Adjust derivative
-    if(data->count > 2) {
-        data->derivative = data->derivative / (data->count - 2);
-    }
-        // Adjust mean and smoothed
+    // Adjust mean and smoothed
     if (data->count != 0) {
         data->mean = data->mean / data->count;
     }

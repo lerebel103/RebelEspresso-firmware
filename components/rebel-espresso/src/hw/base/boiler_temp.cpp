@@ -257,6 +257,7 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
 
     // Run pid to get new duty
     auto result = pid_process(s_pid, pid_cfg, time_us, data);
+
     if (result.is_over_threshold) {
         ESP_LOGW(TAG, "Over temp threshold exceeded");
         s_stats.temp_over_limit_count++;
@@ -267,10 +268,10 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     } else if (s_pid.last_pid_err > s_cfg.full_duty_pid_error_threshold) {
         // Then we are not wanting PID, apply 100% duty
         s_acc_duty = 100;
-    } else if(s_pid.last_pid_err > 0 && s_pid.last_derivative < -1) {
+    } else if(s_pid.last_pid_err > 1 && s_pid.last_derivative >= 1) {
         // In this case we've had a very large drop in temperature, apply 100%
         s_acc_duty = 100;
-    } else if(s_pid.last_pid_err < 5 && s_pid.last_derivative > 0.5) {
+    } else if(s_pid.last_pid_err <= 4 && s_pid.last_derivative <= -0.4) {
         // Then we've just come out of a disturbance and are recovering
         s_acc_duty = 0;
     } else {

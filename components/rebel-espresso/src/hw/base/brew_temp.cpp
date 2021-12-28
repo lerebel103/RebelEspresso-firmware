@@ -136,16 +136,15 @@ void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
         s_stats_changed = true;
         s_trim.active = false;
         return;
-    } else if (s_last_brew_time != 0 && time_us - s_last_brew_time < s_cfg.boiler_setpoint_hold_sec * 1e6) {
-        // Then brew just happened, don't worry about it
-        s_trim.active = false;
-        return;
     }
 
     // Run pid to get new duty, passthrough upstream setpoint, always
     auto result = pid_process(s_pid, s_cfg.pid, time_us, brew_head_data);
 
-    if (result.is_over_threshold) {
+    if (s_last_brew_time != 0 && time_us - s_last_brew_time < s_cfg.boiler_setpoint_hold_sec * 1e6) {
+        // Then brew just happened, don't worry about it, let things settle again before we run PID
+        s_trim.active = false;
+    } else if (result.is_over_threshold) {
         ESP_LOGW(TAG, "Over temp threshold exceeded");
         s_stats.brew_temp_over_limit_count++;
         s_stats_changed = true;

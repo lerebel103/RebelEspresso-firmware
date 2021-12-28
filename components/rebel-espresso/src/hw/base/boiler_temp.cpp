@@ -264,9 +264,15 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
 
         // Then stop
         s_acc_duty = 0;
-    } else if ((setpoint - data.value) > s_cfg.full_duty_pid_error_threshold) {
+    } else if (s_pid.last_pid_err > s_cfg.full_duty_pid_error_threshold) {
         // Then we are not wanting PID, apply 100% duty
         s_acc_duty = 100;
+    } else if(s_pid.last_pid_err > 0 && s_pid.last_derivative < -1) {
+        // In this case we've had a very large drop in temperature, apply 100%
+        s_acc_duty = 100;
+    } else if(s_pid.last_pid_err < 5 && s_pid.last_derivative > 0.5) {
+        // Then we've just come out of a disturbance and are recovering
+        s_acc_duty = 0;
     } else {
         s_acc_duty += result.duty;
     }

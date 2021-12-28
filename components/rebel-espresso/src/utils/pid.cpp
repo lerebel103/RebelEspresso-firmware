@@ -106,6 +106,7 @@ void pid_reset(pid_struct_t &pid) {
     ESP_LOGD(TAG, "Resetting...");
     pid.last_time_us = 0;
     pid.last_pid_err = 0;
+    pid.last_derivative = 0;
 
     window_reset(&pid.data_window);
     ESP_LOGD(TAG, "Reset done.");
@@ -142,10 +143,12 @@ pid_result_t pid_process(
 
         // delta from set-point, e.g. our error
         double error = setpoint - data.value;
+        pid.last_pid_err = error;
 
         // Safety. If we are over set temperature by threshold, cut off
         if (cfg.over_setpoint_perc != 0 && -error > cfg.over_setpoint_perc * setpoint / 100) {
             result.is_over_threshold = true;
+            pid.last_derivative = 0;
         } else {
             double duty = 0;
             // Derivative part
@@ -166,7 +169,7 @@ pid_result_t pid_process(
 
             ESP_LOGI(TAG, "Calculated duty: %f, P=%f, I=%f, D=%f", duty, (cfg.P * error), (cfg.I * wdata.error_integral), (cfg.D * derivative));
             result.duty = duty;
-            pid.last_pid_err = error;
+            pid.last_derivative = derivative;
         }
     }
 

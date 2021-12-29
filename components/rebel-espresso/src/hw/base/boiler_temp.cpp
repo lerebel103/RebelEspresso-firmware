@@ -4,7 +4,6 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
-#include <Max31865.h>
 
 #include "rtds.h"
 #include "boiler_temp.h"
@@ -72,9 +71,9 @@ static void _load_nvram() {
     nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz,
                        (void *) &BOILER_MAINS_HZ_DEFAULT);
     nvram_store_get_u16(my_handle, KEY_BOILER_TEMP_ERROR_RESTART_SEC, &s_cfg.temp_error_restart_time_sec,
-                       (void *) &BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT);
+                        (void *) &BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT);
     nvram_store_get_u8(my_handle, KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD, &s_cfg.full_duty_pid_error_threshold,
-                        (void *) &BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT);
+                       (void *) &BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT);
 
     nvs_close(my_handle);
 }
@@ -153,8 +152,6 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     } else if (id == POWER_ACTIVE) {
         ESP_LOGI(TAG, "Resuming Boiler SSR");
         pid_reset(s_pid);
-        s_acc_duty = 0;
-        // Trimmed setpoin is not reset
     }
 }
 
@@ -165,7 +162,7 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
     uint64_t now = 0;
     if (event_data != nullptr) {
-        now = *(uint64_t*)event_data;
+        now = *(uint64_t *) event_data;
     }
 
     // See if we need to serialise stats, but pace it so we don't kill the flash
@@ -197,14 +194,14 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
         ESP_LOGW(TAG, "Boiler level low, not running");
         _power_off_ssr();
         return;
-    } else if (data.fault != (uint8_t)RTD_NoError) {
+    } else if (data.fault != (uint8_t) RTD_NoError) {
         ESP_LOGE(TAG, "Boiler sensor error: %d", data.fault);
         s_stats.temp_read_error_count++;
         s_stats_changed = true;
         _power_off_ssr();
 
         // If we get successive errors from the boiler restart
-        if (s_pid.last_time_us != 0 ) {
+        if (s_pid.last_time_us != 0) {
             s_boiler_error_sec += (time_us - s_pid.last_time_us) * 1e-6;
         }
         if (s_cfg.temp_error_restart_time_sec != 0 && s_boiler_error_sec > s_cfg.temp_error_restart_time_sec) {
@@ -268,11 +265,13 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     } else if (s_pid.last_pid_err > s_cfg.full_duty_pid_error_threshold) {
         // Then we are not wanting PID, apply 100% duty
         s_acc_duty = 100;
-    } else if(s_pid.last_pid_err > 1 && s_pid.last_derivative >= 1) {
+    } else if (s_pid.last_pid_err > 1 && s_pid.last_derivative >= 1) {
         // In this case we've had a very large drop in temperature, apply 100%
+        // this happens when the steam tap is opened or water refill kicks in
         s_acc_duty = 100;
-    } else if(s_pid.last_pid_err <= 4 && s_pid.last_derivative <= -0.4) {
-        // Then we've just come out of a disturbance and are recovering
+    } else if (s_pid.last_pid_err <= 4 && s_pid.last_derivative <= -0.4) {
+        // Then we've just come out of a disturbance and are recovering fast.
+        // This happens when steam tap is closed. Let things settle again naturally
         s_acc_duty = 0;
     } else {
         s_acc_duty += result.duty;
@@ -287,7 +286,7 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     if (s_acc_duty == 0) {
         _power_off_ssr();
     } else {
-        boiler_temp_set_duty((int)s_acc_duty);
+        boiler_temp_set_duty((int) s_acc_duty);
     }
     ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f",
              data.value, result.duty, s_acc_duty, setpoint);

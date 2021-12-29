@@ -1,11 +1,9 @@
 #include "brew_temp.h"
 
 #include <esp_log.h>
-#include <freertos/task.h>
 #include <src/events.h>
 #include <esp_event.h>
 #include <hw_config.h>
-#include <Max31865.h>
 
 #include "rtds.h"
 #include "pid.h"

@@ -467,5 +467,5 @@ void display_init(esp_event_loop_handle_t event_loop) {
 
     ESP_LOGI(TAG, "########### TFT READY ###########");
     s_go = true;
-    xTaskCreate(_tft_loop, "tft_loop", 1024 * 6, NULL, 2, NULL);
+    xTaskCreate(_tft_loop, "tft_loop", 1024 * 5, NULL, 2, NULL);
 }

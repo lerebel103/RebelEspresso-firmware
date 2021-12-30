@@ -47,6 +47,24 @@ void state_print_system_info() {
 
 void state_print_memory_info() {
     ESP_LOGI(DIAG_TAG, "Memory heap: %d, min: %d", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
+
+    /*TaskStatus_t xTaskDetails;
+    TaskSnapshot_t snapshot;
+    TaskHandle_t handle = pxTaskGetNext(NULL);
+    while (handle != NULL) {
+
+        vTaskGetInfo( handle,
+            &xTaskDetails,
+            pdTRUE, // Include the high water mark in xTaskDetails.
+            eInvalid ); // Include the task state in xTaskDetails.
+        vTaskGetSnapshot(handle, &snapshot);
+
+        ESP_LOGW(DIAG_TAG, "Task: %s, high water mark: %d, Total size: %d",
+                xTaskDetails.pcTaskName, xTaskDetails.usStackHighWaterMark,
+                (int)(snapshot.pxTopOfStack - xTaskDetails.pxStackBase));
+
+        handle = pxTaskGetNext(handle);
+    }*/
 }
 
 state_t& state_get() {

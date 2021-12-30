@@ -172,7 +172,7 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
 
     // Create task for boiler refill
     s_go = true;
-    xTaskCreate(monitor_boiler_level, "monitor_level", 1024 * 2 + 512, nullptr, 2, &s_monitor_task_handle);
+    xTaskCreate(monitor_boiler_level, "monitor_level", 1024 * 2, nullptr, 2, &s_monitor_task_handle);
 
     ESP_LOGI(TAG, "Initialised");
 }

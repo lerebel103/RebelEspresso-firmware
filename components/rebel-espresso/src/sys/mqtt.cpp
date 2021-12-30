@@ -371,7 +371,7 @@ void mqtt_init() {
         ESP_LOGI(TAG, " -- Auth information loaded from nvs");
     }
 
-    xTaskCreate(&mqtt_task, "mqtt_task", 8192, nullptr, 5, nullptr);
+    xTaskCreate(&mqtt_task, "mqtt_task", 1024*5, nullptr, 5, nullptr);
 }
 
 

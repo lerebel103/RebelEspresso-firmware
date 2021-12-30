@@ -26,9 +26,9 @@ static hap_serv_t *service;
 #define BREW_NAME "Brew"
 #define BOILER_NAME "Boiler"
 
-#define SWITCH_TASK_PRIORITY  4
-#define SWITCH_TASK_STACKSIZE 4 * 1024
-#define SWITCH_TASK_NAME      "hap_switch"
+#define SWITCH_TASK_PRIORITY  5
+#define SWITCH_TASK_STACKSIZE 2 * 1024 + 512
+#define SWITCH_TASK_NAME      "homekit"
 
 #define BREW_TEMP_MIN 88
 #define BREW_TEMP_MAX 94

@@ -15,6 +15,7 @@
 #include "rtds.h"
 #include "hw_config.h"
 #include <esp_event.h>
+#include <src/state.h>
 #include "events.h"
 #include "brew_temp.h"
 #include "hw_specs.h"
@@ -66,7 +67,7 @@ static void _process_task(void *) {
     do {
         if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
             // Do it
-            ESP_LOGI(TAG, "Process, heap: %d, min: %d", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
+            state_print_memory_info();
 
             // Get latest temperatures
             rtds_update(hw_specs_handle_new_temp);

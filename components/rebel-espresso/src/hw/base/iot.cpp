@@ -20,7 +20,7 @@
 
 #define CONTROL_LOOP_PERIOD         1000
 #define IOT_SEND_INTERVAL_ACTIVE    1000
-#define IOT_SEND_INTERVAL_INACTIVE  30000
+#define IOT_SEND_INTERVAL_INACTIVE  60000
 
 static esp_event_loop_handle_t s_event_loop;
 TickType_t g_last_iot_send = 0;

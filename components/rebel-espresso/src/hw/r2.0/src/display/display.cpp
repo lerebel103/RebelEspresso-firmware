@@ -328,9 +328,17 @@ static void _draw_descale_mode(FontxFile *fx) {
 
 static void _draw_brew_counter(FontxFile *fx1, FontxFile *fx2) {
     char buf[64];
-    sprintf(buf, "%ds", (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time));
+    int seconds = (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time);
+    sprintf(buf, "%ds", seconds);
 
-    int x = 88;
+    int num_chars = 2;
+    if (seconds >= 10) {
+        num_chars += 1;
+    } else if (num_chars >= 100) {
+        num_chars += 2;
+    }
+
+    int x = (CONFIG_WIDTH - num_chars * 32) / 2;
     int y = 84 + 64;
     lcdDrawString(&dev, fx2, x, y, (uint8_t *) buf, WHITE);
 }

@@ -36,6 +36,7 @@ static void send_iot_events(TickType_t tick, int send_interval_msec) {
     static cJSON *boiler_setpoint_elm = cJSON_AddNumberToObject(root, "boiler_setpoint", 0);
     static cJSON *boiler_heat_duty_elm = cJSON_AddNumberToObject(root, "boiler_heat_duty", 0);
     static cJSON *brew_temp_elm = cJSON_AddNumberToObject(root, "brew_temp", 0);
+    static cJSON *aux_temp_elm = cJSON_AddNumberToObject(root, "aux_temp", 0);
 
     if (tick >= (g_last_iot_send + send_interval_msec)) {
         g_last_iot_send = tick;
@@ -55,6 +56,9 @@ static void send_iot_events(TickType_t tick, int send_interval_msec) {
 
         rtds_get(&data, RTD_BREW_HEAD_IDX);
         cJSON_SetNumberValue(brew_temp_elm, data.value);
+
+        rtds_get(&data, RTD_STEAM_BOILER_IDX);
+        cJSON_SetNumberValue(aux_temp_elm, data.value);
 
         cJSON_PrintPreallocated(root, buf, 256, false);
         mqtt_send_telemetry(buf);

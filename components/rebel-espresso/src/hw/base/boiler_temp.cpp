@@ -286,7 +286,7 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     if (s_acc_duty == 0) {
         _power_off_ssr();
     } else {
-        boiler_temp_set_duty((int) s_acc_duty);
+        boiler_temp_set_duty((int)(round(s_acc_duty)));
     }
     ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f",
              data.value, result.duty, s_acc_duty, setpoint);

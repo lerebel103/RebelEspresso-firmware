@@ -145,31 +145,30 @@ pid_result_t pid_process(
         double error = setpoint - data.value;
         pid.last_pid_err = error;
 
+        double duty = 0;
+        // Derivative part
+        double derivative = wdata.derivative;
+
+        // Calculate duty, start with P and D
+        duty = (cfg.P * error) + (cfg.D * derivative);
+
+        // Integral is added if we are below our delta error temp
+        if (fabs(error) < cfg.I_reset_temp) {
+            ESP_LOGD(TAG, "I=%f, value=%f", cfg.I, (cfg.I * wdata.error_integral));
+            duty += (cfg.I * wdata.error_integral);
+
+        } else {
+            // Keep on resetting window in this case
+            window_reset(&pid.data_window);
+        }
+
+        ESP_LOGI(TAG, "Calculated duty: %f, P=%f, I=%f, D=%f", duty, (cfg.P * error), (cfg.I * wdata.error_integral), (cfg.D * derivative));
+        result.duty = duty;
+        pid.last_derivative = derivative;
+
         // Safety. If we are over set temperature by threshold, cut off
         if (cfg.over_setpoint_perc != 0 && -error > cfg.over_setpoint_perc * setpoint / 100) {
             result.is_over_threshold = true;
-            pid.last_derivative = 0;
-        } else {
-            double duty = 0;
-            // Derivative part
-            double derivative = wdata.derivative;
-
-            // Calculate duty, start with P and D
-            duty = (cfg.P * error) + (cfg.D * derivative);
-
-            // Integral is added if we are below our delta error temp
-            if (fabs(error) < cfg.I_reset_temp) {
-                ESP_LOGD(TAG, "I=%f, value=%f", cfg.I, (cfg.I * wdata.error_integral));
-                duty += (cfg.I * wdata.error_integral);
-
-            } else {
-                // Keep on resetting window in this case
-                window_reset(&pid.data_window);
-            }
-
-            ESP_LOGI(TAG, "Calculated duty: %f, P=%f, I=%f, D=%f", duty, (cfg.P * error), (cfg.I * wdata.error_integral), (cfg.D * derivative));
-            result.duty = duty;
-            pid.last_derivative = derivative;
         }
     }
 

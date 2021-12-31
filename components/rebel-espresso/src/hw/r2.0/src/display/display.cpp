@@ -14,6 +14,7 @@
 #include <src/sys/wifi_connect.h>
 #include <src/hw/base/power.h>
 #include <src/hw/base/boiler_refill_states.h>
+#include <cmath>
 
 extern "C" {
 #include <hal/gpio_types.h>
@@ -74,7 +75,7 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
 
 int _draw_temperature(const reading_t &result, FontxFile *fx1, FontxFile *fx2, int x, int y, uint16_t color) {
-    double temp_val = result.value;
+    double temp_val = ((int)(result.value * 100 + .5) / 100.0);
     const static int len = 16;
     char tempBuf[len];
 
@@ -318,24 +319,20 @@ static void _draw_provisioning(FontxFile *fx16M) {
     _qrcode_print(xPos, yPos, wifi_get_prov_qr(), wifi_get_prov_qr_len());
 }
 
-static void _draw_descale_mode(FontxFile *fx16M) {
-    int x = 18;
-    int y = 52;
+static void _draw_descale_mode(FontxFile *fx) {
+    int x = 36;
+    int y = 108 + 24;
 
-    lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Descaling Mode", WHITE);
+    lcdDrawString(&dev, fx, x, y, (uint8_t *) "Descaling Mode", WHITE);
 }
 
-static void _draw_brew_counter(FontxFile *fx16M, FontxFile *fx32M) {
+static void _draw_brew_counter(FontxFile *fx1, FontxFile *fx2) {
     char buf[64];
     sprintf(buf, "%ds", (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time));
 
-    int x = 22;
-    int y = 42;
-    lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Brew Time", WHITE);
-
-    x = 42;
-    y += 50;
-    lcdDrawString(&dev, fx32M, x, y, (uint8_t *) buf, WHITE);
+    int x = 88;
+    int y = 84 + 64;
+    lcdDrawString(&dev, fx2, x, y, (uint8_t *) buf, WHITE);
 }
 
 void _tft_loop(void *arg) {
@@ -386,14 +383,14 @@ void _tft_loop(void *arg) {
                 lcdFillScreen(&dev, BLACK);
                 last_state = state;
             }
-            _draw_descale_mode(fx16M);
+            _draw_descale_mode(fx24M);
         } else if (s_brew_start_time >= 0) {
             state = 3;
             if (state != last_state) {
                 lcdFillScreen(&dev, BLACK);
                 last_state = state;
             }
-            _draw_brew_counter(fx16M, fx32M);
+            _draw_brew_counter(fx32M, fx64M);
             delay = 500;
         } else if (power_is_active()) {
             state = 4;

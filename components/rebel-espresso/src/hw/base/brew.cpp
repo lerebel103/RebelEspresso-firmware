@@ -20,7 +20,7 @@ static void _pump_on() {
     out_signals_set_level(OUT_SIGNALS_RELAY1, 1);
 }
 
-static void IRAM_ATTR _pump_off() {
+static void _pump_off() {
     out_signals_set_level(OUT_SIGNALS_RELAY1, 0);
 }
 
@@ -28,7 +28,7 @@ static void _three_way_valve_on() {
     out_signals_set_level(OUT_SIGNALS_RELAY3, 1);
 }
 
-static void IRAM_ATTR _three_way_valve_off() {
+static void _three_way_valve_off() {
     out_signals_set_level(OUT_SIGNALS_RELAY3, 0);
 }
 
@@ -46,7 +46,7 @@ static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id
     }
 }
 
-static void IRAM_ATTR _brew_switch_off(void *arg) {
+static void _brew_switch_off(void *arg) {
     bool is_on = _pump_sw_on;
 
     _pump_sw_on = false;

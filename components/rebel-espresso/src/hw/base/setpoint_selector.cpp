@@ -23,7 +23,7 @@ static void  _setpoint_selector_off() {
     boiler_set_active_setpoint(0);
 }
 
-static void IRAM_ATTR _selector_switch_off(void *arg) {
+static void _selector_switch_off(void *arg) {
     _setpoint_selector_sw_on = false;
     if (!_boiler_refilling) {
         _setpoint_selector_off();
@@ -62,7 +62,7 @@ void setpoint_selector_init(esp_event_loop_handle_t event_loop) {
     gpio_config_t io_conf;
 
     // --- Configure input switch that drives the setpoint_selector
-    io_conf.intr_type = GPIO_INTR_POSEDGE;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (
             (1ULL << PIN_IN_STEAM_EN)
@@ -74,9 +74,6 @@ void setpoint_selector_init(esp_event_loop_handle_t event_loop) {
 
     // Get everything synced up
     _tick(NULL, MACHINE_EVENTS, TICK, NULL);
-
-    // Now install switch interrupt and event handlers for boiler refill events
-    gpio_isr_handler_add(PIN_IN_STEAM_EN, _selector_switch_off, NULL);
 
     ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
                                                     _tick, s_event_loop));

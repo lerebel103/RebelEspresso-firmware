@@ -389,11 +389,14 @@ bool ota_can_upgrade(const char *ota_version) {
     if (scan1 == 3 && scan2 == 3) {
         ESP_LOGI(TAG, "Comparing my_version=%u.%u.%u with ota_version=%u.%u.%u",
                  my_major, my_minor, my_patch, ota_major, ota_minor, ota_patch);
-        if (my_major < ota_major) {
-            can_update = true;
-        } else if (my_minor < ota_minor) {
-            can_update = true;
-        } else if (my_patch < ota_patch) {
+
+        if (my_major > ota_major) {
+            can_update = false;
+        } else if (my_minor > ota_minor) {
+            can_update = false;
+        } else if (my_patch >= ota_patch) {
+            can_update = false;
+        } else {
             can_update = true;
         }
     } else {

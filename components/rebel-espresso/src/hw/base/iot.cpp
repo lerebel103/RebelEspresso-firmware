@@ -32,6 +32,7 @@ static void send_iot_events(TickType_t tick, int send_interval_msec) {
     // Careful here, we do static allocations so we don't fragment the heap over time
     static cJSON *root = cJSON_CreateObject();
     static cJSON *timestamp_elm = cJSON_AddNumberToObject(root, "timestamp", 0);
+    static cJSON *internal_temp_elm = cJSON_AddNumberToObject(root, "internal_temp", 0);
     static cJSON *boiler_temp_elm = cJSON_AddNumberToObject(root, "boiler_temp", 0);
     static cJSON *boiler_setpoint_elm = cJSON_AddNumberToObject(root, "boiler_setpoint", 0);
     static cJSON *boiler_heat_duty_elm = cJSON_AddNumberToObject(root, "boiler_heat_duty", 0);
@@ -46,6 +47,9 @@ static void send_iot_events(TickType_t tick, int send_interval_msec) {
 
         // Update fields now
         cJSON_SetNumberValue(timestamp_elm, time(NULL));
+
+        rtds_get(&data, RTD_INTERNAL_IDX);
+        cJSON_SetNumberValue(internal_temp_elm, data.value);
 
         rtds_get(&data, RTD_BREW_BOILER_IDX);
         cJSON_SetNumberValue(boiler_temp_elm, data.value);
@@ -80,13 +84,16 @@ void _iot_task(void *) {
                 ota_count++;
             } else if (!ota_is_running() && !is_comms_up) {
                 mqtt_init();
-                homekit_init(s_event_loop);
                 is_comms_up = true;
             }
         }
 
         // Send MQTT stuff as required
         if (xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
+            if (!homekit_is_initialised()) {
+                homekit_init(s_event_loop);
+            }
+
             auto send_state = xEventGroupGetBits(status_event_group) & SEND_STATE_BIT;
             if (send_state && (time_millis - s_last_status_update_tick) > 10000) {
                 // No earlier than 10s for Google IoT
@@ -122,6 +129,6 @@ void iot_init(esp_event_loop_handle_t event_loop) {
     mqtt_set_cfg_cb(controller_handle_new_cfg);
 
     // We also start a secondary tick loop, which for a machine wide tick that is not realtime based
-    xTaskCreate(_iot_task, "iot task", configMINIMAL_STACK_SIZE + 2048, nullptr, 5, nullptr);
+    xTaskCreate(_iot_task, "iot task", configMINIMAL_STACK_SIZE + 1024*3, nullptr, 5, nullptr);
 }
 

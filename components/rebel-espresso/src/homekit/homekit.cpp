@@ -162,7 +162,7 @@ static int boiler_char_read(hap_char_t *hc, hap_status_t *status_code,
     }
 
     // Boiler temperature
-    rtds_get(&result, 0);
+    rtds_get(&result, RTD_BREW_BOILER_IDX);
 
     if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_NAME)) {
         new_val.s = (char *) BOILER_NAME;

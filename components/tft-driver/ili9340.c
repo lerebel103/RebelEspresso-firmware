@@ -48,7 +48,7 @@ static const int SPI_Frequency = SPI_MASTER_FREQ_20M;
 
 static uint8_t s_brigthness_perc = 100;
 
-#define DMA_SIZE (2048*4)
+#define DMA_SIZE (4096)
 DMA_ATTR static uint8_t s_dma_buffer[DMA_SIZE];
 
 bool spi_master_write_byte(spi_device_handle_t SPIHandle, const uint8_t* Data, size_t DataLength);
@@ -208,6 +208,10 @@ bool spi_master_write_color(TFT_t *dev, uint16_t color, uint16_t size) {
 
 // Add 202001
 bool spi_master_write_colors(TFT_t *dev, uint16_t *colors, uint16_t size) {
+    ESP_ERROR_CHECK(size*2 <= DMA_SIZE);
+
+    //printf("Write colors max len: %d\r\n", 2*size);
+
     int index = 0;
     for (int i = 0; i < size; i++) {
         s_dma_buffer[index++] = (colors[i] >> 8) & 0xFF;
@@ -1231,6 +1235,8 @@ int lcdDrawChar(TFT_t *dev, FontxFile *fxs, uint16_t x, uint16_t y, uint8_t asci
     spi_master_write_data_word(dev, _y1);
     spi_master_write_data_word(dev, _y2);
     spi_master_write_comm_byte(dev, 0x2C);    //  Memory Write
+
+    //printf("drawChar max len: %d\r\n", count);
 
     // Send DMA data
     spi_transaction_t SPITransaction = {};

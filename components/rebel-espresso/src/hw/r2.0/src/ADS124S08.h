@@ -149,4 +149,6 @@ struct ADS124S08_data_t ADS124S08_conv(
         struct ADS124S08_idac_mux_t idac_mux,
         uint8_t idac_current, uint8_t pga_gain);
 
+struct ADS124S08_data_t ADS124S08_internal_temp();
+
 double ADS124S08_get_vref();

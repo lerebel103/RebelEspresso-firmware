@@ -43,11 +43,13 @@
 
 #define RTD_R_NOMINAL       1000.0f
 #define RTD_R_REF           4020.0f
-#define RTD_MAX_COUNT       4
-#define RTD_BREW_BOILER_IDX 0
-#define RTD_BREW_HEAD_IDX   1
-#define RTD_TEC_HOT_IDX     2
-#define RTD_TEC_COLD_IDX    3
+
+#define RTD_MAX_COUNT           5
+#define RTD_INTERNAL_IDX        0
+#define RTD_BREW_BOILER_IDX     1
+#define RTD_BREW_HEAD_IDX       2
+#define RTD_TEC_HOT_IDX         3
+#define RTD_TEC_COLD_IDX        4
 
 #define WATER_LEVEL_SENSE_ON   1
 #define WATER_LEVEL_SENSE_OFF  0

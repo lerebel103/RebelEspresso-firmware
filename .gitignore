@@ -57,3 +57,4 @@ venv
 /sdkconfig
 sdkconfig.old
 
+/monitor.log

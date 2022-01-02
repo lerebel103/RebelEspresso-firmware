@@ -47,10 +47,11 @@
 #define PIN_OUT_DISPLAY_RESET   GPIO_NUM_26
 
 // This doesn't really belong here
-#define RTD_MAX_COUNT           3
-#define RTD_BREW_BOILER_IDX     0
-#define RTD_BREW_HEAD_IDX       1
-#define RTD_STEAM_BOILER_IDX    2
+#define RTD_MAX_COUNT           4
+#define RTD_INTERNAL_IDX        0
+#define RTD_BREW_BOILER_IDX     1
+#define RTD_BREW_HEAD_IDX       2
+#define RTD_STEAM_BOILER_IDX    3
 
 #define WATER_LEVEL_SENSE_ON   0 /* We are driving an NPN transistor, so needs to be opposite levels */
 #define WATER_LEVEL_SENSE_OFF  1 /* We are driving an NPN transistor, so needs to be opposite levels */

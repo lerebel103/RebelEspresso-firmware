@@ -24,7 +24,6 @@ void state_print_system_info() {
              THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION, thing_info_hardware_revision(), thing_info_id());
     ESP_LOGI(DIAG_TAG, "Written using ESP-IDF %s", esp_get_idf_version());
 
-    /* Print chip information */
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
     ESP_LOGI(DIAG_TAG, "This is ESP32 chip with %d CPU cores, WiFi%s%s, ",
@@ -48,7 +47,8 @@ void state_print_system_info() {
 void state_print_memory_info() {
     ESP_LOGI(DIAG_TAG, "Memory heap: %d, min: %d", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
 
-    /*TaskStatus_t xTaskDetails;
+#if ( configUSE_TRACE_FACILITY == 1 )
+    TaskStatus_t xTaskDetails;
     TaskSnapshot_t snapshot;
     TaskHandle_t handle = pxTaskGetNext(NULL);
     while (handle != NULL) {
@@ -64,7 +64,10 @@ void state_print_memory_info() {
                 (int)(snapshot.pxTopOfStack - xTaskDetails.pxStackBase));
 
         handle = pxTaskGetNext(handle);
-    }*/
+    }
+
+    heap_caps_check_integrity_all(true);
+#endif
 }
 
 state_t& state_get() {

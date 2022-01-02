@@ -295,6 +295,81 @@ struct ADS124S08_data_t ADS124S08_conv(
     return data;
 }
 
+struct ADS124S08_data_t ADS124S08_internal_temp() {
+    struct ADS124S08_data_t data = {};
+    data.status = -1;
+
+    // Can only do one conversion at a time
+    if( xSemaphoreTake(s_conv_lock, MAX_SPI_WAIT_TICKS) == pdTRUE)
+    {
+        // Always reset status flag
+        uint8_t val = 0;
+        _write_register(REG_STATUS, &val, 1);
+
+        // Gain must be 4 at most
+        ADS124S08_set_pga_gain(ADS124S08_PGA_GAIN4);
+        ADS124S08_set_ref(ADS124S08_ref_INTERNAL);
+
+        auto delay = (5);
+        vTaskDelay(pdMS_TO_TICKS(delay));
+
+        // Enable internal temperature sensor
+        uint8_t reg_sys = 0;
+        _read_register(REG_SYS, &reg_sys, 1);
+        uint8_t new_val = reg_sys;
+        new_val &= ~0b11100000u;
+        new_val |=  0b01000000u;
+        _write_register(REG_SYS, &new_val, 1);
+
+        // Set high DR, don't care
+        uint8_t reg_dr;
+        _read_register(REG_DATARATE, &reg_dr, 1);
+        new_val = reg_dr;
+        new_val &= ~0b10001111u;
+        new_val |= 0b00001001u;
+        _write_register(REG_DATARATE, &new_val, 1);
+
+        // Go - Do conversion
+        ADS124S08_start();
+        delay = 20;
+        vTaskDelay(pdMS_TO_TICKS(delay));
+
+        // Now read register back, it will contain status and 24-bit value
+        uint8_t status;
+        uint32_t value;
+        _read_data(&status, &value);
+
+        // Now put back old value for registers
+        _write_register(REG_SYS, &reg_sys, 1);
+        _write_register(REG_DATARATE, &reg_dr, 1);
+
+        double vRef = ADS124S08_get_vref() / s_pga_gain;
+        double offset = 0;
+
+        // Convert digital value into analog range one
+        // For internal temperature:
+        // 25 -> 129mV
+        // 403 uV per C
+        double lsb = 2 * vRef / (1u << 24u);
+        double full_scale_analog = vRef - lsb;
+        data.value = (value - offset) * full_scale_analog / 0x7FFFFF;
+        static double rate = 403 * 1e-6;
+        data.value = (data.value - 0.129) / rate + 25;
+        data.status = status;
+        data.v_ref = s_vRef;
+
+        if (status != 0) {
+            printf("\r\n\r\nError reading internal temperature !!!!!!!!!!!!!!!\r\n\r\n");
+        }
+
+        xSemaphoreGive(s_conv_lock);
+    }
+
+    return data;
+
+}
+
+
 void ADS124S08_set_ref(enum ADS124S08_ref_t ref) {
     uint8_t val;
     _read_register(REG_REF, &val, 1);

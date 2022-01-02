@@ -49,6 +49,21 @@ static double _rtd_to_celcius(double vref, double value, double rtd_nominal) {
  */
 static reading_t _rtd_array[RTD_MAX_COUNT];
 
+void _set_reading(int idx, const ADS124S08_data_t &result, double reading) {
+    // Easy with fault, just look at range bounds and error status from ADC
+    if (result.status != 0) {
+        _rtd_array[idx].fault = RTD_RefLow;
+    } else if (reading <= TEMP_RANGE_MIN) {
+        _rtd_array[idx].fault = RTD_RTDLow;
+    } else if (reading >= TEMP_RANGE_MAX) {
+        _rtd_array[idx].fault = RTD_RTDHigh;
+    } else {
+        _rtd_array[idx].fault = RTD_NoError;
+    }
+
+    _rtd_array[idx].value = reading;
+}
+
 static void _read_temp(rtd_update_cb_t cb, int idx) {
     ADS124S08_adc_mux_t adc_mux = {};
     ADS124S08_idac_mux_t idac_mux = {};
@@ -109,25 +124,19 @@ static void _read_temp(rtd_update_cb_t cb, int idx) {
     // Do a read
     auto result = ADS124S08_conv(true, ADS124S08_ref_EXTERNAL, adc_mux, idac_mux, idac_current, pga_gain);
     auto reading = _rtd_to_celcius(result.v_ref, result.value, RTD_nominal);
-
-    // Easy with fault, just look at range bounds and error status from ADC
-    if (result.status != 0) {
-        _rtd_array[idx].fault = RTD_RefLow;
-    } else if (reading <= TEMP_RANGE_MIN) {
-        _rtd_array[idx].fault = RTD_RTDLow;
-    } else if (reading >= TEMP_RANGE_MAX) {
-        _rtd_array[idx].fault = RTD_RTDHigh;
-    } else {
-        _rtd_array[idx].fault = RTD_NoError;
-    }
-
-    _rtd_array[idx].value = reading;
+    _set_reading(idx, result, reading);
 
     // Invoke CB now
     cb(esp_timer_get_time(), _rtd_array[idx], idx);
 }
 
 void rtds_update(rtd_update_cb_t cb) {
+    // Internal temperature
+    ADS124S08_data_t reading = ADS124S08_internal_temp();
+    _set_reading(RTD_INTERNAL_IDX, reading, reading.value);
+    cb(esp_timer_get_time(), _rtd_array[RTD_INTERNAL_IDX], RTD_INTERNAL_IDX);
+
+    // External RTDs
     _read_temp(cb, RTD_BREW_BOILER_IDX);
     _read_temp(cb, RTD_BREW_HEAD_IDX);
     _read_temp(cb, RTD_STEAM_BOILER_IDX);

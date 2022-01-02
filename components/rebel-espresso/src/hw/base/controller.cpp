@@ -161,9 +161,10 @@ void controller_status_to_json(cJSON *root, const char* base_key) {
 }
 
 void controller_handle_new_cfg(const cJSON* cfg) {
-    char* json = cJSON_Print(cfg);
-    ESP_LOGI(TAG, "Got remote config %s", json);
-    cJSON_free(json);
+    // This is a huge memory ask
+    // char* json = cJSON_Print(cfg);
+    // ESP_LOGI(TAG, "Got new remote config %s", json);
+    // cJSON_free(json);
 
     // Pass down to each component, they will deal with it - it's a bit lazy really
     boiler_temp_update_cfg(cfg);

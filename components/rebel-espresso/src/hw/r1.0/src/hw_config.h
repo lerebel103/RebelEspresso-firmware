@@ -48,6 +48,7 @@
 #define RTD_INTERNAL_IDX        0
 #define RTD_BREW_BOILER_IDX     1
 #define RTD_BREW_HEAD_IDX       2
+#define RTD_STEAM_BOILER_IDX    3
 #define RTD_TEC_HOT_IDX         3
 #define RTD_TEC_COLD_IDX        4
 

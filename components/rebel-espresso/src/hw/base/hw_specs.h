@@ -21,6 +21,12 @@ void hw_specs_handle_new_temp(uint64_t time_us, const reading_t &data, uint8_t i
 
 void hw_specs_read_water_level_mv(uint8_t* status, double* value);
 
+/**
+ * Depending on hardware revision (r2 and up), auxiliary input may be supported.
+ * @return true if it is currently activated.
+ */
+bool hw_specs_is_aux_in_activated();
+
 #ifdef __cplusplus
 }
 #endif

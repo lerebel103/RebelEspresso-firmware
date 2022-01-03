@@ -79,6 +79,11 @@ void hw_specs_read_water_level_mv(uint8_t *status, double *value) {
     }
 }
 
+bool hw_specs_is_aux_in_activated() {
+    return gpio_get_level(PIN_IN_AUX_EN) == 0;
+}
+
+
 
 void hw_specs_init(esp_event_loop_handle_t event_loop) {
     // I2C Initialisation
@@ -88,7 +93,7 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
             .scl_io_num = I2C_PIN_SCL,
             .sda_pullup_en = GPIO_PULLUP_DISABLE,
             .scl_pullup_en = GPIO_PULLUP_DISABLE,
-            .master = {.clk_speed = I2C_MASTER_FREQ_HZ },
+            .master = {.clk_speed = I2C_MASTER_FREQ_HZ},
             .clk_flags =  I2C_SCLK_SRC_FLAG_FOR_NOMAL
     };
 
@@ -100,6 +105,18 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
 
     // Now can init I2C-dependent peripherals
     out_signals_init();
+
+    // Aux input pin
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (
+            (1ULL << PIN_IN_AUX_EN)
+    );
+
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
 }
 
 

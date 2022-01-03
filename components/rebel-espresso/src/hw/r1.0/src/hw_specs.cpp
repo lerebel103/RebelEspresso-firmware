@@ -43,6 +43,11 @@ void hw_specs_init(esp_event_loop_handle_t event_loop) {
     brew_tec_init(event_loop);
 }
 
+bool hw_specs_is_aux_in_activated() {
+    // not supported
+    return false;
+}
+
 void hw_specs_cfg_to_json(cJSON *root, const char *base_key) {
     auto brew_cfg = brew_tec_get_cfg();
     brew_cfg.to_json(root, base_key);

@@ -15,6 +15,7 @@
 #include <src/hw/base/power.h>
 #include <src/hw/base/boiler_refill_states.h>
 #include <cmath>
+#include <src/hw/base/hw_specs.h>
 
 extern "C" {
 #include <hal/gpio_types.h>
@@ -326,6 +327,13 @@ static void _draw_descale_mode(FontxFile *fx) {
     lcdDrawString(&dev, fx, x, y, (uint8_t *) "Descaling Mode", WHITE);
 }
 
+static void _draw_refill_water_tank(FontxFile *fx) {
+    int x = 32;
+    int y = 108 + 24;
+
+    lcdDrawString(&dev, fx, x, y, (uint8_t *) "Refill Tank", RED);
+}
+
 static void _draw_brew_counter(FontxFile *fx1, FontxFile *fx2) {
     char buf[64];
     int seconds = (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time);
@@ -392,8 +400,16 @@ void _tft_loop(void *arg) {
                 last_state = state;
             }
             _draw_descale_mode(fx24M);
-        } else if (s_brew_start_time >= 0) {
+        } else if (hw_specs_is_aux_in_activated()) {
             state = 3;
+            if (state != last_state) {
+                lcdFillScreen(&dev, BLACK);
+                last_state = state;
+            }
+            _draw_refill_water_tank(fx32M);
+            delay = 500;
+        } else if (s_brew_start_time >= 0) {
+            state = 4;
             if (state != last_state) {
                 lcdFillScreen(&dev, BLACK);
                 last_state = state;
@@ -401,7 +417,7 @@ void _tft_loop(void *arg) {
             _draw_brew_counter(fx32M, fx64M);
             delay = 500;
         } else if (power_is_active()) {
-            state = 4;
+            state = 5;
             if (state != last_state) {
                 lcdFillScreen(&dev, BLACK);
                 last_state = state;

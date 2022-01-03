@@ -8,6 +8,7 @@
 #include <esp_log.h>
 #include "brew.h"
 #include "out_signals.h"
+#include "hw_specs.h"
 
 #define TAG "brew"
 
@@ -86,6 +87,9 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     if (s_descaled_entered && gpio_get_level(PIN_IN_BREW_EN) == 1) {
         // Don't run normal pump on/off if we are in descale mode until the pump switch is cycled once.
         s_descaled_entered = false;
+    } else if (hw_specs_is_aux_in_activated()) {
+        // Then we are out of water in water tank, disable
+        _pump_off();
     } else if (!s_descaled_entered) {
         // maintain pump state with switch
         if (gpio_get_level(PIN_IN_BREW_EN) == 0 && !is_pump_powered) {

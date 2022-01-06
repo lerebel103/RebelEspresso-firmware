@@ -30,6 +30,22 @@ void window_reset(window_handle_t *window) {
     window_init(window);
 }
 
+void window_clear_to_tail(window_handle_t *window) {
+    if (!STAILQ_EMPTY(&window->queue)) {
+        bool go = true;
+        do {
+            window_entry_t *current = STAILQ_FIRST(&window->queue);
+            window_entry_t* next = STAILQ_NEXT(current, entries);
+            if (next != NULL) {
+                STAILQ_REMOVE(&window->queue, current, window_entry_t, entries);
+                free(current);
+            } else {
+                go = false;
+            }
+        } while(go);
+    }
+}
+
 void window_accumulate(
         window_handle_t *window,
         uint64_t time_us,

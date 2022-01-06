@@ -35,6 +35,7 @@ struct window_handle_t {
 
 void window_init(window_handle_t* handle);
 void window_reset(window_handle_t* handle);
+void window_clear_to_tail(window_handle_t *window);
 
 void window_accumulate(
         window_handle_t* handle,

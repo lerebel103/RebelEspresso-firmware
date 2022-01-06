@@ -32,17 +32,15 @@ void window_reset(window_handle_t *window) {
 
 void window_clear_to_tail(window_handle_t *window) {
     if (!STAILQ_EMPTY(&window->queue)) {
-        bool go = true;
-        do {
-            window_entry_t *current = STAILQ_FIRST(&window->queue);
-            window_entry_t* next = STAILQ_NEXT(current, entries);
-            if (next != NULL) {
-                STAILQ_REMOVE(&window->queue, current, window_entry_t, entries);
-                free(current);
-            } else {
-                go = false;
+        window_entry_t *item = NULL;
+        window_entry_t *item_temp = NULL;
+
+        STAILQ_FOREACH_SAFE(item, &window->queue, entries, item_temp) {
+            if (item != STAILQ_LAST(&window->queue, window_entry_t, entries)) {
+                STAILQ_REMOVE(&window->queue, item, window_entry_t, entries);
+                free(item);
             }
-        } while(go);
+        }
     }
 }
 

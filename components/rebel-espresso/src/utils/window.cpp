@@ -32,15 +32,17 @@ void window_reset(window_handle_t *window) {
 
 void window_clear_to_tail(window_handle_t *window) {
     if (!STAILQ_EMPTY(&window->queue)) {
-        window_entry_t *item = NULL;
-        window_entry_t *item_temp = NULL;
-
-        STAILQ_FOREACH_SAFE(item, &window->queue, entries, item_temp) {
-            if (item != STAILQ_LAST(&window->queue, window_entry_t, entries)) {
-                STAILQ_REMOVE(&window->queue, item, window_entry_t, entries);
-                free(item);
+        bool go = true;
+        do {
+            window_entry_t *current = STAILQ_FIRST(&window->queue);
+            window_entry_t* next = STAILQ_NEXT(current, entries);
+            if (next != NULL) {
+                STAILQ_REMOVE(&window->queue, current, window_entry_t, entries);
+                free(current);
+            } else {
+                go = false;
             }
-        }
+        } while(go);
     }
 }
 
@@ -87,7 +89,6 @@ void window_data(window_handle_t *window, window_data_t *data) {
     data->derivative = 0;
     window_entry_t *previous = NULL;
     window_entry_t *item = NULL;
-    double last_error = 0;
     STAILQ_FOREACH(item, &window->queue, entries) {
         if (item && item->data.fault == RTD_NoError) {
             data->count++;
@@ -101,8 +102,7 @@ void window_data(window_handle_t *window, window_data_t *data) {
                 data->error_integral += this_error * dt;
 
                 // Derivative is only meaningful for the last two points, keep recalculating, doesn't matter
-                data->derivative = (this_error - last_error) / dt;
-                last_error = this_error;
+                data->derivative = (previous->data.value - item->data.value) / dt;
             }
             previous = item;
         }

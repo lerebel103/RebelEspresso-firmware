@@ -159,10 +159,11 @@ pid_result_t pid_process(
 
         } else {
             // Keep this last element just inserted only so we can get a derivative still
-            //window_clear_to_tail(&pid.data_window);
+            window_clear_to_tail(&pid.data_window);
             //window_reset(&pid.data_window);
         }
 
+        //printf("\r\n derivative: %f, D %f\r\n", derivative, cfg.D);
         ESP_LOGI(TAG, "Calculated duty: %f, P=%f, I=%f, D=%f", duty, (cfg.P * error), (cfg.I * wdata.error_integral), (cfg.D * derivative));
         result.duty = duty;
         pid.last_derivative = derivative;

@@ -59,6 +59,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     } else if (id == POWER_ACTIVE) {
         s_on = true;
+        s_qr_displayed = false;
         s_brew_start_time = -1;
         xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
     }
@@ -378,7 +379,7 @@ void _tft_loop(void *arg) {
 
 
     int delay = 1000;
-    int state = 0;
+    int state;
     int last_state = 0;
     while (s_go) {
         EventBits_t uxBits = xEventGroupWaitBits(
@@ -391,6 +392,7 @@ void _tft_loop(void *arg) {
             if (state != last_state) {
                 lcdFillScreen(&dev, BLACK);
                 last_state = state;
+                s_qr_displayed = false;
             }
             _draw_provisioning(fx24M);
         } else if (DESCALE_MODE_BIT & uxBits) {
@@ -425,8 +427,8 @@ void _tft_loop(void *arg) {
             delay = 1000;
             _draw_active(fx24M, fx32M, fx64M);
         }
+
         vTaskDelay(delay / portTICK_PERIOD_MS);
-        //xEventGroupWaitBits(status_event_group, REFRESH_DISPLAY_BIT, true, true, delay / portTICK_PERIOD_MS);
     }
 }
 

@@ -429,10 +429,10 @@ static void _load_params() {
 static void do_ota(void *) {
     EventBits_t uxBits = xEventGroupWaitBits(
             status_event_group,
-            WIFI_CONNECTED_BIT,
+            TIME_SYNC_BIT,
             false, true, 1000 * store_get_operation_timeout_seconds() / portTICK_PERIOD_MS);
 
-    if ((uxBits & WIFI_CONNECTED_BIT) && strlen(g_ota_config.url) > 0) {
+    if ((uxBits & TIME_SYNC_BIT) && strlen(g_ota_config.url) > 0) {
         TickType_t start_tick = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         // Get latest firmware available please, or pinned version

@@ -187,7 +187,7 @@ static void _wifi_ip_event_handler(void *ctx,
         xEventGroupSetBits(status_event_group, WIFI_CONNECTED_BIT);
 
         // Good, start SNTP then
-        sntp_sync_init(gw_addr);
+        sntp_sync_init();
     } else {
         ESP_LOGE(WIFI_TAG, "Event not handled base=%s, id=%d", event_base, event_id);
     }

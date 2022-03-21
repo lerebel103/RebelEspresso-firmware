@@ -15,6 +15,7 @@
 #include <iotc_jwt.h>
 #include <iotc.h>
 #include <esp_rom_md5.h>
+#include <thread>
 
 #include "nvram_store.h"
 #include "thing_info.h"
@@ -50,6 +51,7 @@ struct mqtt_connect_init_t {
 static mqtt_connect_init_t config = {};
 static uint32_t g_mqtt_error_count = 0;
 static TickType_t s_last_connect_attempt = 0;
+static pthread_mutex_t s_lock = {};
 
 char *subscribe_topic_command, *subscribe_topic_config, *publish_status_topic, *publish_telemetry_topic;
 
@@ -191,6 +193,8 @@ void on_connection_state_changed(iotc_context_handle_t in_context_handle,
                                  void *data, iotc_state_t state) {
     iotc_connection_data_t *conn_data = (iotc_connection_data_t *) data;
 
+    pthread_mutex_lock(&s_lock);
+
     switch (conn_data->connection_state) {
         case IOTC_CONNECTION_STATE_OPENED:
             ESP_LOGI(TAG, "connected!");
@@ -244,6 +248,8 @@ void on_connection_state_changed(iotc_context_handle_t in_context_handle,
             ESP_LOGI(TAG, "wrong value");
             break;
     }
+
+    pthread_mutex_unlock(&s_lock);
 }
 
 void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connection_data_t *conn_data) {
@@ -371,6 +377,7 @@ void mqtt_init() {
         ESP_LOGI(TAG, " -- Auth information loaded from nvs");
     }
 
+    pthread_mutex_init(&s_lock, NULL);
     xTaskCreate(&mqtt_task, "mqtt_task", 1024*6, nullptr, 5, nullptr);
 }
 
@@ -383,6 +390,8 @@ void mqtt_terminate() {
         free(config.client_private_key);
         config.client_private_key = nullptr;
     }
+
+    pthread_mutex_destroy(&s_lock);
 }
 
 
@@ -390,9 +399,13 @@ void mqtt_terminate() {
 bool mqtt_send_status(const char *msg) {
     ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_status_topic);
 
+    pthread_mutex_lock(&s_lock);
+
     iotc_publish(iotc_context, publish_status_topic, msg,
                  IOTC_MQTT_QOS_AT_MOST_ONCE,
             /*callback=*/nullptr, /*user_data=*/nullptr);
+
+    pthread_mutex_unlock(&s_lock);
 
     return true;
 }
@@ -400,9 +413,13 @@ bool mqtt_send_status(const char *msg) {
 bool mqtt_send_telemetry(const char* msg) {
     ESP_LOGD(TAG, "Publishing msg \"%s\" to topic: \"%s\"", msg, publish_telemetry_topic);
 
+    pthread_mutex_lock(&s_lock);
+
     iotc_publish(iotc_context, publish_telemetry_topic, msg,
                  IOTC_MQTT_QOS_AT_MOST_ONCE,
             /*callback=*/nullptr, /*user_data=*/nullptr);
+
+    pthread_mutex_unlock(&s_lock);
 
     return true;
 }

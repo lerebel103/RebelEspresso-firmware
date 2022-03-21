@@ -22,7 +22,6 @@
 
 #include "events.h"
 #include "nvram_store.h"
-#include "state.h"
 
 static const char *SNTP_TAG = "SNTP";
 #define MAX_TZ_LEN 64

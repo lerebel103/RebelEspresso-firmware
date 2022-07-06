@@ -120,13 +120,13 @@ struct pid_cfg_t {
 };
 
 struct pid_struct_t {
-    window_handle_t data_window;
+    double error = 0;
+    double proportional = 0;
+    double integral = 0;
+    double derivative = 0;
 
     uint64_t last_time_us = 0;
-
-    double last_pid_err = 0;
-
-    double last_derivative = 0;
+    double last_data_value = 0;
 };
 
 struct pid_result_t {

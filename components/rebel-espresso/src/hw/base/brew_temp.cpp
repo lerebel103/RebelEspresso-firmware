@@ -151,9 +151,6 @@ void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
         s_trim.active = true;
         s_trim.value = result.duty;
 
-        static window_data_t wdata = {};
-        window_data(&s_pid.data_window, &wdata);
-
         // 1 deg, 1 minutes
         // 60 ticks of 1 sec
         // P = 1 / 60 = 0.016
@@ -162,8 +159,7 @@ void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
 
         ESP_LOGI(TAG, "Brew temp: %f, Trim: %f, P=%f, I=%f, D=%f",
                  brew_head_data.value, s_trim.value,
-                 s_cfg.pid.P * (brew_temp_get_setpoint() - brew_head_data.value),
-                 s_cfg.pid.I * wdata.error_integral, s_cfg.pid.D * wdata.derivative);
+                 s_pid.proportional, s_pid.integral, s_pid.derivative);
     }
 }
 

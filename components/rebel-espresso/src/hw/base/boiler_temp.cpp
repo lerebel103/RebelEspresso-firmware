@@ -26,7 +26,6 @@ static uint64_t s_last_stats_save = 0;
 static bool s_stats_changed = false;
 static boiler_temp_status_t s_stats = {};
 static int s_last_duty = 0;
-static double s_acc_duty = 0;
 static double s_boiler_error_sec = 0;
 static pid_struct_t s_pid;
 double s_trimmed_setpoint = 0;
@@ -255,41 +254,33 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
     // Run pid to get new duty
     auto result = pid_process(s_pid, pid_cfg, time_us, data);
 
+    double duty = result.duty;
+    
     if (result.is_over_threshold) {
         ESP_LOGW(TAG, "Over temp threshold exceeded");
         s_stats.temp_over_limit_count++;
         s_stats_changed = true;
 
         // Then stop
-        s_acc_duty = 0;
-    } else if (s_pid.last_pid_err > s_cfg.full_duty_pid_error_threshold) {
+        duty = 0;
+    } else if (s_pid.error > s_cfg.full_duty_pid_error_threshold) {
         // Then we are not wanting PID, apply 100% duty
-        s_acc_duty = 100;
-    } else if (s_pid.last_pid_err > 1 && s_pid.last_derivative >= 1) {
-        // In this case we've had a very large drop in temperature, apply 100%
-        // this happens when the steam tap is opened or water refill kicks in
-        s_acc_duty = 100;
-    } else if (s_pid.last_pid_err <= 4 && s_pid.last_derivative <= -0.4) {
-        // Then we've just come out of a disturbance and are recovering fast.
-        // This happens when steam tap is closed. Let things settle again naturally
-        s_acc_duty = 0;
-    } else {
-        s_acc_duty += result.duty;
+        duty = 100;
     }
 
-    if (s_acc_duty < 0) {
-        s_acc_duty = 0;
-    } else if (s_acc_duty > 100) {
-        s_acc_duty = 100;
+    if (duty < 0) {
+        duty = 0;
+    } else if (duty > 100) {
+        duty = 100;
     }
 
-    if (s_acc_duty == 0) {
+    if (duty == 0) {
         _power_off_ssr();
     } else {
-        boiler_temp_set_duty((int)(round(s_acc_duty)));
+        boiler_temp_set_duty((int)(round(duty)));
     }
     ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f",
-             data.value, result.duty, s_acc_duty, setpoint);
+             data.value, result.duty, duty, setpoint);
 }
 
 

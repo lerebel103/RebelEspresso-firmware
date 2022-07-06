@@ -128,7 +128,7 @@ pid_result_t pid_process(pid_struct_t &pid, pid_cfg_t &cfg, uint64_t time_us,
     pid.error = error;
     pid.proportional = cfg.P * error;
     pid.integral += cfg.I * (error * deltaT);
-    pid.derivative = cfg.D * (data.value - pid.last_data_value) / deltaT;
+    pid.derivative = cfg.D * (pid.last_data_value - data.value) / deltaT;
 
     // Integral is added if we are below our delta error temp
     if (fabs(error) > cfg.I_reset_temp) {

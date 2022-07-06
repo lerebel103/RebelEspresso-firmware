@@ -5,24 +5,20 @@
 #define KEY_PID_P "pid.P"
 #define KEY_PID_I "pid.I"
 #define KEY_PID_D "pid.D"
-#define KEY_PID_I_RESET_SEC "pid.i_reset_sec"
 #define KEY_PID_I_RESET_TEMP "pid.i_reset_tem"
 #define KEY_PID_SETPOINT0 "pid.sp0"
 #define KEY_PID_SETPOINT1 "pid.sp1"
 #define KEY_PID_OVER_SETPOINT_PERC "pid.over_sp_per"
-#define KEY_PID_MIN_DUTY_BAND "pid.min_d_band"
 
 #define TAG "pid"
 
 const double PID_P_DEFAULT = 7;
 const double PID_I_DEFAULT = 0.5;
 const double PID_D_DEFAULT = 170;
-const int32_t PID_I_RESET_SEC_DEFAULT = 60;
 const double PID_I_RESET_TEMP_DEFAULT = 5;
 const double PID_SETPOINT0_DEFAULT = 105;
 const double PID_SETPOINT1_DEFAULT = 140;
 const double PID_OVER_SETPOINT_PERC_DEFAULT = 8;
-const double PID_MIN_DUTY_BAND_DEFAULT = 4;
 
 #define INTEGRAL_MAX 25
 
@@ -34,9 +30,6 @@ void pid_load_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
                       (void *)&PID_I_DEFAULT);
   nvram_store_get_u64(my_handle, KEY_PID_D, (uint64_t *)&cfg.D,
                       (void *)&PID_D_DEFAULT);
-  nvram_store_get_i32(my_handle, KEY_PID_I_RESET_SEC,
-                      (int32_t *)&cfg.I_reset_sec,
-                      (void *)&PID_I_RESET_SEC_DEFAULT);
   nvram_store_get_u64(my_handle, KEY_PID_I_RESET_TEMP,
                       (uint64_t *)&cfg.I_reset_temp,
                       (void *)&PID_I_RESET_TEMP_DEFAULT);
@@ -49,9 +42,6 @@ void pid_load_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
   nvram_store_get_u64(my_handle, KEY_PID_OVER_SETPOINT_PERC,
                       (uint64_t *)&cfg.over_setpoint_perc,
                       (void *)&PID_OVER_SETPOINT_PERC_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_PID_MIN_DUTY_BAND,
-                      (uint64_t *)&cfg.min_duty_band,
-                      (void *)&PID_MIN_DUTY_BAND_DEFAULT);
 }
 
 void pid_save_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
@@ -59,8 +49,6 @@ void pid_save_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
   nvram_store_set_u64(my_handle, KEY_PID_P, (uint64_t *)&cfg.P);
   nvram_store_set_u64(my_handle, KEY_PID_I, (uint64_t *)&cfg.I);
   nvram_store_set_u64(my_handle, KEY_PID_D, (uint64_t *)&cfg.D);
-  nvram_store_set_i32(my_handle, KEY_PID_I_RESET_SEC,
-                      (int32_t *)&cfg.I_reset_sec);
   nvram_store_set_u64(my_handle, KEY_PID_I_RESET_TEMP,
                       (uint64_t *)&cfg.I_reset_temp);
   nvram_store_set_u64(my_handle, KEY_PID_SETPOINT0,
@@ -69,8 +57,6 @@ void pid_save_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
                       (uint64_t *)&cfg.setpoints[1]);
   nvram_store_set_u64(my_handle, KEY_PID_OVER_SETPOINT_PERC,
                       (uint64_t *)&cfg.over_setpoint_perc);
-  nvram_store_set_u64(my_handle, KEY_PID_MIN_DUTY_BAND,
-                      (uint64_t *)&cfg.min_duty_band);
 }
 
 void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t &cfg) {
@@ -94,9 +80,6 @@ void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
   if (src.D >= 0 && src.D < 5000) {
     dest.D = src.D;
   }
-  if (src.I_reset_sec >= 0 && src.I_reset_sec < 60 * 10) {
-    dest.I_reset_sec = src.I_reset_sec;
-  }
   if (src.I_reset_temp >= 0 && src.I_reset_temp < 30) {
     dest.I_reset_temp = src.I_reset_temp;
   }
@@ -108,9 +91,6 @@ void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
   }
   if (src.over_setpoint_perc >= 0 && src.over_setpoint_perc < 40) {
     dest.over_setpoint_perc = src.over_setpoint_perc;
-  }
-  if (src.min_duty_band >= 0 && src.min_duty_band <= 25) {
-    dest.min_duty_band = src.min_duty_band;
   }
 }
 
@@ -158,7 +138,7 @@ pid_result_t pid_process(pid_struct_t &pid, pid_cfg_t &cfg, uint64_t time_us,
     // We also cap integral value always
     if (pid.integral > INTEGRAL_MAX) {
       pid.integral = INTEGRAL_MAX;
-    } else if (pid.integral < INTEGRAL_MAX) {
+    } else if (pid.integral < -INTEGRAL_MAX) {
       pid.integral = -INTEGRAL_MAX;
     }
 

@@ -9,11 +9,6 @@
 #include <cJSON.h>
 
 #include <esp_log.h>
-#include <iotc_types.h>
-#include <iotc_connection_data.h>
-#include <iotc_tuple.h>
-#include <iotc_jwt.h>
-#include <iotc.h>
 #include <esp_rom_md5.h>
 #include <thread>
 
@@ -41,13 +36,6 @@ struct mqtt_connect_init_t {
     char *client_private_key;
 };
 
-#define DEVICE_PATH "projects/%s/locations/%s/registries/%s/devices/%s"
-#define SUBSCRIBE_TOPIC_COMMAND "/devices/%s/commands/#"
-#define SUBSCRIBE_TOPIC_CONFIG "/devices/%s/config"
-#define PUBLISH_TOPIC_STATE "/devices/%s/state"
-#define PUBLISH_TOPIC_TELEMETRY "/devices/%s/events/telemetry"
-
-
 static mqtt_connect_init_t config = {};
 static uint32_t g_mqtt_error_count = 0;
 static TickType_t s_last_connect_attempt = 0;
@@ -57,9 +45,6 @@ char *subscribe_topic_command, *subscribe_topic_config, *publish_status_topic, *
 
 static void (*g_cfg_cb)(const cJSON *) = nullptr;
 
-void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connection_data_t *conn_data);
-
-static iotc_context_handle_t iotc_context = IOTC_INVALID_CONTEXT_HANDLE;
 
 uint32_t mqtt_get_total_error_count() {
     if (g_mqtt_error_count == 0) {
@@ -83,257 +68,7 @@ void mqtt_inc_total_error_count() {
     g_mqtt_error_count = count;
 }
 
-TickType_t mqtt_last_connect_attempt() {
-    return s_last_connect_attempt;
-}
 
-static char *process_message(
-        iotc_context_handle_t in_context_handle, iotc_sub_call_type_t call_type,
-        const iotc_sub_call_params_t *const params, iotc_state_t state,
-        void *user_data) {
-    IOTC_UNUSED(in_context_handle);
-    IOTC_UNUSED(call_type);
-    IOTC_UNUSED(state);
-    IOTC_UNUSED(user_data);
-    if (params != nullptr && params->message.topic != nullptr) {
-        ESP_LOGD(TAG, "Inbound msg on '%s'", params->message.topic);
-        char *sub_message = (char *) malloc(params->message.temporary_payload_data_length + 1);
-        if (sub_message == nullptr) {
-            ESP_LOGE(TAG, "Failed to allocate memory");
-            return nullptr;
-        }
-        memcpy(sub_message, params->message.temporary_payload_data, params->message.temporary_payload_data_length);
-        sub_message[params->message.temporary_payload_data_length] = '\0';
-        ESP_LOGD(TAG, "Payload: %s ", sub_message);
-
-        return sub_message;
-    }
-
-    return nullptr;
-}
-
-
-static void config_cb(
-        iotc_context_handle_t in_context_handle, iotc_sub_call_type_t call_type,
-        const iotc_sub_call_params_t *const params, iotc_state_t state,
-        void *user_data) {
-    char *msg = process_message(in_context_handle, call_type, params, state, user_data);
-
-    if (strlen(msg) > 0) {
-        cJSON *root = cJSON_Parse(msg);
-        if (root) {
-            // If md5 is the same as what was previously processed, then no need to take it in again.
-            md5_context_t ctx;
-            esp_rom_md5_init(&ctx);
-            esp_rom_md5_update(&ctx, (uint8_t *) (msg), strlen(msg));
-            uint8_t digest[16] = {0};
-            esp_rom_md5_final(digest, &ctx);
-            char md5[17];
-            strncpy(md5, (char *) digest, 16);
-            md5[16] = '\0';
-
-            nvs_handle_t nvs_handle;
-            ESP_ERROR_CHECK(nvs_open(NVS_MQTT_NAMESPACE, NVS_READWRITE, &nvs_handle));
-
-            char last_md5[17];
-            nvram_store_get_str(nvs_handle, MQTT_GIOT_LAST_CONFIG_MD5, last_md5, 17, "");
-            if (strcmp(last_md5, md5) == 0) {
-                ESP_LOGI(TAG, "No config update, MD5 is identical to last processed");
-            } else if (g_cfg_cb) {
-                ESP_LOGI(TAG, "Invoking configuration CB");
-                g_cfg_cb(root);
-
-                // store MD5
-                nvram_store_set_str(nvs_handle, MQTT_GIOT_LAST_CONFIG_MD5, md5);
-            }
-
-            nvs_close(nvs_handle);
-            cJSON_Delete(root);
-        } else {
-            ESP_LOGW(TAG, "Configuration object is not JSON");
-        }
-    }
-
-    free(msg);
-}
-
-static void command_cb(
-        iotc_context_handle_t in_context_handle, iotc_sub_call_type_t call_type,
-        const iotc_sub_call_params_t *const params, iotc_state_t state,
-        void *user_data) {
-    char *msg = process_message(in_context_handle, call_type, params, state, user_data);
-
-    free(msg);
-}
-
-static iotc_state_t new_jwt(char *jwt) {
-    /* Format the key type descriptors so the client understands
-     which type of key is being represented. In this case, a PEM encoded
-     byte array of a ES256 key. */
-    iotc_crypto_key_data_t iotc_connect_private_key_data;
-    iotc_connect_private_key_data.crypto_key_signature_algorithm = IOTC_CRYPTO_KEY_SIGNATURE_ALGORITHM_ES256;
-    iotc_connect_private_key_data.crypto_key_union_type = IOTC_CRYPTO_KEY_UNION_TYPE_PEM;
-    iotc_connect_private_key_data.crypto_key_union.key_pem.key = (char *) config.client_private_key;
-
-    // Wait for time sync before we can start to build JWT tokens
-    xEventGroupWaitBits(status_event_group, TIME_SYNC_BIT, false, true, portMAX_DELAY);
-
-    /* Generate the client authentication JWT, which will serve as the MQTT
-     * password. */
-    /*60*60*24*/
-    size_t bytes_written = 0;
-    return iotc_create_iotcore_jwt(
-            config.project_id,
-            /*jwt_expiration_period_sec=*/ 60 * 60 * 24, &iotc_connect_private_key_data, jwt,
-            IOTC_JWT_SIZE, &bytes_written);
-
-}
-
-void on_connection_state_changed(iotc_context_handle_t in_context_handle,
-                                 void *data, iotc_state_t state) {
-    iotc_connection_data_t *conn_data = (iotc_connection_data_t *) data;
-
-    pthread_mutex_lock(&s_lock);
-
-    switch (conn_data->connection_state) {
-        case IOTC_CONNECTION_STATE_OPENED:
-            ESP_LOGI(TAG, "connected!");
-
-            ESP_LOGI(TAG, "Subscribe to topic: \"%s\"", subscribe_topic_command);
-            iotc_subscribe(in_context_handle, subscribe_topic_command, IOTC_MQTT_QOS_AT_LEAST_ONCE,
-                           &command_cb, /*user_data=*/nullptr);
-
-            ESP_LOGI(TAG, "Subscribe to topic: \"%s\"", subscribe_topic_config);
-            iotc_subscribe(in_context_handle, subscribe_topic_config, IOTC_MQTT_QOS_AT_LEAST_ONCE,
-                           &config_cb, /*user_data=*/nullptr);
-
-
-            xEventGroupSetBits(status_event_group, MQTT_CONNECTED_BIT);
-            s_last_connect_attempt = xTaskGetTickCount() * portTICK_PERIOD_MS;
-            break;
-
-        case IOTC_CONNECTION_STATE_OPEN_FAILED:
-            mqtt_inc_total_error_count();
-            ESP_LOGI(TAG, "ERROR!\tConnection has failed reason %d", state);
-
-            mqtt_reconnect(in_context_handle, conn_data);
-            xEventGroupClearBits(status_event_group, MQTT_CONNECTED_BIT);
-            break;
-
-        case IOTC_CONNECTION_STATE_CLOSED:
-            /* When the connection is closed it's better to cancel some of previously
-               registered activities. Using cancel function on handler will remove the
-               handler from the timed queue which prevents the registered handle to be
-               called when there is no connection. */
-
-            if (state == IOTC_STATE_OK) {
-                /* The connection has been closed intentionally. Therefore, stop
-                   the event processing loop as there's nothing left to do
-                   in this example. */
-                iotc_events_stop();
-            } else {
-                ESP_LOGW(TAG, "Connection closed - reason %d!", state);
-                /* The disconnection was unforeseen.  Try reconnect to the server
-                with previously set configuration, which has been provided
-                to this callback in the conn_data structure. */
-                mqtt_reconnect(in_context_handle, conn_data);
-            }
-
-            // Clear MQTT connection status
-            s_last_connect_attempt = xTaskGetTickCount() * portTICK_PERIOD_MS;
-            xEventGroupClearBits(status_event_group, MQTT_CONNECTED_BIT);
-            break;
-
-        default:
-            ESP_LOGI(TAG, "wrong value");
-            break;
-    }
-
-    pthread_mutex_unlock(&s_lock);
-}
-
-void mqtt_reconnect(iotc_context_handle_t in_context_handle, const iotc_connection_data_t *conn_data) {
-    char jwt[IOTC_JWT_SIZE] = {0};
-    iotc_state_t state = new_jwt(jwt);
-    if (IOTC_STATE_OK != state) {
-        ESP_LOGE(TAG, "iotc_create_iotcore_jwt returned with error: %ul", state);
-        mqtt_inc_total_error_count();
-    } else {
-        state_print_memory_info();
-        iotc_shutdown_connection(in_context_handle);
-        state_print_memory_info();
-        ESP_LOGW(TAG, "re-connecting conn_timeout: %d, keepalive: %d",
-                 conn_data->connection_timeout, conn_data->keepalive_timeout);
-        iotc_connect(
-                in_context_handle, conn_data->username, jwt, conn_data->client_id,
-                conn_data->connection_timeout, conn_data->keepalive_timeout,
-                &on_connection_state_changed);
-    }
-}
-
-
-static void mqtt_task(void *pvParameters) {
-    asprintf(&publish_telemetry_topic, PUBLISH_TOPIC_TELEMETRY, thing_info_id());
-    asprintf(&publish_status_topic, PUBLISH_TOPIC_STATE, thing_info_id());
-    asprintf(&subscribe_topic_command, SUBSCRIBE_TOPIC_COMMAND, thing_info_id());
-    asprintf(&subscribe_topic_config, SUBSCRIBE_TOPIC_CONFIG, thing_info_id());
-
-    /* initialize iotc library and create a context to use to connect to the
-    * GCP IoT Core Service. */
-    iotc_state_t error_init = iotc_initialize();
-
-    // That's all you can take, forget it gobbling up all my heap damn it!
-    iotc_set_maximum_heap_usage(58 * 1024);
-
-    if (IOTC_STATE_OK != error_init) {
-        ESP_LOGE(TAG, "iotc failed to initialize, error: %d", error_init);
-        vTaskDelete(nullptr);
-    }
-
-    /*  Create a connection context. A context represents a Connection
-        on a single socket, and can be used to publish and subscribe
-        to numerous topics. */
-    iotc_context = iotc_create_context();
-    if (IOTC_INVALID_CONTEXT_HANDLE >= iotc_context) {
-        ESP_LOGI(TAG, " iotc failed to create context, error: %d", -iotc_context);
-        vTaskDelete(nullptr);
-    }
-
-    /*  Queue a connection request to be completed asynchronously.
-        The 'on_connection_state_changed' parameter is the name of the
-        callback function after the connection request completes, and its
-        implementation should handle both successful connections and
-        unsuccessful connections as well as disconnections. */
-    const uint16_t connection_timeout = 0;
-    const uint16_t keepalive_timeout = 60;
-
-    char jwt[IOTC_JWT_SIZE] = {0};
-    iotc_state_t state = new_jwt(jwt);
-    if (IOTC_STATE_OK != state) {
-        ESP_LOGE(TAG, "iotc_create_iotcore_jwt returned with error: %ul", state);
-        vTaskDelete(nullptr);
-    }
-
-    char *device_path = nullptr;
-    asprintf(&device_path, DEVICE_PATH, config.project_id, config.location_id, config.registry_id, thing_info_id());
-
-    iotc_connect(iotc_context, nullptr, jwt, device_path, connection_timeout,
-                 keepalive_timeout, &on_connection_state_changed);
-    free(device_path);
-
-    iotc_events_process_blocking();
-
-    iotc_delete_context(iotc_context);
-
-    iotc_shutdown();
-
-    free(subscribe_topic_command);
-    free(subscribe_topic_config);
-    free(publish_status_topic);
-    free(publish_telemetry_topic);
-
-    vTaskDelete(nullptr);
-}
 
 static void _mqtt_load_settings(const char *nvs_partition, nvs_open_mode_t mode) {
     nvs_handle_t nvs_handle;
@@ -378,12 +113,10 @@ void mqtt_init() {
     }
 
     pthread_mutex_init(&s_lock, NULL);
-    xTaskCreate(&mqtt_task, "mqtt_task", 1024*6, nullptr, 5, nullptr);
 }
 
 
 void mqtt_terminate() {
-    iotc_events_stop();
 
 
     if (config.client_private_key) {
@@ -401,9 +134,6 @@ bool mqtt_send_status(const char *msg) {
 
     pthread_mutex_lock(&s_lock);
 
-    iotc_publish(iotc_context, publish_status_topic, msg,
-                 IOTC_MQTT_QOS_AT_MOST_ONCE,
-            /*callback=*/nullptr, /*user_data=*/nullptr);
 
     pthread_mutex_unlock(&s_lock);
 
@@ -415,9 +145,6 @@ bool mqtt_send_telemetry(const char* msg) {
 
     pthread_mutex_lock(&s_lock);
 
-    iotc_publish(iotc_context, publish_telemetry_topic, msg,
-                 IOTC_MQTT_QOS_AT_MOST_ONCE,
-            /*callback=*/nullptr, /*user_data=*/nullptr);
 
     pthread_mutex_unlock(&s_lock);
 

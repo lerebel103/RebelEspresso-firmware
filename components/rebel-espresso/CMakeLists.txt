@@ -29,7 +29,6 @@ set(COMPONENT_REQUIRES
         app_update
         console
         esp-tls
-        esp-google-iot
         esp_adc_cal
         esp_hap_core
         esp_hap_apple_profiles

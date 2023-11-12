@@ -12,7 +12,7 @@ MESSAGE(STATUS "${CMAKE_BUILD_TYPE} build selected")
 
 # If the environment does not specify a hardware revision to build for...
 IF (NOT HARDWARE_REVISION)
-    set(HARDWARE_REVISION "1.0"
+    set(HARDWARE_REVISION "2.0"
             CACHE INTERNAL "Set hardware revision to build for."
             FORCE)
 ENDIF ()

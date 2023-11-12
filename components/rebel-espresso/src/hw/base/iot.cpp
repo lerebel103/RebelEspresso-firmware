@@ -84,15 +84,18 @@ void _iot_task(void *) {
                 ota_count++;
             } else if (!ota_is_running() && !is_comms_up) {
                 mqtt_init();
+
+                if (!homekit_is_initialised()) {
+                  homekit_init(s_event_loop);
+                }
+
                 is_comms_up = true;
             }
         }
 
+
         // Send MQTT stuff as required
         if (xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
-            if (!homekit_is_initialised()) {
-                homekit_init(s_event_loop);
-            }
 
             auto send_state = xEventGroupGetBits(status_event_group) & SEND_STATE_BIT;
             if (send_state && (time_millis - s_last_status_update_tick) > 10000) {

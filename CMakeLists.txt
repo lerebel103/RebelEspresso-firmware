@@ -57,7 +57,7 @@ SET(GIT_SHORT_HASH ${GIT_SHORT_HASH} CACHE INTERNAL "" FORCE)
 # Cool, get our tag
 execute_process(
         COMMAND
-        ${GIT_EXECUTABLE} for-each-ref refs/tags --sort=-taggerdate --count=1 --format=%\(refname:short\)
+        ${GIT_EXECUTABLE} for-each-ref refs/tags --sort=-creatordate --count=1 --format=%\(refname:short\)
         RESULT_VARIABLE
         GIT_LAST_TAG_RESULT
         OUTPUT_VARIABLE

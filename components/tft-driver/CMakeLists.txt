@@ -17,7 +17,7 @@ endif()
 idf_component_register(
 		SRCS ${srcs}
 		INCLUDE_DIRS "."
-		REQUIRES spiffs)
+		REQUIRES spiffs driver)
 
 if (HARDWARE_REVISION STREQUAL "2.0")
 	# Create a SPIFFS image from the contents of the 'font' directory

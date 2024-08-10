@@ -3,7 +3,6 @@
 #include <_generated/version.h>
 #include <src/sys/mqtt.h>
 #include <src/homekit/homekit.h>
-#include <src/sys/ota.h>
 #include <freertos/task.h>
 #include <src/events.h>
 #include <esp_log.h>
@@ -80,9 +79,8 @@ void _iot_task(void *) {
 
         if (xEventGroupGetBits(status_event_group) & TIME_SYNC_BIT) {
             if (ota_count == 0) {
-                ota_run();
                 ota_count++;
-            } else if (!ota_is_running() && !is_comms_up) {
+            } else if ( !is_comms_up) {
                 mqtt_init();
 
                 if (!homekit_is_initialised()) {
@@ -107,9 +105,6 @@ void _iot_task(void *) {
             }
 
             send_iot_events(time_millis, (power_is_active() ? IOT_SEND_INTERVAL_ACTIVE : IOT_SEND_INTERVAL_INACTIVE));
-
-            // Ok, se we assume OTA did not brick this device if we got here
-            ota_check_pending_validate_end();
         }
 
         // Approximately every second...
@@ -128,7 +123,6 @@ void iot_init(esp_event_loop_handle_t event_loop) {
     // Now for wifi, ota, mqtt
 
     wifi_init();
-    ota_init(thing_info_id(), THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION);
     mqtt_set_cfg_cb(controller_handle_new_cfg);
 
     // We also start a secondary tick loop, which for a machine wide tick that is not realtime based

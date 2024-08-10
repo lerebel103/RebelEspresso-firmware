@@ -1,6 +1,6 @@
 #pragma once
 
-#include <driver/adc.h>
+#include <esp_adc/adc_oneshot.h>
 
 // SPI bus
 #define MAX_SPI_WAIT_TICKS     (5000 / portTICK_PERIOD_MS)
@@ -14,7 +14,7 @@
 #define ADC_RREF                2000.0f
 
 // I2C bus and attached peripherals
-#define I2C_MASTER_NUM          0 /*!< I2C master i2c port number*/
+#define I2C_MASTER_NUM          I2C_NUM_0 /*!< I2C master i2c port number*/
 #define I2C_MASTER_FREQ_HZ      400000
 #define I2C_PIN_SDA             GPIO_NUM_19
 #define I2C_PIN_SCL             GPIO_NUM_18

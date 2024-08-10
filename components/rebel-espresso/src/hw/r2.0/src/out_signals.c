@@ -41,7 +41,7 @@ static esp_err_t _write_slave(uint8_t *data_wr, size_t size) {
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | WRITE_BIT, ACK_CHECK_EN));
     ESP_ERROR_CHECK(i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN));
     ESP_ERROR_CHECK(i2c_master_stop(cmd));
-    ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+    ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
     i2c_cmd_link_delete(cmd);
   }
   xSemaphoreGive(s_lock);
@@ -67,7 +67,7 @@ static esp_err_t _read_slave(uint8_t *data_rd, size_t size) {
     }
     i2c_master_read_byte(cmd, data_rd + size - 1, I2C_MASTER_NACK);
     i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+    ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
     i2c_cmd_link_delete(cmd);
   }
   xSemaphoreGive(s_lock);

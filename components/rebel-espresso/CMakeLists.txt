@@ -29,7 +29,8 @@ set(COMPONENT_REQUIRES
         app_update
         console
         esp-tls
-        esp_adc_cal
+        driver
+        esp_adc
         esp_hap_core
         esp_hap_apple_profiles
         esp_rom
@@ -37,8 +38,8 @@ set(COMPONENT_REQUIRES
         wifi_provisioning
         qrcode
         ESP32-MAX31865
-        u8g2
         tft-driver
+        esp-ssr-controller
         )
 
 set(COMPONENT_ADD_INCLUDEDIRS
@@ -48,7 +49,6 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./_generated/"
         "./src/hw/base/"
         "./src/hw/r${HARDWARE_REVISION}/src"
-        "../u8g2/csrc"
         )
 
 idf_component_register(

@@ -12,6 +12,8 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
+#include <esp_timer.h>
+#include <driver/gpio.h>
 
 const static char *TAG = "refill";
 

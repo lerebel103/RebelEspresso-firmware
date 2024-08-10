@@ -8,7 +8,6 @@ extern "C" {
 #include <esp_system.h>
 }
 
-#include <sys/ota.h>
 #include <esp_event.h>
 #include <src/hw/base/hw_specs.h>
 #include "state.h"
@@ -38,7 +37,6 @@ extern "C" void app_main() {
     store_inc_cycle_count();
     hw_specs_init(event_loop);
     thing_info_init();
-    ota_check_pending_validate_begin();
 
     esp_log_level_set("gpio", ESP_LOG_ERROR);
 

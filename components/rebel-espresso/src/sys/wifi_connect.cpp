@@ -1,6 +1,5 @@
 #include "wifi_connect.h"
 
-#include <string.h>
 #include <esp_wifi_types.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -11,6 +10,7 @@
 #include <wifi_provisioning/manager.h>
 #include <wifi_provisioning/scheme_ble.h>
 #include <nvs_flash.h>
+#include <lwip/sio.h>
 
 #include "events.h"
 #include "nvram_store.h"
@@ -20,7 +20,6 @@
 #include "sntp.h"
 #include "qrcode.h"
 #include "sys_reset.h"
-#include "qrcodegen.h"
 
 #define WIFI_TAG "wifi"
 #define NVRAM_WIFI_TX_POWER "wifi_tx_pwr"
@@ -185,11 +184,8 @@ static void _wifi_ip_event_handler(void *ctx,
 
 
         xEventGroupSetBits(status_event_group, WIFI_CONNECTED_BIT);
-
-        // Good, start SNTP then
-        sntp_sync_init();
     } else {
-        ESP_LOGE(WIFI_TAG, "Event not handled base=%s, id=%d", event_base, event_id);
+        // ESP_LOGE(WIFI_TAG, "Event not handled base=%s, id=%d", event_base, event_id);
     }
 }
 
@@ -246,7 +242,6 @@ static void wifi_prov_print_qr(const char *name, const char *pop, const char *tr
     ESP_LOGI(WIFI_TAG, "Scan this QR code from the provisioning application for Provisioning.");
     esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
     cfg.max_qrcode_version = 10;
-    s_qr_len = qrcodegen_BUFFER_LEN_FOR_VERSION(cfg.max_qrcode_version);
     cfg.display_func = print_qr;
 
     esp_qrcode_generate(&cfg, payload);
@@ -405,7 +400,7 @@ void wifi_tick(TickType_t time_ms) {
     if (!(xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) && g_wifi_last_connect_attempt > 0) {
         if (time_ms > g_wifi_last_connect_attempt && (time_ms - g_wifi_last_connect_attempt) > 10000) {
             // Nope, we are not getting an IP, start over again
-            ESP_LOGW(WIFI_TAG, "I have no IP, restarting WiFi, timeout=%d", time_ms - g_wifi_last_connect_attempt);
+            ESP_LOGW(WIFI_TAG, "I have no IP, restarting WiFi, timeout=%" PRIu32 , time_ms - g_wifi_last_connect_attempt);
             esp_wifi_disconnect();
         }
     }

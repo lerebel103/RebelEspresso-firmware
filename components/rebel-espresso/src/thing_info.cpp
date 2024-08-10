@@ -7,6 +7,7 @@
 #include <src/hw/base/eeprom.h>
 #include <freertos/task.h>
 #include <_generated/version.h>
+#include <esp_mac.h>
 
 #include "esp_console.h"
 #include "hw_config.h"
@@ -209,7 +210,7 @@ static void _prompt_eeprom_keys() {
     ESP_ERROR_CHECK(esp_console_start_repl(repl));
 
     do {
-        vTaskDelay(100 / portTICK_RATE_MS);
+        vTaskDelay(pdMS_TO_TICKS(100));
     } while (!s_quit);
 }
 

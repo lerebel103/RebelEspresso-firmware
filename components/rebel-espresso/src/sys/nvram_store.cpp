@@ -1,9 +1,4 @@
-//
-// Created by dev on 5/28/19.
-//
-#include <string.h>
-#include <esp_spi_flash.h>
-#include <esp_system.h>
+#include <string>
 #include <esp_log.h>
 #include <nvs.h>
 #include <nvs_flash.h>
@@ -12,6 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 #include <freertos/task.h>
+#include <cstring>
 
 #include "nvram_store.h"
 
@@ -91,7 +87,7 @@ esp_err_t nvram_store_get_u32(nvs_handle my_handle, const char *key, uint32_t *v
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // Then set it
         *value = *(uint32_t*)default_value;
-        ESP_LOGI(TAG, "Key %s not found, setting to default %ul", key, *value);
+        ESP_LOGI(TAG, "Key %s not found, setting to default %" PRIu32, key, *value);
         err = nvs_set_u32(my_handle, key, *value);
     }
     return err;
@@ -179,7 +175,7 @@ nvram_store_get_i32(nvs_handle my_handle, const char *key, int32_t *value, void*
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // Then set it
         *value = *(int32_t*)default_value;
-        ESP_LOGI(TAG, "Key %s not found, setting to default %u", key, *value);
+        ESP_LOGI(TAG, "Key %s not found, setting to default %"  PRIu32, key, *value);
         err = nvs_set_i32(my_handle, key, *value);
     }
     return err;

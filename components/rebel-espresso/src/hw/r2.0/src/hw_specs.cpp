@@ -34,7 +34,7 @@ void _print_i2c_devices() {
             i2c_master_start(cmd);
             i2c_master_write_byte(cmd, (address << 1) | READ_BIT, ACK_CHECK_EN);
             i2c_master_stop(cmd);
-            esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 50 / portTICK_RATE_MS);
+            esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, pdMS_TO_TICKS(50));
             i2c_cmd_link_delete(cmd);
             if (ret == ESP_OK) {
                 printf("%02x ", address);

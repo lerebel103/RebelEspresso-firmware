@@ -39,7 +39,7 @@
     }
     i2c_master_read(cmd, data + size - 1, 1, I2C_MASTER_LAST_NACK);
     i2c_master_stop(cmd);
-    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
+    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, pdMS_TO_TICKS(1000));
     i2c_cmd_link_delete(cmd);
     return ret;
 }
@@ -54,7 +54,7 @@ static esp_err_t _write_in_page(uint16_t data_addr, const uint8_t *data, size_t 
     i2c_master_write_byte(cmd, low_addr, ACK_CHECK_EN);
     i2c_master_write(cmd, data, size, ACK_CHECK_EN);
     i2c_master_stop(cmd);
-    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
+    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, pdMS_TO_TICKS(1000));
     i2c_cmd_link_delete(cmd);
 
     vTaskDelay(200 / portTICK_PERIOD_MS);

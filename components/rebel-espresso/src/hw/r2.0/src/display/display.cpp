@@ -10,7 +10,6 @@
 #include <src/hw/base/brew_temp.h>
 #include <src/thing_info.h>
 #include <version.h>
-#include <qrcodegen.h>
 #include <src/sys/wifi_connect.h>
 #include <src/hw/base/power.h>
 #include <src/hw/base/boiler_refill_states.h>
@@ -27,6 +26,7 @@ extern "C" {
 
 #include "hw_config.h"
 #include "events.h"
+#include "../../../../../../../managed_components/espressif__qrcode/qrcodegen.h"
 
 #define TAG "tft"
 
@@ -306,7 +306,7 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
      */
 
     TickType_t endTick = xTaskGetTickCount();
-    ESP_LOGI(TAG, "Render Took %dms\r\n", (endTick - startTick) * portTICK_PERIOD_MS);
+    ESP_LOGI(TAG, "Render Took %" PRIu32 "ms\r\n", pdTICKS_TO_MS(endTick - startTick));
 }
 
 static void _draw_provisioning(FontxFile *fx16M) {

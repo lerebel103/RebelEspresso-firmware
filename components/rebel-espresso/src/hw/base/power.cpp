@@ -7,6 +7,7 @@
 #include <esp_log.h>
 #include <esp32/pm.h>
 #include <esp_pm.h>
+#include <driver/gpio.h>
 
 const static char *TAG = "power";
 

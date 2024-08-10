@@ -27,6 +27,7 @@
 
 #define TAG "process"
 #define TIMER_DIVIDER         16  //  Hardware timer clock divider
+#define TIMER_BASE_CLK        (TIMER_CLK_FREQ)  //  Hardware timer base clock - THIS IS BROKEN, NEEDS TO BE FIXED
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 
 #define TIMER_INTERVAL0_SEC   ( 1.0 )
@@ -126,7 +127,12 @@ void process_loop_init(esp_event_loop_handle_t event_loop) {
 
     // Cool now create a task that will run our process loop.
     _go = true;
-    ESP_ERROR_CHECK( esp_task_wdt_init(5, true));
+    esp_task_wdt_config_t cfg = {
+        .timeout_ms = 5,
+        .idle_core_mask = 0,
+        .trigger_panic = true
+    };
+    ESP_ERROR_CHECK( esp_task_wdt_init(&cfg));
     xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 10, &_process_task_handle);
     ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
 

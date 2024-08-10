@@ -5,6 +5,7 @@
 #include <esp_log.h>
 #include <driver/spi_master.h>
 #include <cmath>
+#include <esp_timer.h>
 
 #include "hw_config.h"
 #include "events.h"

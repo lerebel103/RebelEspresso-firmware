@@ -6,6 +6,7 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <esp_log.h>
+#include <driver/gpio.h>
 #include "setpoint_selector.h"
 #include "boiler_temp.h"
 

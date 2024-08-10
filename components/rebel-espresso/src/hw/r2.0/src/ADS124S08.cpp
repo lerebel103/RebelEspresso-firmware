@@ -5,9 +5,10 @@
 #include <freertos/semphr.h>
 
 #include <climits>
-#include <soc_log.h>
+#include <esp_log.h>
 #include <cstring>
 #include <cmath>
+#include <driver/gpio.h>
 #include "ADS124S08.h"
 #include "hw_config.h"
 

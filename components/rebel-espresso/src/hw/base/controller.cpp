@@ -7,13 +7,13 @@
 #include <sys/nvram_store.h>
 #include <esp_log.h>
 #include <events.h>
-#include <sys/ota.h>
 #include <hal/timer_types.h>
 #include <driver/timer.h>
 #include <driver/gpio.h>
 #include <esp_event.h>
 #include <cJSON.h>
 #include <driver/spi_common.h>
+#include <esp_timer.h>
 
 #include "rtds.h"
 #include "process_loop.h"
@@ -137,8 +137,6 @@ void controller_cfg_to_json(cJSON *root, const char* base_key) {
     auto schedules_cfg = schedules_get_cfg();
     schedules_cfg.to_json(root, base_key);
 
-    ota_cfg_to_json(root, base_key);
-
     // Hardware-specific implementation
     hw_specs_cfg_to_json(root, base_key);
 }
@@ -171,7 +169,6 @@ void controller_handle_new_cfg(const cJSON* cfg) {
     brew_temp_update_cfg(cfg);
     boiler_refill_update_cfg(cfg);
     schedules_update_cfg(cfg);
-    ota_update_cfg(cfg);
 
     // Hardware-specific implementation
     hw_specs_handle_new_cfg(cfg);

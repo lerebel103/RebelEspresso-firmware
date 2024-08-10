@@ -58,3 +58,6 @@ venv
 sdkconfig.old
 
 /monitor.log
+/certs
+/managed_components
+

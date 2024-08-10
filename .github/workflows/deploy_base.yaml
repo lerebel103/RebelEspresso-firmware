@@ -1,0 +1,66 @@
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      GH_OWNER: ${{ github.repository_owner }}
+      GH_REPOSITORY: ${{ github.event.repository.name }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: 'recursive'
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+      - name: Linting
+        run: make lint
+      - name: esp-idf build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32s3
+          path: '.'
+          command: make build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deploy.zip
+          path: build/deploy.zip
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: build
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+    steps:
+      - uses: actions/download-artifact@master
+        with:
+          name: deploy.zip
+          path: ./
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      - name: Sync files to S3 bucket
+        run: |
+          aws s3 cp deploy.zip ${{ vars.AWS_OTA_BUCKET_URI }}/deploy/coffee-drivah/firmware.zip

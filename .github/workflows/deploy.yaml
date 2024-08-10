@@ -1,0 +1,11 @@
+name: Environment Deployment
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+
+jobs:
+  development:
+    uses: ./.github/workflows/deploy_base.yaml
+

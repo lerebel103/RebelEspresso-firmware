@@ -5,9 +5,9 @@ IF (PROJECT_SOURCE_DIR)
 ENDIF()
 
 file(GLOB_RECURSE HARDWARE_SPECIFIC_SRCS
-        hw/r${HARDWARE_REVISION}/*.h
-        hw/r${HARDWARE_REVISION}/*.c
-        hw/r${HARDWARE_REVISION}/*.cpp
+        hw/r${HARDWARE_REVISION_MAJOR}/*.h
+        hw/r${HARDWARE_REVISION_MAJOR}/*.c
+        hw/r${HARDWARE_REVISION_MAJOR}/*.cpp
         )
 
 
@@ -16,8 +16,8 @@ set(COMPONENT_SRCDIRS
         src/utils
         src/sys
         src/hw/base
-        src/hw/r${HARDWARE_REVISION}/src
-        src/hw/r${HARDWARE_REVISION}/src/display
+        src/hw/r${HARDWARE_REVISION_MAJOR}/src
+        src/hw/r${HARDWARE_REVISION_MAJOR}/src/display
         src/homekit
         )
 
@@ -48,7 +48,7 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src/utils"
         "./_generated/"
         "./src/hw/base/"
-        "./src/hw/r${HARDWARE_REVISION}/src"
+        "./src/hw/r${HARDWARE_REVISION_MAJOR}/src"
         )
 
 idf_component_register(

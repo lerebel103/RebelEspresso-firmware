@@ -7,7 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 
-void homekit_init(esp_event_loop_handle_t event_loop);
+void homekit_init();
 
 bool homekit_is_initialised();
 

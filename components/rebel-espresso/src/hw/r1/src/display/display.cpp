@@ -29,7 +29,7 @@ extern "C" {
 #define SAVER_CONTRAST 1
 #define NORMAL_CONTRAST 255
 
-static esp_event_loop_handle_t s_event_loop;
+
 const static char *TAG = "oled";
 static bool g_go = true;
 static time_t s_brew_start_time = -1;
@@ -484,14 +484,14 @@ static void do_display(void *userData) {
     u8g2_ClearDisplay(&u8g2);
     u8g2_SetPowerSave(&u8g2, 0); // wake up display
 
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
                                                     _power_events, &u8g2));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
                                                     _power_events, &u8g2));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
-                                                    _brew_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
-                                                    _brew_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, nullptr));
 
 
     ESP_LOGI(TAG, "Display initialised");
@@ -511,8 +511,8 @@ static void do_display(void *userData) {
 
 }
 
-void display_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void display_init() {
+
 
 
     xTaskCreate(do_display, "do_display", 4596, NULL, 5, NULL);

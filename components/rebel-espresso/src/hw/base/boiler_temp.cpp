@@ -19,7 +19,7 @@ const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
 const uint16_t BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT = 10;
 
-static esp_event_loop_handle_t s_event_loop;
+
 static boiler_temp_cfg_t s_cfg;
 static ssr_ctrl_handle_t _ssr_handle;
 
@@ -255,8 +255,8 @@ void boiler_temp_process(uint64_t time_us, const reading_t &data) {
 }
 
 
-void boiler_temp_init(esp_event_loop_handle_t event_loop) {
-  s_event_loop = event_loop;
+void boiler_temp_init() {
+
 
   _load_nvram();
   _load_stats();
@@ -271,21 +271,21 @@ void boiler_temp_init(esp_event_loop_handle_t event_loop) {
   s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 
   // Get our power events in place, so we can run the process loop as needed
-  ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                  _power_events, s_event_loop));
-  ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                  _power_events, s_event_loop));
-  ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                  _tick_events, s_event_loop));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
+                                             _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
+                                             _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
+                                             _tick_events, nullptr));
 }
 
 void boiler_temp_delete() {
   rmt_driver_uninstall(RMT_TX_CHANNEL);
   pid_reset(s_pid);
 
-  ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
-  ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
-  ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_STANDBY, _power_events));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, TICK, _tick_events));
 }
 
 const struct boiler_temp_cfg_t &boiler_temp_get_cfg() {

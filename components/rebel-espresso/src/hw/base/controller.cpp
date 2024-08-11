@@ -37,8 +37,6 @@ static rtds_cfg_t s_rtds_cfg;
 
 static controller_cfg_t g_controller_cfg;
 
-static esp_event_loop_handle_t s_event_loop;
-
 static bool _go = true;
 
 /* Event source task related definitions */
@@ -71,11 +69,9 @@ void _init_spi() {
 }
 
 
-void controller_init(esp_event_loop_handle_t event_loop) {
+void controller_init() {
     //install gpio isr service
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
-
-    s_event_loop = event_loop;
 
     nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE_SYS, NVS_READWRITE, &nvs_handle));
@@ -86,17 +82,17 @@ void controller_init(esp_event_loop_handle_t event_loop) {
     _init_spi();
 
     // Common hw initialisation
-    display_init(event_loop);
-    boiler_refill_init(event_loop);
-    brew_temp_init(s_event_loop);
-    boiler_temp_init(event_loop);
-    brew_init(event_loop);
-    setpoint_selector_init(event_loop);
+    display_init();
+    boiler_refill_init();
+    brew_temp_init();
+    boiler_temp_init();
+    brew_init();
+    setpoint_selector_init();
     rtds_init(s_spi, &s_rtds_cfg);
-    process_loop_init(event_loop);
-    power_init(event_loop);
-    schedules_init(event_loop);
-    iot_init(event_loop);
+    process_loop_init();
+    power_init();
+    schedules_init();
+    iot_init();
 
     // Causes initial state to be sent
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
@@ -107,7 +103,7 @@ void controller_enter_loop() {
     while (_go) {
         // Keeps going regardless of power state, emit event forever
         auto now_us = esp_timer_get_time();
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, TICK, (void*)&now_us, sizeof(uint64_t), portMAX_DELAY));
+        ESP_ERROR_CHECK(esp_event_post( MACHINE_EVENTS, TICK, (void*)&now_us, sizeof(uint64_t), portMAX_DELAY));
         auto after_us = esp_timer_get_time();
 
         auto delay_ms = (loop_interval_us - (double)(after_us - now_us)) / 1e3;

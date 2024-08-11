@@ -10,6 +10,7 @@ extern "C" {
 
 #include <esp_event.h>
 #include <src/hw/base/hw_specs.h>
+#include <driver/gpio.h>
 #include "state.h"
 #include "controller.h"
 #include "thing_info.h"
@@ -21,31 +22,26 @@ extern "C" {
 EventGroupHandle_t status_event_group;
 
 extern "C" void app_main() {
-    esp_event_loop_args_t event_loop_args = {
-            .queue_size = 10,
-            .task_name = "App Event Loop", // No task will be created
-            .task_priority = uxTaskPriorityGet(NULL),
-            .task_stack_size = 2548,
-            .task_core_id = tskNO_AFFINITY
-    };
-    esp_event_loop_handle_t event_loop;
-    ESP_ERROR_CHECK(esp_event_loop_create(&event_loop_args, &event_loop));
-    status_event_group = xEventGroupCreate();
+  esp_log_level_set("coreMQTT", ESP_LOG_ERROR);
 
-    // Init hardware as early as possible
-    nvram_store_init();
-    store_inc_cycle_count();
-    hw_specs_init(event_loop);
-    thing_info_init();
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+  gpio_install_isr_service(0);
+  status_event_group = xEventGroupCreate();
 
-    esp_log_level_set("gpio", ESP_LOG_ERROR);
+  // Init hardware as early as possible
+  nvram_store_init();
+  store_inc_cycle_count();
+  hw_specs_init();
+  thing_info_init();
 
-    state_print_system_info();
-    controller_init(event_loop);
+  esp_log_level_set("gpio", ESP_LOG_ERROR);
 
-    // Here's our control loop
-    controller_enter_loop();
-    esp_event_loop_delete(event_loop);
+  state_print_system_info();
+  controller_init();
+
+  // Here's our control loop
+  controller_enter_loop();
+  esp_event_loop_delete_default();
 }
 
 

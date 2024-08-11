@@ -9,7 +9,7 @@ const static char *TAG = "refill";
 
 
 static StateCtx_t<RefillState_t> s_state;
-static esp_event_loop_handle_t s_event_loop;
+
 static bool s_current_level_ok = false;
 static bool s_in_error = false;
 static const boiler_refill_cfg_t *s_cfg = nullptr;
@@ -21,13 +21,13 @@ static void _start_refill() {
     ESP_LOGI(TAG, "Opening refill solenoid");
     out_signals_set_level(OUT_SIGNALS_RELAY2, 1);
 
-    ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BOILER_REFILL_STARTED, nullptr, 0,
+    ESP_ERROR_CHECK(esp_event_post( MACHINE_EVENTS, BOILER_REFILL_STARTED, nullptr, 0,
                                       portMAX_DELAY));
 }
 
 static void _stop_refill() {
     // Turn pump off and close solenoid valve
-    ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BOILER_REFILL_STOPPED, nullptr, 0,
+    ESP_ERROR_CHECK(esp_event_post( MACHINE_EVENTS, BOILER_REFILL_STOPPED, nullptr, 0,
                                       portMAX_DELAY));
 
     ESP_LOGI(TAG, "Closing refill solenoid");
@@ -126,7 +126,7 @@ static void _state_error_enter(uint64_t timestamp) {
 
     // Flag level as not ok
     xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, BOILER_REFILL_ERROR, nullptr, 0, portMAX_DELAY));
+    ESP_ERROR_CHECK(esp_event_post( MACHINE_EVENTS, BOILER_REFILL_ERROR, nullptr, 0, portMAX_DELAY));
 }
 
 static void _state_error_process(uint64_t timestamp) {
@@ -164,9 +164,9 @@ void boiler_refill_states_power_standby() {
     state_machine_init(s_state, REFILL_STATE_UNKNOWN);
 }
 
-void boiler_refill_states_init(esp_event_loop_handle_t event_loop, const boiler_refill_cfg_t &cfg) {
+void boiler_refill_states_init( const boiler_refill_cfg_t &cfg) {
     s_cfg = &cfg;
-    s_event_loop = event_loop;
+
     s_current_level_ok = false;
 
     // Init state machine

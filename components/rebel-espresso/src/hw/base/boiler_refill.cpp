@@ -31,7 +31,7 @@ const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 1000;
 static boiler_refill_cfg_t s_cfg;
 static boiler_refill_status_t s_status;
 
-static esp_event_loop_handle_t s_event_loop;
+
 static double s_level_voltage = 0;
 static uint8_t s_status_monitor = 0;
 
@@ -126,8 +126,8 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 }
 
-void boiler_refill_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void boiler_refill_init() {
+
     check_level = boiler_check_level;
 
     _load_nvram();
@@ -156,21 +156,21 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
     ESP_LOGI(TAG, "Initialising ADC pin input");
 
     // Init state machine
-    boiler_refill_states_init(event_loop, s_cfg);
+    boiler_refill_states_init(s_cfg);
 
     // We want tick events
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                    _tick, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK,
+                                                    _tick, nullptr));
 
 
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
-                                                    _brew_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
-                                                    _brew_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, nullptr));
 
     // Create task for boiler refill
     s_go = true;
@@ -180,11 +180,11 @@ void boiler_refill_init(esp_event_loop_handle_t event_loop) {
 }
 
 void boiler_refill_delete() {
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STARTED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STOPPED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, TICK, _tick));
 }
 
 double boiler_refill_level_mv() {

@@ -32,7 +32,7 @@ extern "C" {
 
 #define TEMP_ERROR_STR "---"
 
-static esp_event_loop_handle_t s_event_loop;
+
 static time_t s_brew_start_time = -1;
 static TFT_t dev;
 static uint16_t model;
@@ -433,8 +433,8 @@ void _tft_loop(void *arg) {
 }
 
 
-void display_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void display_init() {
+
 
     ESP_LOGI(TAG, "Initializing SPIFFS");
 
@@ -470,14 +470,14 @@ void display_init(esp_event_loop_handle_t event_loop) {
 
     SPIFFS_Directory("/spiffs/");
 
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
-                                                    _brew_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
-                                                    _brew_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, nullptr));
 
 
     spi_master_init(&dev,

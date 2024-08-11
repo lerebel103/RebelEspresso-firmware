@@ -124,7 +124,7 @@ struct brew_tec_status_t {
 
 };
 
-void brew_tec_init(esp_event_loop_handle_t event_loop);
+void brew_tec_init();
 
 void brew_tec_delete();
 

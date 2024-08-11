@@ -249,7 +249,7 @@ static void set_default_thing_id() {
 
     // Preload device info from this firmware as best as possible
     strcpy(g_thing_info_ext.thing_type, THING_TYPE);
-    sscanf(HARDWARE_REVISION, "%" SCNu8 ".%" SCNu8 ,
+    sscanf(HARDWARE_REVISION_MAJOR, "%" SCNu8 ".%" SCNu8 ,
            &g_thing_info_ext.hardware_version_major,
            &g_thing_info_ext.hardware_version_minor);
 }

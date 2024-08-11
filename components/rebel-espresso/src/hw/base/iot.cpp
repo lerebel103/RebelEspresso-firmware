@@ -21,7 +21,7 @@
 #define IOT_SEND_INTERVAL_ACTIVE    1000
 #define IOT_SEND_INTERVAL_INACTIVE  60000
 
-static esp_event_loop_handle_t s_event_loop;
+
 TickType_t g_last_iot_send = 0;
 static TickType_t s_last_status_update_tick = 0;
 static bool _go = true;
@@ -84,7 +84,7 @@ void _iot_task(void *) {
                 mqtt_init();
 
                 if (!homekit_is_initialised()) {
-                  homekit_init(s_event_loop);
+                  homekit_init();
                 }
 
                 is_comms_up = true;
@@ -117,8 +117,8 @@ void _iot_task(void *) {
 
 }
 
-void iot_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void iot_init() {
+
 
     // Now for wifi, ota, mqtt
 

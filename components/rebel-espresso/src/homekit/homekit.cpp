@@ -16,7 +16,7 @@
 #include "rtds.h"
 #include "brew_temp.h"
 
-static esp_event_loop_handle_t s_event_loop;
+
 static bool s_init = false;
 
 static hap_serv_t *service;
@@ -265,7 +265,7 @@ static void switch_thread_entry(void *arg) {
             .manufacturer = (char *) "LeRebel",
             .serial_num = (char *) (thing_info_id()),
             .fw_rev = (char *) FIRMWARE_VERSION,
-            .hw_rev = (char *) HARDWARE_REVISION,
+            .hw_rev = (char *) HARDWARE_REVISION_MAJOR,
             .pv = (char *) "1.1.0",
             .cid = HAP_CID_SWITCH,
             .identify_routine = device_identify,
@@ -419,9 +419,9 @@ static void switch_thread_entry(void *arg) {
 
 
 void homekit_terminate() {
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, TICK, _tick_events));
 
     hap_stop();
 
@@ -431,16 +431,16 @@ void homekit_terminate() {
     }
 }
 
-void homekit_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void homekit_init() {
+
 
     // Register power events so we can send to home kit
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                    _tick_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK,
+                                                    _tick_events, nullptr));
 
     xTaskCreate(switch_thread_entry, SWITCH_TASK_NAME, SWITCH_TASK_STACKSIZE,
                 NULL, SWITCH_TASK_PRIORITY, NULL);

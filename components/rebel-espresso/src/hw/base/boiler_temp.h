@@ -122,7 +122,7 @@ struct boiler_temp_status_t {
 
 };
 
-void boiler_temp_init(esp_event_loop_handle_t event_loop);
+void boiler_temp_init();
 
 void boiler_temp_delete();
 

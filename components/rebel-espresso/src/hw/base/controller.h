@@ -14,7 +14,7 @@ struct controller_cfg_t {
 };
 
 
-void controller_init(esp_event_loop_handle_t event_loop);
+void controller_init();
 
 void controller_enter_loop();
 

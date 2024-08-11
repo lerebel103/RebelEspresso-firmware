@@ -114,7 +114,7 @@ struct brew_temp_trim_t {
     double value;
 };
 
-void brew_temp_init(esp_event_loop_handle_t event_loop);
+void brew_temp_init();
 
 void brew_temp_delete();
 

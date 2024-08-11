@@ -18,7 +18,7 @@ const uint8_t SCHEDULES_ENABLED_DEFAULT = 1;
 const double SCHEDULES_DELTA_DEFAULT = 0.8;
 const double SCHEDULES_HYSTERESIS_DEFAULT = 2.0;
 
-static esp_event_loop_handle_t s_event_loop;
+
 static schedules_cfg_t s_cfg;
 
 static uint64_t s_last_stats_save = 0;
@@ -138,19 +138,19 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 }
 
-void schedules_init(esp_event_loop_handle_t event_loop) {
+void schedules_init() {
     s_cfg = {};
-    s_event_loop = event_loop;
+
     _load_nvram();
     _load_stats();
 
     // Get our power events in place so we can run the process loop as needed
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                    _tick_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK,
+                                                    _tick_events, nullptr));
 }
 
 void schedules_delete() {
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, TICK, _tick_events));
 }
 
 const schedules_cfg_t &schedules_get_cfg() {

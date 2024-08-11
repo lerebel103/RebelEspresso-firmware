@@ -22,7 +22,7 @@ const double BREW_TEC_MAX_TEMP_DEFAULT = 130.0;
 
 
 static ledc_channel_config_t s_pwm_channel;
-static esp_event_loop_handle_t s_event_loop;
+
 static int s_duty = 0;
 
 static brew_tec_cfg_t s_cfg;
@@ -299,8 +299,8 @@ static void _init_h_bridge() {
 }
 
 
-void brew_tec_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void brew_tec_init() {
+
     _load_nvram();
     _load_stats();
     pid_init(s_pid);
@@ -335,16 +335,16 @@ void brew_tec_init(esp_event_loop_handle_t event_loop) {
     _init_h_bridge();
 
     // Get our power events in place so we can run the process loop as needed
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
-                                                    _brew_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
-                                                    _brew_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                    _tick_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK,
+                                                    _tick_events, nullptr));
 
 
     // Enable H-Bridge
@@ -352,11 +352,11 @@ void brew_tec_init(esp_event_loop_handle_t event_loop) {
 }
 
 void brew_tec_delete() {
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STARTED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STOPPED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, TICK, _tick_events));
     pid_init(s_pid);
 }
 

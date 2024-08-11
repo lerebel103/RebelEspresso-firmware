@@ -37,7 +37,7 @@ static timer_group_t s_timer_group = TIMER_GROUP_0;
 static TaskHandle_t _process_task_handle = nullptr;
 static bool _go = false;
 static SemaphoreHandle_t s_semaphore = NULL;
-static esp_event_loop_handle_t s_event_loop;
+
 
 /**
  * Timer interrupt handler that drives our process loop
@@ -95,8 +95,8 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 }
 
 
-void process_loop_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void process_loop_init() {
+
     s_semaphore = xSemaphoreCreateBinary();
 
     /* Select and initialize basic parameters of the timer */
@@ -137,10 +137,10 @@ void process_loop_init(esp_event_loop_handle_t event_loop) {
     ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
 
     // Get our power events in place so we can run the process loop as needed
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, nullptr));
 
 }
 

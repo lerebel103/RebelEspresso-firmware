@@ -28,7 +28,7 @@ void hw_specs_read_water_level_mv(uint8_t* status, double* value) {
 }
 
 
-void hw_specs_init(esp_event_loop_handle_t event_loop) {
+void hw_specs_init() {
     out_signals_init();
 
     // Configure ADC

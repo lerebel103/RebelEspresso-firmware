@@ -140,7 +140,7 @@ struct schedules_status_t {
 
 };
 
-void schedules_init(esp_event_loop_handle_t event_loop);
+void schedules_init();
 
 void schedules_delete();
 

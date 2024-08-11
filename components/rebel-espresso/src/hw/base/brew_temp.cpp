@@ -14,7 +14,7 @@ const uint8_t BREW_TEMP_ENABLED_DEFAULT = 1;
 const double BREW_TEMP_PERC_DEFAULT = 10.0;
 const double BREW_SETPOINT_HOLD_SEC_DEFAULT = 3 * 60;
 
-static esp_event_loop_handle_t s_event_loop;
+
 static brew_temp_trim_t s_trim = {};
 static uint64_t s_last_brew_time = 0;
 
@@ -203,8 +203,8 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 }
 
-void brew_temp_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void brew_temp_init() {
+
     _load_nvram();
     _load_stats();
     s_trim = { .active = false, .value = 0 };
@@ -212,24 +212,24 @@ void brew_temp_init(esp_event_loop_handle_t event_loop) {
     pid_init(s_pid);
 
     // Get our power events in place so we can run the process loop as needed
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED,
-                                                    _brew_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED,
-                                                    _brew_events, s_event_loop));
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                    _tick_events, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
+                                                    _power_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STOPPED,
+                                                    _brew_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STARTED,
+                                                    _brew_events, nullptr));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK,
+                                                    _tick_events, nullptr));
 }
 
 void brew_temp_delete() {
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STARTED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, BREW_STOPPED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister_with(s_event_loop, MACHINE_EVENTS, TICK, _tick_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_STANDBY, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STARTED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STOPPED, _brew_events));
+    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, TICK, _tick_events));
     pid_init(s_pid);
 }
 

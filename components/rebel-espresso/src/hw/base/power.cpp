@@ -11,14 +11,14 @@
 
 const static char *TAG = "power";
 
-static esp_event_loop_handle_t s_event_loop;
+
 //static bool s_is_low_power = false;
 static bool s_active_toggled = false;
 
 static void _standby() {
     if ((xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         xEventGroupClearBits(status_event_group, POWER_ON_BIT);
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
+        ESP_ERROR_CHECK(esp_event_post( MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
     }
 }
 
@@ -27,7 +27,7 @@ static void _active() {
     if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
         ESP_LOGI(TAG, "Entering ACTIVE state.");
         xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-        ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, portMAX_DELAY));
+        ESP_ERROR_CHECK(esp_event_post( MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, portMAX_DELAY));
     }
 }
 
@@ -98,12 +98,12 @@ bool power_is_active() {
     return is_on;
 }
 
-void power_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void power_init() {
+
 
     // No power until proven otherwise
     xEventGroupClearBits(status_event_group, POWER_ON_BIT);
-    ESP_ERROR_CHECK(esp_event_post_to(s_event_loop, MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
+    ESP_ERROR_CHECK(esp_event_post( MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
 
     // --- Configure input switch that drives power state
     gpio_config_t io_conf;
@@ -115,5 +115,5 @@ void power_init(esp_event_loop_handle_t event_loop) {
     gpio_config(&io_conf);
 
     // We want tick events
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK, _tick, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK, _tick, nullptr));
 }

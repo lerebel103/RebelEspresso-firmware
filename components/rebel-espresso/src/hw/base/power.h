@@ -7,7 +7,7 @@ extern "C" {
 #include <freertos/task.h>
 #include <esp_event_base.h>
 
-void power_init(esp_event_loop_handle_t event_loop);
+void power_init();
 
 /**
  * Forces standby, unless the switch is in the on position

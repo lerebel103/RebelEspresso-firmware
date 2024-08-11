@@ -7,19 +7,18 @@ extern "C" {
 #endif
 
 #include <stdint-gcc.h>
-#include <esp_event_base.h>
 #include <cJSON.h>
 
-void hw_specs_init(esp_event_loop_handle_t event_loop);
+void hw_specs_init();
 
-void hw_specs_cfg_to_json(cJSON *root, const char* base_key);
-void hw_specs_status_to_json(cJSON *root, const char* base_key);
+void hw_specs_cfg_to_json(cJSON *root, const char *base_key);
+void hw_specs_status_to_json(cJSON *root, const char *base_key);
 
-void hw_specs_handle_new_cfg(const cJSON* cfg);
+void hw_specs_handle_new_cfg(const cJSON *cfg);
 
 void hw_specs_handle_new_temp(uint64_t time_us, const reading_t &data, uint8_t idx);
 
-void hw_specs_read_water_level_mv(uint8_t* status, double* value);
+void hw_specs_read_water_level_mv(uint8_t *status, double *value);
 
 /**
  * Depending on hardware revision (r2 and up), auxiliary input may be supported.

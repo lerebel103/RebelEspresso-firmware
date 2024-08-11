@@ -13,7 +13,7 @@ MESSAGE(STATUS "${CMAKE_BUILD_TYPE} build selected")
 
 # Target hardware revision for which this hardware is for
 IF (NOT HARDWARE_REVISION_MAJOR)
-    set(HARDWARE_REVISION_MAJOR 1
+    set(HARDWARE_REVISION_MAJOR 2
             CACHE INTERNAL "Set major hardware revision to build for."
             FORCE)
 ENDIF ()
@@ -123,7 +123,7 @@ execute_process(
 )
 
 set(IDF_TARGET esp32)
-set(PROJECT_NAME roastapowah-firmware)
+set(PROJECT_NAME coffee-drivah-firmware)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
 

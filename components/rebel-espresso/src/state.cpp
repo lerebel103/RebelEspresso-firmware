@@ -20,7 +20,7 @@ state_t g_diagnostics;
 
 void state_print_system_info() {
   ESP_LOGI(DIAG_TAG, "\n\n%s: FW v%s for r%s, PCB version: %s, Thing ID: %s\n\n",
-           THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION, thing_info_hardware_revision(), thing_info_id());
+           THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION_MAJOR, thing_info_hardware_revision(), thing_info_id());
   ESP_LOGI(DIAG_TAG, "Written using ESP-IDF %s", esp_get_idf_version());
 
   esp_chip_info_t chip_info;

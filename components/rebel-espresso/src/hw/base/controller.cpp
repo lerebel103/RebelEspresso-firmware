@@ -27,6 +27,7 @@
 #include "brew_temp.h"
 #include "schedules.h"
 #include "display.h"
+#include "reset_button.h"
 
 
 #define KEY_ENABLED "ctrl_enabled"
@@ -72,6 +73,8 @@ void _init_spi() {
 void controller_init() {
     //install gpio isr service
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+
+    reset_button_init((gpio_num_t)CONFIG_RESET_GPIO);
 
     nvs_handle_t nvs_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE_SYS, NVS_READWRITE, &nvs_handle));

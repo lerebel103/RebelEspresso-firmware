@@ -10,8 +10,6 @@
 #include "thing_info.h"
 #include "version.h"
 #include "sys/nvram_store.h"
-#include "sys/wifi_connect.h"
-#include "sys/mqtt.h"
 #include "controller.h"
 
 const char *DIAG_TAG = "state";
@@ -100,9 +98,6 @@ void state_send(time_t timestamp) {
   cJSON_AddStringToObject(status, "wifi.bssid", g_diagnostics.wifi_bssid);
   cJSON_AddNumberToObject(status, "wifi.channel", g_diagnostics.wifi_primary_channel);
   cJSON_AddNumberToObject(status, "wifi.join_duration", g_diagnostics.wifi_join_duration);
-  cJSON_AddNumberToObject(status, "wifi.connect_error_count", wifi_get_error_count());
-
-  cJSON_AddNumberToObject(status, "mqtt.connect_error_count", mqtt_get_total_error_count());
 
   controller_status_to_json(root, "status.");
 
@@ -110,7 +105,9 @@ void state_send(time_t timestamp) {
 
   char *json_unformatted = cJSON_Print(root);
   cJSON_Delete(root);
-  mqtt_send_status(json_unformatted);
+
+  // Send status over MQTT
+
   free(json_unformatted);
 }
 

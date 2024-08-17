@@ -7,7 +7,7 @@
 
 #include "rtds.h"
 #include "pid.h"
-#include "sys/str_utils.h"
+#include "str_utils.h"
 
 #define BOILER_SSR_PIN PIN_OUT_SSR1
 

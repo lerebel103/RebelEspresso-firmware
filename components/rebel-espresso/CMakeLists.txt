@@ -25,6 +25,7 @@ set(COMPONENT_REQUIRES
         mbedtls
         json
         nvs_flash
+        esp32-aws-connector
 
         app_update
         console

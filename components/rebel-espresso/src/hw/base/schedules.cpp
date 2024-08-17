@@ -104,7 +104,7 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     }
 
     // Ok, check schedules if we have NTP and wifi going only for time sync
-    if (xEventGroupGetBits(status_event_group) & TIME_SYNC_BIT) {
+    if (xEventGroupGetBits(status_event_group) & SNTP_TIME_SYNCED_BIT) {
         time_t time_now;
         time(&time_now);
         struct tm* l_time = localtime(&time_now);

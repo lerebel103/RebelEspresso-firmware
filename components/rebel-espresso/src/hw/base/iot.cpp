@@ -1,7 +1,5 @@
-#include <src/sys/wifi_connect.h>
 #include <src/thing_info.h>
 #include <_generated/version.h>
-#include <src/sys/mqtt.h>
 #include <src/homekit/homekit.h>
 #include <freertos/task.h>
 #include <src/events.h>
@@ -64,7 +62,7 @@ static void send_iot_events(TickType_t tick, int send_interval_msec) {
         cJSON_SetNumberValue(aux_temp_elm, data.value);
 
         cJSON_PrintPreallocated(root, buf, 256, false);
-        mqtt_send_telemetry(buf);
+        // mqtt_send_telemetry(buf);
     }
 }
 
@@ -75,13 +73,10 @@ void _iot_task(void *) {
     while (_go) {
         time_t time_millis = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
-        wifi_tick(time_millis);
-
-        if (xEventGroupGetBits(status_event_group) & TIME_SYNC_BIT) {
+        if (xEventGroupGetBits(status_event_group) & SNTP_TIME_SYNCED_BIT) {
             if (ota_count == 0) {
                 ota_count++;
             } else if ( !is_comms_up) {
-                mqtt_init();
 
                 if (!homekit_is_initialised()) {
                   homekit_init();
@@ -93,7 +88,7 @@ void _iot_task(void *) {
 
 
         // Send MQTT stuff as required
-        if (xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
+        if (xEventGroupGetBits(status_event_group) & CORE_MQTT_CLIENT_CONNECTED_BIT) {
 
             auto send_state = xEventGroupGetBits(status_event_group) & SEND_STATE_BIT;
             if (send_state && (time_millis - s_last_status_update_tick) > 10000) {
@@ -118,12 +113,6 @@ void _iot_task(void *) {
 }
 
 void iot_init() {
-
-
-    // Now for wifi, ota, mqtt
-
-    wifi_init();
-    mqtt_set_cfg_cb(controller_handle_new_cfg);
 
     // We also start a secondary tick loop, which for a machine wide tick that is not realtime based
     xTaskCreate(_iot_task, "iot task", configMINIMAL_STACK_SIZE + 1024*3, nullptr, 5, nullptr);

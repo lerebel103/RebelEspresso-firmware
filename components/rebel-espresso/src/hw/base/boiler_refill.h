@@ -3,7 +3,7 @@
 
 #include <esp_event_base.h>
 #include <cJSON.h>
-#include <src/sys/str_utils.h>
+#include "str_utils.h"
 
 typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 typedef bool(*check_level_fn)();

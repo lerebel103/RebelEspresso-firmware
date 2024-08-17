@@ -10,7 +10,6 @@
 #include <src/hw/base/brew_temp.h>
 #include <src/thing_info.h>
 #include <version.h>
-#include <src/sys/wifi_connect.h>
 #include <src/hw/base/power.h>
 #include <src/hw/base/boiler_refill_states.h>
 #include <cmath>
@@ -27,6 +26,7 @@ extern "C" {
 #include "hw_config.h"
 #include "events.h"
 #include "../../../../../../../managed_components/espressif__qrcode/qrcodegen.h"
+#include "wifi/wifi_connect.h"
 
 #define TAG "tft"
 
@@ -229,7 +229,7 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
     // Draw mqtt connection
     int x2 = CONFIG_WIDTH - 32;
     int y2 = 10;
-    if (xEventGroupGetBits(status_event_group) & MQTT_CONNECTED_BIT) {
+    if (xEventGroupGetBits(status_event_group) & CORE_MQTT_CLIENT_CONNECTED_BIT) {
         lcdDrawTriangle(&dev, x2 - 14, y2, 14, 14, 0, WHITE);
         lcdDrawTriangle(&dev, x2, y2, 14, 14, 180, WHITE);
     } else {
@@ -383,7 +383,7 @@ void _tft_loop(void *arg) {
     int last_state = 0;
     while (s_go) {
         EventBits_t uxBits = xEventGroupWaitBits(
-                status_event_group, WIFI_CONNECTED_BIT | MQTT_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT,
+                status_event_group, WIFI_CONNECTED_BIT | CORE_MQTT_CLIENT_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT,
                 false, true, 0);
         _ensure_power_state_ok();
 

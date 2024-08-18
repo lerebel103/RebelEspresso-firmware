@@ -126,7 +126,7 @@ void boiler_temp_init();
 
 void boiler_temp_delete();
 
-void boiler_temp_process(uint64_t time_us, const reading_t &data);
+void boiler_temp_process(uint64_t time_us, const measure_t &data);
 
 /**
  * Get current duty value applied to the SSR

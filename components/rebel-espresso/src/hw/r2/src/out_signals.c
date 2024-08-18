@@ -1,98 +1,37 @@
 #include "out_signals.h"
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-
+#include "hw_specs.h"
 #include <esp_log.h>
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
 #include "sdkconfig.h"
 #include "hw_config.h"
 
 #define TAG "out_signals"
 
-#define ACK_CHECK_EN  1u
-#define WRITE_BIT     I2C_MASTER_WRITE
-#define READ_BIT      I2C_MASTER_READ
-
 #define REGISTER_OUT  0x01
 #define REGISTER_IN   0x00
 #define REGISTER_CFG  0x03
 
-static SemaphoreHandle_t s_lock = NULL;
-
-
-/**
- *        the data will be stored in slave buffer.
- *        We can read them out from slave buffer.
- *
- * ___________________________________________________________________
- * | start | slave_addr + wr_bit + ack | write n bytes + ack  | stop |
- * --------|---------------------------|----------------------|------|
- *
- */
-static esp_err_t _write_slave(uint8_t *data_wr, size_t size) {
-  esp_err_t ret;
-
-  xSemaphoreTake(s_lock, portMAX_DELAY);
-  {
-    i2c_port_t i2c_num = I2C_MASTER_NUM;
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    ESP_ERROR_CHECK(i2c_master_start(cmd));
-    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | WRITE_BIT, ACK_CHECK_EN));
-    ESP_ERROR_CHECK(i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN));
-    ESP_ERROR_CHECK(i2c_master_stop(cmd));
-    ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
-    i2c_cmd_link_delete(cmd);
-  }
-  xSemaphoreGive(s_lock);
-
-  return ret;
-}
-
-static esp_err_t _read_slave(uint8_t *data_rd, size_t size) {
-  esp_err_t ret;
-
-  xSemaphoreTake(s_lock, portMAX_DELAY);
-  {
-    i2c_port_t i2c_num = I2C_MASTER_NUM;
-    if (size == 0) {
-      return ESP_OK;
-    }
-
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (I2C_IO_EXPANDER_ADDRESS << 1) | READ_BIT, ACK_CHECK_EN);
-    if (size > 1) {
-      i2c_master_read(cmd, data_rd, size - 1, I2C_MASTER_ACK);
-    }
-    i2c_master_read_byte(cmd, data_rd + size - 1, I2C_MASTER_NACK);
-    i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
-    i2c_cmd_link_delete(cmd);
-  }
-  xSemaphoreGive(s_lock);
-
-  return ret;
-}
+static i2c_master_dev_handle_t dev_handle;
 
 
 void out_signals_set_level(enum out_signals_t slot, uint8_t level) {
-  // Read current state so we can or the desired pin output state
+  // Read current state, so we can or the desired pin output state
   uint8_t state[] = {REGISTER_IN, 0x0};
-  _read_slave(state, 2);
+  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, state, 1, state+1, 1, 1000) );
 
   if (slot == OUT_SIGNALS_RELAY1) {
     uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x01u : state[1] & ~0x1u)};
-    ESP_ERROR_CHECK(_write_slave(set_output_cmd, 2));
+    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000) );
   } else if (slot == OUT_SIGNALS_RELAY2) {
     uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x02u : state[1] & ~0x2u)};
-    ESP_ERROR_CHECK(_write_slave(set_output_cmd, 2));
+    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000) );
   } else if (slot == OUT_SIGNALS_RELAY3) {
     uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x04u : state[1] & ~0x4u)};
-    ESP_ERROR_CHECK(_write_slave(set_output_cmd, 2));
+    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000) );
   } else if (slot == OUT_SIGNALS_AUX) {
     uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x08u : state[1] & ~0x8u)};
-    ESP_ERROR_CHECK(_write_slave(set_output_cmd, 2));
+    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000) );
   } else {
     // Unsupported
     ESP_LOGE(TAG, "Slot %d not supported", slot);
@@ -100,9 +39,9 @@ void out_signals_set_level(enum out_signals_t slot, uint8_t level) {
 }
 
 uint8_t out_signals_get_level(enum out_signals_t slot) {
-  // Read current state so we can or the desired pin output state
+  // Read current state, so we can or the desired pin output state
   uint8_t state[] = {REGISTER_IN, 0x0};
-  _read_slave(state, 2);
+  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, state, 1, state+1, 1, 1000) );
 
   uint8_t val = 0;
 
@@ -123,15 +62,25 @@ uint8_t out_signals_get_level(enum out_signals_t slot) {
 }
 
 void out_signals_init() {
-  s_lock = xSemaphoreCreateMutex();
+  i2c_device_config_t dev_cfg = {
+      .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+      .device_address = I2C_IO_EXPANDER_ADDRESS,
+      .scl_speed_hz = 100000,
+      .scl_wait_us = 0,
+      .flags = {0},
+  };
+
+  i2c_master_bus_handle_t bus_handle = hw_specs_get_i2c_handle();
+  ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle));
+  ESP_LOGI(TAG, "Added IO Expander device to I2C bus");
 
   // Configure pins as output, all of them
   uint8_t init_output_cmd[] = {REGISTER_CFG, 0x0};
-  ESP_ERROR_CHECK(_write_slave(init_output_cmd, 2));
+  ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, init_output_cmd, 2, 1000) );
 
   // Force all pins to low level
   uint8_t set_output_cmd[] = {REGISTER_OUT, 0x0};
-  ESP_ERROR_CHECK(_write_slave(set_output_cmd, 2));
+  ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000) );
   ESP_LOGI(TAG, "IO Expander initialised");
 }
 

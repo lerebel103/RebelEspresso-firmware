@@ -93,7 +93,7 @@ static int brew_char_read(hap_char_t *hc, hap_status_t *status_code,
                           void *serv_priv, void *read_priv) {
     int ret = HAP_SUCCESS;
     hap_val_t new_val;
-    struct reading_t result{};
+    struct measure_t result{};
 
     if (hc == NULL) {
         ret = HAP_FAIL;
@@ -154,7 +154,7 @@ static int boiler_char_read(hap_char_t *hc, hap_status_t *status_code,
                             void *serv_priv, void *read_priv) {
     int ret = HAP_SUCCESS;
     hap_val_t new_val;
-    struct reading_t result{};
+    struct measure_t result{};
 
     if (hc == NULL) {
         ret = HAP_FAIL;
@@ -244,7 +244,7 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 
 /*The main thread for handling the RebelEspresso Switch Accessory */
 static void switch_thread_entry(void *arg) {
-    struct reading_t result{};
+    struct measure_t result{};
     double brew_temp, setpoint;
     //double boiler_temp;
 

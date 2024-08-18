@@ -12,9 +12,11 @@
 #include "sys/nvram_store.h"
 #include "controller.h"
 
-const char *DIAG_TAG = "state";
+#define NVS_NAMESPACE "diag"
+const char *DIAG_TAG = NVS_NAMESPACE;
 
 state_t g_diagnostics;
+uint32_t s_cycle_count;
 
 void state_print_system_info() {
   ESP_LOGI(DIAG_TAG, "\n\n%s: FW v%s for r%s, PCB version: %s, Thing ID: %s\n\n",
@@ -83,7 +85,7 @@ void state_send(time_t timestamp) {
   cJSON_AddNumberToObject(status, "thing.build_epoch_s", thing_info_ext()->build_epoch_s);
 
   cJSON_AddNumberToObject(status, "sys.uptime", xTaskGetTickCount() * portTICK_PERIOD_MS);
-  cJSON_AddNumberToObject(status, "sys.boot_count", store_get_cycle_count());
+  cJSON_AddNumberToObject(status, "sys.boot_count", s_cycle_count);
   cJSON_AddStringToObject(status, "sys.firmware.version", FIRMWARE_VERSION);
   cJSON_AddStringToObject(status, "sys.firmware.git_hash", GIT_SHORT_HASH);
   cJSON_AddStringToObject(status, "sys.firmware.type", BUILD_TYPE);
@@ -111,3 +113,18 @@ void state_send(time_t timestamp) {
   free(json_unformatted);
 }
 
+esp_err_t state_init() {
+  nvs_handle my_handle;
+  ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE, NVS_READWRITE, &my_handle));
+  esp_err_t ret = nvs_get_u32(my_handle, "cycle_count", &s_cycle_count);
+  if (ret == ESP_ERR_NVS_NOT_FOUND) {
+    s_cycle_count = 0;
+  } else {
+    s_cycle_count++;
+  }
+
+  ESP_ERROR_CHECK(nvs_set_u32(my_handle, "cycle_count", s_cycle_count));
+  ESP_ERROR_CHECK(nvs_commit(my_handle));
+  nvs_close(my_handle);
+  return ESP_OK;
+}

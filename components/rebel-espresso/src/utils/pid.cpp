@@ -113,7 +113,7 @@ void pid_init(pid_struct_t &pid) {
 }
 
 pid_result_t pid_process(pid_struct_t &pid, pid_cfg_t &cfg, uint64_t time_us,
-                         const reading_t &data) {
+                         const measure_t &data) {
 
   pid_result_t result = {.duty = 0, .is_over_threshold = false};
   double deltaT = (double)(time_us - pid.last_time_us) / 1e6;

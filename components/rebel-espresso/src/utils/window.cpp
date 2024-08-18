@@ -49,7 +49,7 @@ void window_clear_to_tail(window_handle_t *window) {
 void window_accumulate(
         window_handle_t *window,
         uint64_t time_us,
-        const reading_t *result,
+        const measure_t *result,
         float setpoint,
         uint16_t window_size_ms) {
 

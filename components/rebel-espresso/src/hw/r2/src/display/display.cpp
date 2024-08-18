@@ -76,7 +76,7 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
 }
 
 
-int _draw_temperature(const reading_t &result, FontxFile *fx1, FontxFile *fx2, int x, int y, uint16_t color) {
+int _draw_temperature(const measure_t &result, FontxFile *fx1, FontxFile *fx2, int x, int y, uint16_t color) {
     double temp_val = ((int)(result.value * 100 + .5) / 100.0);
     const static int len = 16;
     char tempBuf[len];
@@ -204,7 +204,7 @@ void _ensure_power_state_ok() {
 static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
     TickType_t startTick = xTaskGetTickCount();
     static bool show_circle = true;
-    reading_t result = {};
+    measure_t result = {};
 
     int header_width = 26;
 

@@ -1,52 +1,18 @@
+#include "hw_specs.h"
+
 #include <src/hw/base/boiler_temp.h>
 #include <src/hw/base/brew_temp.h>
-#include <hal/i2c_types.h>
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
 #include <esp_log.h>
-#include <src/hw/base/out_signals.h>
-#include <driver/spi_common.h>
+#include <driver/gpio.h>
 
-#include "hw_specs.h"
+#include "src/hw/base/out_signals.h"
 #include "hw_config.h"
 #include "ADS124S08.h"
-#include "eeprom.h"
 
 #define TAG "hw_specs"
 
-#define I2C_MASTER_TX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
-#define I2C_MASTER_RX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
-#define READ_BIT I2C_MASTER_WRITE  /*!< I2C master write */
-#define WRITE_BIT I2C_MASTER_READ    /*!< I2C master read */
-#define ACK_CHECK_EN 0x1            /*!< I2C master will check ack from slave*/
-#define ACK_CHECK_DIS 0x0           /*!< I2C master will not check ack from slave */
-#define ACK_VAL 0x0                 /*!< I2C ack value */
-#define NACK_VAL 0x1                /*!< I2C nack value */
-
-
-void _print_i2c_devices() {
-  uint8_t address;
-  for (int i = 0; i < 128; i += 16) {
-    printf("%02x: ", i);
-    for (int j = 0; j < 16; j++) {
-      fflush(stdout);
-      address = i + j;
-      i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-      i2c_master_start(cmd);
-      i2c_master_write_byte(cmd, (address << 1) | READ_BIT, ACK_CHECK_EN);
-      i2c_master_stop(cmd);
-      esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, pdMS_TO_TICKS(50));
-      i2c_cmd_link_delete(cmd);
-      if (ret == ESP_OK) {
-        printf("%02x ", address);
-      } else if (ret == ESP_ERR_TIMEOUT) {
-        printf("UU ");
-      } else {
-        printf("-- ");
-      }
-    }
-    printf("\r\n");
-  }
-}
+static i2c_master_bus_handle_t s_i2c_handle;
 
 void hw_specs_read_water_level_mv(uint8_t *status, double *value) {
   // Set mux for water level read
@@ -83,24 +49,26 @@ bool hw_specs_is_aux_in_activated() {
   return gpio_get_level(PIN_IN_AUX_EN) == 0;
 }
 
+i2c_master_bus_handle_t hw_specs_get_i2c_handle() {
+  return s_i2c_handle;
+}
 
 void hw_specs_init() {
+  ESP_LOGI(TAG, "Creating I2C bus");
   // I2C Initialisation
-  i2c_config_t conf = {
-      .mode = I2C_MODE_MASTER,
+  i2c_master_bus_config_t conf = {
+      .i2c_port = I2C_MASTER_NUM,
       .sda_io_num = I2C_PIN_SDA,
       .scl_io_num = I2C_PIN_SCL,
-      .sda_pullup_en = GPIO_PULLUP_DISABLE,
-      .scl_pullup_en = GPIO_PULLUP_DISABLE,
-      .master = {.clk_speed = I2C_MASTER_FREQ_HZ},
-      .clk_flags =  I2C_SCLK_SRC_FLAG_FOR_NOMAL
+      .clk_source = I2C_CLK_SRC_DEFAULT,
+      .glitch_ignore_cnt = 7,
+      .intr_priority = 0,
+      .trans_queue_depth = 0,
+      .flags = {.enable_internal_pullup = true},
   };
 
-  i2c_param_config(I2C_MASTER_NUM, &conf);
-
-  ESP_ERROR_CHECK(
-      i2c_driver_install(I2C_MASTER_NUM, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0));
-  //_print_i2c_devices();
+  ESP_ERROR_CHECK(i2c_new_master_bus(&conf, &s_i2c_handle));
+  ESP_LOGI(TAG, "I2C bus created");
 
   // Now can init I2C-dependent peripherals
   out_signals_init();
@@ -131,7 +99,7 @@ void hw_specs_handle_new_cfg(const cJSON *cfg) {
 
 }
 
-void hw_specs_handle_new_temp(uint64_t time_us, const reading_t &data, uint8_t idx) {
+void hw_specs_handle_new_temp(uint64_t time_us, const struct measure_t data, uint8_t idx) {
   switch (idx) {
     case RTD_BREW_BOILER_IDX:
       boiler_temp_process(time_us, data);

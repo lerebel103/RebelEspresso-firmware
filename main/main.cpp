@@ -5,17 +5,13 @@ extern "C" {
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 #include <esp_log.h>
-#include <esp_system.h>
 }
 
 #include <esp_event.h>
-#include <src/hw/base/hw_specs.h>
-#include <driver/gpio.h>
-#include "state.h"
-#include "controller.h"
-#include "thing_info.h"
-#include "sys/nvram_store.h"
 #include "aws_connector.h"
+#include "hw_specs.h"
+#include "thing_info.h"
+#include "state.h"
 
 #define TAG  "main"
 
@@ -29,17 +25,14 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
   status_event_group = xEventGroupCreate();
 
+  // Init hardware as early as possible
+  hw_specs_init();
+  thing_info_init();
+
   ESP_LOGI(TAG, "Starting AWS connector");
   aws_connector_init(status_event_group);
 
-  // Init hardware as early as possible
-  //nvram_store_init();
-  //store_inc_cycle_count();
-  //thing_info_init();
-
-  //hw_specs_init();
-
-  //state_print_system_info();
+  // state_print_system_info();
   //controller_init();
   // Here's our control loop
   //controller_enter_loop();

@@ -1,10 +1,11 @@
+#include <freertos/FreeRTOS.h>
 #include <esp_log.h>
-#include <driver/rmt.h>
 #include <cmath>
 #include <src/events.h>
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
 #include <ssr_ctrl.h>
+#include <driver/gpio.h>
 
 #include "rtds.h"
 #include "boiler_temp.h"
@@ -110,7 +111,6 @@ int boiler_temp_get_duty() {
 static void _power_off_ssr() {
   // Turn off RMT and force pin to zero as safety
   boiler_temp_set_duty(0);
-  rmt_tx_stop(RMT_TX_CHANNEL);
   gpio_set_level(BOILER_SSR_PIN, 0);
 }
 
@@ -151,7 +151,7 @@ double boiler_temp_get_current_setpoint() {
   }
 }
 
-void boiler_temp_process(uint64_t time_us, const reading_t &data) {
+void boiler_temp_process(uint64_t time_us, const measure_t &data) {
   if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
     ESP_LOGD(TAG, "In standby, not running.");
     _power_off_ssr();
@@ -280,7 +280,6 @@ void boiler_temp_init() {
 }
 
 void boiler_temp_delete() {
-  rmt_driver_uninstall(RMT_TX_CHANNEL);
   pid_reset(s_pid);
 
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_STANDBY, _power_events));

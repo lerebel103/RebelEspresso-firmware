@@ -48,7 +48,7 @@ static double _rtd_to_celcius(double vref, double value, double rtd_nominal) {
 /**
  * Contains our last known reading
  */
-static reading_t _rtd_array[RTD_MAX_COUNT];
+static measure_t _rtd_array[RTD_MAX_COUNT];
 
 void _set_reading(int idx, const ADS124S08_data_t &result, double reading) {
     // Easy with fault, just look at range bounds and error status from ADC
@@ -146,7 +146,7 @@ void rtds_update(rtd_update_cb_t cb) {
     xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
 }
 
-esp_err_t rtds_get(reading_t* data, uint8_t idx) {
+esp_err_t rtds_get(measure_t* data, uint8_t idx) {
     if (idx >= RTD_MAX_COUNT) {
         ESP_LOGE(TAG, "RTD index is out of range");
         return ESP_FAIL;

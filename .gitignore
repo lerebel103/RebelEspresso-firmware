@@ -53,7 +53,7 @@ cmake-build-*
 *.bin
 *.elf
 
-venv
+/venv
 /sdkconfig
 sdkconfig.old
 

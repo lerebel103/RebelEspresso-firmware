@@ -64,7 +64,7 @@ void hw_specs_handle_new_cfg(const cJSON *cfg) {
     brew_tec_update_cfg(cfg);
 }
 
-void hw_specs_handle_new_temp(uint64_t time_us, const reading_t &data, uint8_t idx) {
+void hw_specs_handle_new_temp(uint64_t time_us, const struct measure_t data, uint8_t idx) {
     switch (idx) {
         case RTD_BREW_BOILER_IDX:
             boiler_temp_process(time_us, data);

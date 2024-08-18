@@ -106,7 +106,7 @@ void brew_temp_set_setpoint(double setpoint) {
     xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
-void brew_temp_process(uint64_t time_us, const reading_t &brew_head_data) {
+void brew_temp_process(uint64_t time_us, const measure_t &brew_head_data) {
     if (!s_cfg.enabled) {
         s_trim.active = false;
         return;

@@ -3,6 +3,7 @@
 
 #include <time.h>
 #include <stdint.h>
+#include <esp_err.h>
 #include "version.h"
 
 struct state_t {
@@ -18,5 +19,7 @@ void state_print_memory_info();
 
 void state_send(time_t timestamp);
 state_t& state_get();
+
+esp_err_t state_init();
 
 

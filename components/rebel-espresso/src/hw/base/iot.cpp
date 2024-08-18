@@ -39,7 +39,7 @@ static void send_iot_events(TickType_t tick, int send_interval_msec) {
     if (tick >= (g_last_iot_send + send_interval_msec)) {
         g_last_iot_send = tick;
 
-        struct reading_t data = {};
+        struct measure_t data = {};
         char buf[256];
 
         // Update fields now

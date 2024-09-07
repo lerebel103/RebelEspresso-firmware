@@ -7,15 +7,12 @@
 #include <esp_log.h>
 #include <esp_intr_alloc.h>
 #include <hal/timer_types.h>
-#include <driver/timer.h>
-#include <driver/gpio.h>
 #include <freertos/semphr.h>
 #include <esp_task_wdt.h>
-#include <cmath>
 #include "rtds.h"
-#include "hw_config.h"
 #include <esp_event.h>
 #include <src/state.h>
+#include <driver/gptimer.h>
 #include "events.h"
 #include "brew_temp.h"
 #include "hw_specs.h"
@@ -26,14 +23,10 @@
 #endif
 
 #define TAG "process"
-#define TIMER_DIVIDER         16  //  Hardware timer clock divider
-#define TIMER_BASE_CLK        (TIMER_CLK_FREQ)  //  Hardware timer base clock - THIS IS BROKEN, NEEDS TO BE FIXED
-#define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 
 #define TIMER_INTERVAL0_SEC   ( 1.0 )
 
-static timer_idx_t s_timer_idx = TIMER_0;
-static timer_group_t s_timer_group = TIMER_GROUP_0;
+static gptimer_handle_t s_timer;
 static TaskHandle_t _process_task_handle = nullptr;
 static bool _go = false;
 static SemaphoreHandle_t s_semaphore = NULL;
@@ -43,104 +36,103 @@ static SemaphoreHandle_t s_semaphore = NULL;
  * Timer interrupt handler that drives our process loop
  * @param para
  */
-static void IRAM_ATTR _process_loop_isr(void *para) {
-    // Re-enable timer
-    timer_group_clr_intr_status_in_isr(s_timer_group, s_timer_idx);
+static bool IRAM_ATTR
+_process_loop_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx) {
+  static BaseType_t xHigherPriorityTaskWoken;
 
-    static BaseType_t xHigherPriorityTaskWoken;
+  xHigherPriorityTaskWoken = pdFALSE;
+  xSemaphoreGiveFromISR(s_semaphore, &xHigherPriorityTaskWoken);
 
-    xHigherPriorityTaskWoken = pdFALSE;
-    xSemaphoreGiveFromISR(s_semaphore, &xHigherPriorityTaskWoken);
+  /* If xHigherPriorityTaskWoken was set to true you
+  we should yield.  The actual macro used here is
+  port specific. */
+  if (xHigherPriorityTaskWoken != pdFALSE) {
+    portYIELD_FROM_ISR();
+  }
 
-    /* If xHigherPriorityTaskWoken was set to true you
-    we should yield.  The actual macro used here is
-    port specific. */
-    if (xHigherPriorityTaskWoken != pdFALSE) {
-        portYIELD_FROM_ISR();
-    }
-
-    timer_group_enable_alarm_in_isr(s_timer_group, s_timer_idx);
+  return xHigherPriorityTaskWoken;
 }
 
 static void _process_task(void *) {
-    ESP_LOGI(TAG, "Process loop starting");
+  ESP_LOGI(TAG, "Process loop starting");
 
-    do {
-        if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
-            // Do it
-            state_print_memory_info();
+  do {
+    if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
+      // Do it
+      state_print_memory_info();
 
-            // Get latest temperatures
-            rtds_update(hw_specs_handle_new_temp);
+      // Get latest temperatures
+      rtds_update(hw_specs_handle_new_temp);
 
-            // Done, reset ISR to go again and maintain watchdog timer
-            esp_task_wdt_reset();
-        }
-    } while (_go);
-    ESP_LOGI(TAG, "Process loop ended");
+      // Done, reset ISR to go again and maintain watchdog timer
+      esp_task_wdt_reset();
+    }
+  } while (_go);
+  ESP_LOGI(TAG, "Process loop ended");
 
-    // Kill resources
-    _process_task_handle = nullptr;
-    vTaskDelete(nullptr);
+  // Kill resources
+  _process_task_handle = nullptr;
+  vTaskDelete(nullptr);
 }
 
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-    // Drive auxiliary output high/low
-    if (id == POWER_STANDBY) {
-        out_signals_set_level(OUT_SIGNALS_AUX, 0);
-    } else if (id == POWER_ACTIVE) {
-        out_signals_set_level(OUT_SIGNALS_AUX, 1);
-    }
+  // Drive auxiliary output high/low
+  if (id == POWER_STANDBY) {
+    out_signals_set_level(OUT_SIGNALS_AUX, 0);
+  } else if (id == POWER_ACTIVE) {
+    out_signals_set_level(OUT_SIGNALS_AUX, 1);
+  }
 }
 
 
 void process_loop_init() {
 
-    s_semaphore = xSemaphoreCreateBinary();
+  s_semaphore = xSemaphoreCreateBinary();
 
-    /* Select and initialize basic parameters of the timer */
-    timer_config_t config = {
-            .alarm_en = TIMER_ALARM_EN,
-            .counter_en = TIMER_START,
-            .intr_type = TIMER_INTR_LEVEL,
-            .counter_dir = TIMER_COUNT_UP,
-            .auto_reload = TIMER_AUTORELOAD_EN,
-            .divider = TIMER_DIVIDER,
-    }; // default clock source is APB
+  gptimer_config_t timer_config = {
+      .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+      .direction = GPTIMER_COUNT_UP,
+      .resolution_hz = 1 * 1000 * 1000, // 1MHz, 1 tick = 1us
+      .intr_priority = 3,
+      .flags = {0, 0},
+  };
 
-    ESP_LOGI(TAG, "Configuring process timer");
+  ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &s_timer));
 
-    ESP_ERROR_CHECK(timer_init(s_timer_group, s_timer_idx, &config));
+  gptimer_alarm_config_t alarm_config = {
+      .alarm_count = (int) (TIMER_INTERVAL0_SEC * 1000 * 1000), // alarm target = 1s @resolution 1MHz
+      .reload_count = 0,
+      .flags = {
+          .auto_reload_on_alarm = true,
+      },
+  };
+  ESP_ERROR_CHECK(gptimer_set_alarm_action(s_timer, &alarm_config));
 
-    /* Timer's counter will initially start from value below.
-       Also, if auto_reload is set, this value will be automatically reload on alarm */
-    ESP_ERROR_CHECK(timer_set_counter_value(s_timer_group, s_timer_idx, 0x00000000ULL));
+  gptimer_event_callbacks_t cbs = {
+      .on_alarm = _process_loop_isr, // register user callback
+  };
+  ESP_ERROR_CHECK(gptimer_register_event_callbacks(s_timer, &cbs, nullptr));
+  ESP_ERROR_CHECK(gptimer_enable(s_timer));
+  ESP_ERROR_CHECK(gptimer_start(s_timer));
 
-    /* Configure the alarm value and the interrupt on alarm. */
-    ESP_ERROR_CHECK(timer_set_alarm_value(s_timer_group, s_timer_idx, (TIMER_INTERVAL0_SEC) * TIMER_SCALE));
-    ESP_ERROR_CHECK(timer_isr_register(s_timer_group, s_timer_idx, _process_loop_isr,
-                                       nullptr, ESP_INTR_FLAG_LEVEL3, NULL));
-    ESP_ERROR_CHECK(timer_enable_intr(s_timer_group, s_timer_idx));
-    //ESP_ERROR_CHECK(timer_pause(s_timer_group, s_timer_idx));
+  // Cool now create a task that will run our process loop.
+  _go = true;
+  esp_task_wdt_config_t cfg = {
+      .timeout_ms = 2000,
+      .idle_core_mask = 0,
+      .trigger_panic = true
+  };
 
+  ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&cfg));
+  xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 7, &_process_task_handle);
+  ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
 
-    // Cool now create a task that will run our process loop.
-    _go = true;
-    esp_task_wdt_config_t cfg = {
-        .timeout_ms = 5,
-        .idle_core_mask = 0,
-        .trigger_panic = true
-    };
-    ESP_ERROR_CHECK( esp_task_wdt_init(&cfg));
-    xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 10, &_process_task_handle);
-    ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
-
-    // Get our power events in place so we can run the process loop as needed
-    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, nullptr));
-    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, nullptr));
+  // Get our power events in place so we can run the process loop as needed
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
+                                             _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
+                                             _power_events, nullptr));
 
 }
 

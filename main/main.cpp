@@ -12,6 +12,7 @@ extern "C" {
 #include "hw_specs.h"
 #include "thing_info.h"
 #include "state.h"
+#include "controller.h"
 
 #define TAG  "main"
 
@@ -30,13 +31,15 @@ extern "C" void app_main() {
   thing_info_init();
 
   ESP_LOGI(TAG, "Starting AWS connector");
-  aws_connector_init(status_event_group);
 
-  // state_print_system_info();
-  //controller_init();
+  state_print_memory_info();
+  aws_connector_init(status_event_group);
+  controller_init();
+
   // Here's our control loop
-  //controller_enter_loop();
-  //esp_event_loop_delete_default();
+  controller_enter_loop();
+  esp_event_loop_delete_default();
 }
+
 
 

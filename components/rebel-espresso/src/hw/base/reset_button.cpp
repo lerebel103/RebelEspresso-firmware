@@ -5,7 +5,7 @@
 
 static bool _trigger_reset = false;
 
-IRAM_ATTR static void _handler(void*) {
+static void IRAM_ATTR _handler(void*) {
   _trigger_reset = true;
 }
 
@@ -17,7 +17,7 @@ void reset_button_init(gpio_num_t gpio) {
   gpio_isr_handler_add(gpio, _handler, nullptr);
 
   gpio_config_t io_conf;
-  io_conf.intr_type = GPIO_INTR_LOW_LEVEL;
+  io_conf.intr_type = GPIO_INTR_NEGEDGE;
   io_conf.mode = GPIO_MODE_INPUT;
   io_conf.pin_bit_mask = (
       (1ULL << gpio)

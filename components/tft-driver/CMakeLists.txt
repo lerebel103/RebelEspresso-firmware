@@ -19,7 +19,7 @@ idf_component_register(
 		INCLUDE_DIRS "."
 		REQUIRES spiffs driver)
 
-if (HARDWARE_REVISION STREQUAL "2.0")
+if (HARDWARE_REVISION_MAJOR STREQUAL "2")
 	# Create a SPIFFS image from the contents of the 'font' directory
 	# that fits the partition named 'storage'. FLASH_IN_PROJECT indicates that
 	# the generated image should be flashed when the entire project is flashed to

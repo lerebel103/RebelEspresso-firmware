@@ -7,7 +7,6 @@
 #include <esp_log.h>
 #include <events.h>
 #include <hal/timer_types.h>
-#include <driver/timer.h>
 #include <driver/gpio.h>
 #include <esp_event.h>
 #include <cJSON.h>
@@ -72,7 +71,7 @@ void _init_spi() {
 
 void controller_init() {
   //install gpio isr service
-  gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+  gpio_install_isr_service( ESP_INTR_FLAG_DEFAULT);
 
   reset_button_init((gpio_num_t) CONFIG_RESET_GPIO);
   state_init();

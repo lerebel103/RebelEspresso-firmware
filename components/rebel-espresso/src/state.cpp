@@ -18,27 +18,6 @@ const char *DIAG_TAG = NVS_NAMESPACE;
 state_t g_diagnostics;
 uint32_t s_cycle_count;
 
-void state_print_system_info() {
-  ESP_LOGI(DIAG_TAG, "\n\n%s: FW v%s for r%s, PCB version: %s, Thing ID: %s\n\n",
-           THING_TYPE, FIRMWARE_VERSION, HARDWARE_REVISION_MAJOR, thing_info_hardware_revision(), thing_info_id());
-  ESP_LOGI(DIAG_TAG, "Written using ESP-IDF %s", esp_get_idf_version());
-
-  esp_chip_info_t chip_info;
-  esp_chip_info(&chip_info);
-  ESP_LOGI(DIAG_TAG, "This is ESP32 chip with %d CPU cores, WiFi%s%s, ",
-           chip_info.cores,
-           (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "",
-           (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "");
-
-  ESP_LOGI(DIAG_TAG, "Silicon revision %d, ", chip_info.revision);
-
-  nvs_stats_t nvs_stats;
-  nvs_get_stats(NULL, &nvs_stats);
-  ESP_LOGI(DIAG_TAG, "NVS Count: UsedEntries = (%d), FreeEntries = (%d), AllEntries = (%d)",
-           nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries);
-
-  state_print_memory_info();
-}
 
 void state_print_memory_info() {
   ESP_LOGI(DIAG_TAG, "Memory heap: %" PRIu32 ", min: %" PRIu32, esp_get_free_heap_size(),

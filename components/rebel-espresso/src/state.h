@@ -14,7 +14,6 @@ struct state_t {
 };
 
 
-void state_print_system_info();
 void state_print_memory_info();
 
 void state_send(time_t timestamp);

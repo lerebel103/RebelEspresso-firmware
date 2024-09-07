@@ -1,11 +1,11 @@
 #include "thing_info.h"
-#include <lwipopts.h>
-#include <inttypes.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <cinttypes>
 
 #include <esp_log.h>
 #include <memory.h>
 #include <src/hw/base/eeprom.h>
-#include <freertos/task.h>
 #include <_generated/version.h>
 #include <esp_mac.h>
 
@@ -138,7 +138,9 @@ static void _prompt_eeprom_keys() {
       .help = "Sets new serial",
       .hint = nullptr,
       .func = &_set_serial,
-      .argtable = nullptr
+      .argtable = nullptr,
+      .func_w_context = nullptr,
+      .context = nullptr
   };
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_serial_cmd));
 
@@ -147,7 +149,9 @@ static void _prompt_eeprom_keys() {
       .help = "Sets new serial",
       .hint = nullptr,
       .func = &_set_hardware_revision_minor,
-      .argtable = nullptr
+      .argtable = nullptr,
+      .func_w_context = nullptr,
+      .context = nullptr
   };
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_version_cmd));
 
@@ -156,7 +160,9 @@ static void _prompt_eeprom_keys() {
       .help = "Sets new serial",
       .hint = nullptr,
       .func = &_set_manufacturer,
-      .argtable = nullptr
+      .argtable = nullptr,
+      .func_w_context = nullptr,
+      .context = nullptr
   };
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_manufacturer));
 
@@ -165,7 +171,9 @@ static void _prompt_eeprom_keys() {
       .help = "Sets new serial",
       .hint = nullptr,
       .func = &_set_epoch,
-      .argtable = nullptr
+      .argtable = nullptr,
+      .func_w_context = nullptr,
+      .context = nullptr
   };
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_epoch));
 
@@ -174,7 +182,9 @@ static void _prompt_eeprom_keys() {
       .help = "Reads entire contents of EEPROM",
       .hint = nullptr,
       .func = &_show,
-      .argtable = nullptr
+      .argtable = nullptr,
+      .func_w_context = nullptr,
+      .context = nullptr
   };
   ESP_ERROR_CHECK(esp_console_cmd_register(&read_cmd));
 
@@ -183,7 +193,9 @@ static void _prompt_eeprom_keys() {
       .help = "Commits entire contents of EEPROM",
       .hint = nullptr,
       .func = &_commit_eeprom,
-      .argtable = nullptr
+      .argtable = nullptr,
+      .func_w_context = nullptr,
+      .context = nullptr
   };
   ESP_ERROR_CHECK(esp_console_cmd_register(&commit_cmd));
 
@@ -192,7 +204,9 @@ static void _prompt_eeprom_keys() {
       .help = "Quits eeprom mode",
       .hint = nullptr,
       .func = &_quit,
-      .argtable = nullptr
+      .argtable = nullptr,
+      .func_w_context = nullptr,
+      .context = nullptr
   };
   ESP_ERROR_CHECK(esp_console_cmd_register(&quit_cmd));
 

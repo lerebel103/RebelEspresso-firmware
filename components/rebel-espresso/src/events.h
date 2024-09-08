@@ -10,10 +10,9 @@ extern EventGroupHandle_t status_event_group;
 #define START_BIT                   MAX_ESP32_AWS_CONNECTOR_EVENTS_BIT
 #define POWER_ON_BIT                ( START_BIT << 1 )
 #define BOILER_LEVEL_OK_BIT         ( START_BIT << 2 )
-#define REFRESH_DISPLAY_BIT         ( START_BIT << 3 )
-#define SEND_STATE_BIT              ( START_BIT << 4 )
-#define DESCALE_MODE_BIT            ( START_BIT << 5 )
-#define PROVISIONING_BIT            ( START_BIT << 6 )
+#define SEND_STATE_BIT              ( START_BIT << 3 )
+#define DESCALE_MODE_BIT            ( START_BIT << 4 )
+#define PROVISIONING_BIT            ( START_BIT << 5 )
 
 
 

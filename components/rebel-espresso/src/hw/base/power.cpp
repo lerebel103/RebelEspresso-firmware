@@ -98,8 +98,6 @@ bool power_is_active() {
 }
 
 void power_init() {
-
-
   // No power until proven otherwise
   xEventGroupClearBits(status_event_group, POWER_ON_BIT);
   ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
@@ -115,7 +113,4 @@ void power_init() {
 
   // We want tick events
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick, nullptr));
-
-  // Hack for now
-  power_active();
 }

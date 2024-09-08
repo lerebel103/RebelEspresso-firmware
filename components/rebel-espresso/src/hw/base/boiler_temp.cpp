@@ -5,7 +5,6 @@
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
 #include <ssr_ctrl.h>
-#include <driver/gpio.h>
 
 #include "rtds.h"
 #include "boiler_temp.h"
@@ -13,8 +12,6 @@
 
 #define TAG "Boiler"
 
-#define RMT_CLK_DIV 160
-#define RMT_TX_CHANNEL RMT_CHANNEL_0
 
 const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
@@ -105,23 +102,14 @@ int boiler_temp_get_duty() {
   return duty;
 }
 
-/*
- * Turns power off immediately to ssr
- */
-static void _power_off_ssr() {
-  // Turn off RMT and force pin to zero as safety
-  boiler_temp_set_duty(0);
-  gpio_set_level(BOILER_SSR_PIN, 0);
-}
-
-
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   if (id == POWER_STANDBY) {
     ESP_LOGI(TAG, "Powering down Boiler SSR");
-    _power_off_ssr();
+    ssr_ctrl_power_off(_ssr_handle);
   } else if (id == POWER_ACTIVE) {
     ESP_LOGI(TAG, "Resuming Boiler SSR");
     pid_reset(s_pid);
+    ssr_ctrl_power_on(_ssr_handle);
   }
 }
 
@@ -154,21 +142,21 @@ double boiler_temp_get_current_setpoint() {
 void boiler_temp_process(uint64_t time_us, const measure_t &data) {
   if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
     ESP_LOGD(TAG, "In standby, not running.");
-    _power_off_ssr();
+    ssr_ctrl_set_duty(_ssr_handle, 0);
     return;
   } else if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
     ESP_LOGI(TAG, "Descaling, not running");
-    _power_off_ssr();
+    ssr_ctrl_set_duty(_ssr_handle, 0);
     return;
   } else if (!(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT)) {
     ESP_LOGW(TAG, "Boiler level low, not running");
-    _power_off_ssr();
+    ssr_ctrl_set_duty(_ssr_handle, 0);
     return;
   } else if (data.fault != (uint8_t) RTD_NoError) {
     ESP_LOGE(TAG, "Boiler sensor error: %d", data.fault);
     s_stats.temp_read_error_count++;
     s_stats_changed = true;
-    _power_off_ssr();
+    ssr_ctrl_set_duty(_ssr_handle, 0);
 
     // If we get successive errors from the boiler restart
     if (s_pid.last_time_us != 0) {
@@ -181,11 +169,11 @@ void boiler_temp_process(uint64_t time_us, const measure_t &data) {
 
     s_pid.last_time_us = time_us;
     return;
-  } else if (data.value > 150 || data.value < 5) {
+  } else if (data.value > 140 || data.value < 0) {
     ESP_LOGE(TAG, "Boiler temperature out of range: %f", data.value);
     s_stats.temp_out_of_range_count++;
     s_stats_changed = true;
-    _power_off_ssr();
+    ssr_ctrl_set_duty(_ssr_handle, 0);
     return;
   }
 
@@ -245,19 +233,13 @@ void boiler_temp_process(uint64_t time_us, const measure_t &data) {
     duty = 100;
   }
 
-  if (duty == 0) {
-    _power_off_ssr();
-  } else {
-    boiler_temp_set_duty((int) (round(duty)));
-  }
+  boiler_temp_set_duty((int) (round(duty)));
   ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f",
            data.value, result.duty, duty, setpoint);
 }
 
 
 void boiler_temp_init() {
-
-
   _load_nvram();
   _load_stats();
 

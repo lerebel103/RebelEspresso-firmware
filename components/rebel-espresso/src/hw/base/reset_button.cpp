@@ -1,7 +1,10 @@
 #include <hal/gpio_types.h>
 #include <driver/gpio.h>
 #include <esp_attr.h>
+#include <esp_system.h>
+#include <esp_event.h>
 #include "reset_button.h"
+#include "events.h"
 
 static bool _trigger_reset = false;
 
@@ -9,8 +12,15 @@ static void IRAM_ATTR _handler(void*) {
   _trigger_reset = true;
 }
 
-bool reset_button_is_triggered() {
-  return _trigger_reset;
+static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+  if (id != TICK) {
+    return;
+  }
+
+  // Well, easy enough
+  if (_trigger_reset) {
+    esp_restart();
+  }
 }
 
 void reset_button_init(gpio_num_t gpio) {
@@ -26,4 +36,8 @@ void reset_button_init(gpio_num_t gpio) {
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
   gpio_config(&io_conf);
+
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
+                                             _tick_events, nullptr));
+
 }

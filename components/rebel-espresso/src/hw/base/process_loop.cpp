@@ -13,6 +13,7 @@
 #include <esp_event.h>
 #include <src/state.h>
 #include <driver/gptimer.h>
+#include <esp_timer.h>
 #include "events.h"
 #include "brew_temp.h"
 #include "hw_specs.h"
@@ -58,11 +59,14 @@ static void _process_task(void *) {
 
   do {
     if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
-      // Do it
+      auto now_us = esp_timer_get_time();
       state_print_memory_info();
 
       // Get latest temperatures
       rtds_update(hw_specs_handle_new_temp);
+
+      // Send down tick event (async)
+      ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, TICK, (void *) &now_us, sizeof(uint64_t), portMAX_DELAY));
 
       // Done, reset ISR to go again and maintain watchdog timer
       esp_task_wdt_reset();
@@ -87,7 +91,6 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
 
 
 void process_loop_init() {
-
   s_semaphore = xSemaphoreCreateBinary();
 
   gptimer_config_t timer_config = {
@@ -125,7 +128,7 @@ void process_loop_init() {
   };
 
   ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&cfg));
-  xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 7, &_process_task_handle);
+  xTaskCreate(_process_task, "process_loop", 2.5 * 1024, NULL, 7, &_process_task_handle);
   ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
 
   // Get our power events in place so we can run the process loop as needed

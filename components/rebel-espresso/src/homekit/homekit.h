@@ -9,7 +9,5 @@
 
 void homekit_init();
 
-bool homekit_is_initialised();
-
 void homekit_terminate();
 

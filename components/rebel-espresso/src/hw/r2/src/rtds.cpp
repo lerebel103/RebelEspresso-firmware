@@ -141,9 +141,6 @@ void rtds_update(rtd_update_cb_t cb) {
     _read_temp(cb, RTD_BREW_BOILER_IDX);
     _read_temp(cb, RTD_BREW_HEAD_IDX);
     _read_temp(cb, RTD_STEAM_BOILER_IDX);
-
-    // Always trigger display refresh at the back of new temperatures
-    xEventGroupSetBits(status_event_group, REFRESH_DISPLAY_BIT);
 }
 
 esp_err_t rtds_get(measure_t* data, uint8_t idx) {

@@ -37,8 +37,6 @@ static rtds_cfg_t s_rtds_cfg;
 
 static controller_cfg_t g_controller_cfg;
 
-static bool _go = true;
-
 /* Event source task related definitions */
 ESP_EVENT_DEFINE_BASE(MACHINE_EVENTS);
 
@@ -55,7 +53,7 @@ void _init_spi() {
   busConfig.sclk_io_num = PIN_SCK;
   busConfig.quadhd_io_num = -1;
   busConfig.quadwp_io_num = -1;
-  busConfig.max_transfer_sz = 8192;
+  busConfig.max_transfer_sz = 4096;
   busConfig.flags = SPICOMMON_BUSFLAG_MASTER;
 
   esp_err_t err = spi_bus_initialize(s_spi, &busConfig, 1);
@@ -73,7 +71,6 @@ void controller_init() {
   //install gpio isr service
   gpio_install_isr_service( ESP_INTR_FLAG_DEFAULT);
 
-  reset_button_init((gpio_num_t) CONFIG_RESET_GPIO);
   state_init();
 
   // Are we enabled?
@@ -97,26 +94,15 @@ void controller_init() {
   power_init();
   schedules_init();
   iot_init();
+  reset_button_init((gpio_num_t) CONFIG_RESET_GPIO);
 
   // Causes initial state to be sent
   xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
 void controller_enter_loop() {
-  const static auto loop_interval_us = 100e3;
-  while (_go) {
-    // Keeps going regardless of power state, emit event forever
-    auto now_us = esp_timer_get_time();
-    ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, TICK, (void *) &now_us, sizeof(uint64_t), portMAX_DELAY));
-    auto after_us = esp_timer_get_time();
-
-    auto delay_ms = (loop_interval_us - (double) (after_us - now_us)) / 1e3;
-    if (delay_ms > 0) {
-      vTaskDelay(pdMS_TO_TICKS(delay_ms));
-    }
-  }
-
-  vTaskDelete(nullptr);
+  // Nothing critical here, just start the iot and network stuff here
+  iot_process_events();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

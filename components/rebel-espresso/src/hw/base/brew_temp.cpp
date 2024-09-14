@@ -7,6 +7,7 @@
 
 #include "rtds.h"
 #include "pid.h"
+#include "app_metrics.h"
 
 #define TAG "BrewTemp"
 
@@ -103,7 +104,7 @@ double brew_temp_get_setpoint() {
 void brew_temp_set_setpoint(double setpoint) {
   s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] = setpoint;
   brew_temp_set_cfg(s_cfg);
-  xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
+  app_metrics_reset_update();
 }
 
 void brew_temp_process(uint64_t time_us, const measure_t &brew_head_data) {

@@ -26,7 +26,6 @@
 #include "schedules.h"
 #include "display.h"
 #include "reset_button.h"
-#include "state.h"
 
 
 #define KEY_ENABLED "ctrl_enabled"
@@ -71,8 +70,6 @@ void controller_init() {
   //install gpio isr service
   gpio_install_isr_service( ESP_INTR_FLAG_DEFAULT);
 
-  state_init();
-
   // Are we enabled?
   nvs_handle_t nvs_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE_SYS, NVS_READWRITE, &nvs_handle));
@@ -95,9 +92,6 @@ void controller_init() {
   schedules_init();
   iot_init();
   reset_button_init((gpio_num_t) CONFIG_RESET_GPIO);
-
-  // Causes initial state to be sent
-  xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
 void controller_enter_loop() {
@@ -158,9 +152,6 @@ void controller_handle_new_cfg(const cJSON *cfg) {
 
   // Hardware-specific implementation
   hw_specs_handle_new_cfg(cfg);
-
-  // Trigger status send
-  xEventGroupSetBits(status_event_group, SEND_STATE_BIT);
 }
 
 

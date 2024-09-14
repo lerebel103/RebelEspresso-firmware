@@ -189,33 +189,6 @@ static int boiler_char_read(hap_char_t *hc, hap_status_t *status_code,
   return ret;
 }
 
-static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-  if (id != TICK) {
-    return;
-  }
-
-  uint64_t now = 0;
-  static uint64_t last_send = 0;
-  if (event_data != nullptr) {
-    now = *(uint64_t *) event_data;
-  }
-
-  if (now - last_send > 2e6) {
-    // Then send
-    ESP_LOGD(TAG, "Sending new temperatures");
-
-    hap_status_t status_code;
-
-    hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
-    brew_char_read(hc, &status_code, nullptr, nullptr);
-    hc = hap_serv_get_char_by_uuid(s_boiler_service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
-    boiler_char_read(hc, &status_code, nullptr, nullptr);
-
-    last_send = now;
-  }
-}
-
-
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   // Send new power state as it happens
   ESP_LOGI(TAG, "Sending new power state");
@@ -235,11 +208,37 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
   if (hc != NULL) {
     hap_char_update_val(hc, &new_val);
   }
-
-
-  //hap_reset_pairings();
 }
 
+
+static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+  if (id != TICK) {
+    return;
+  }
+
+  uint64_t now = 0;
+  static uint64_t last_power = 0;
+  if (event_data != nullptr) {
+    now = *(uint64_t *) event_data;
+  }
+
+  // Then send
+  ESP_LOGD(TAG, "Sending new temperatures");
+
+  hap_status_t status_code;
+
+  hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
+  brew_char_read(hc, &status_code, nullptr, nullptr);
+  hc = hap_serv_get_char_by_uuid(s_boiler_service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
+  boiler_char_read(hc, &status_code, nullptr, nullptr);
+
+  // refresh power state if we missed the event
+  // Homekit connects much later in the piece, and we would have missed events if connection goes down.
+  if (now - last_power > 5e6) {
+    _power_events(nullptr, MACHINE_EVENTS, power_is_active() ? POWER_ACTIVE : POWER_STANDBY, nullptr);
+    last_power = now;
+  }
+}
 
 /*The main thread for handling the RebelEspresso Switch Accessory */
 static void switch_thread_entry(void *arg) {

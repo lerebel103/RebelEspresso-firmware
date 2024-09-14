@@ -11,7 +11,6 @@
 #include <esp_task_wdt.h>
 #include "rtds.h"
 #include <esp_event.h>
-#include <src/state.h>
 #include <driver/gptimer.h>
 #include <esp_timer.h>
 #include "events.h"
@@ -60,7 +59,7 @@ static void _process_task(void *) {
   do {
     if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
       auto now_us = esp_timer_get_time();
-      state_print_memory_info();
+      ESP_LOGI(TAG, "Free Heap: %lu, Min Heap: %lu", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
 
       // Get latest temperatures
       rtds_update(hw_specs_handle_new_temp);

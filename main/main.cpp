@@ -11,7 +11,6 @@ extern "C" {
 #include "aws_connector.h"
 #include "hw_specs.h"
 #include "thing_info.h"
-#include "state.h"
 #include "controller.h"
 
 #define TAG  "main"
@@ -32,7 +31,6 @@ extern "C" void app_main() {
 
   ESP_LOGI(TAG, "Starting AWS connector");
 
-  state_print_memory_info();
   aws_connector_init(status_event_group);
   controller_init();
 

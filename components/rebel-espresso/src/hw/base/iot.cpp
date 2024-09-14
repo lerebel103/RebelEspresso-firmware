@@ -5,13 +5,19 @@
 #include <src/events.h>
 #include <esp_log.h>
 #include <ctime>
-#include <src/state.h>
 #include <hw_config.h>
+#include <esp_timer.h>
+#include <sys/param.h>
 #include "iot.h"
 #include "controller.h"
 #include "rtds.h"
 #include "boiler_temp.h"
 #include "power.h"
+#include "common/identity.h"
+#include "core_mqtt_serializer.h"
+#include "mqtt/mqtt_client.h"
+#include "app_metrics.h"
+#include "device_info.h"
 
 #define TAG "iot"
 
@@ -20,81 +26,104 @@
 #define IOT_SEND_INTERVAL_INACTIVE  60000
 
 
-TickType_t g_last_iot_send = 0;
-static TickType_t s_last_status_update_tick = 0;
 static bool _go = true;
 
+#define TOPIC_MAX_SIZE (128)
+#define PAYLOAD_MAX_SIZE (2048)
 
-static void send_iot_events(TickType_t tick, int send_interval_msec) {
-  // Careful here, we do static allocations so we don't fragment the heap over time
-  static cJSON *root = cJSON_CreateObject();
-  static cJSON *timestamp_elm = cJSON_AddNumberToObject(root, "timestamp", 0);
-  static cJSON *internal_temp_elm = cJSON_AddNumberToObject(root, "internal_temp", 0);
-  static cJSON *boiler_temp_elm = cJSON_AddNumberToObject(root, "boiler_temp", 0);
-  static cJSON *boiler_setpoint_elm = cJSON_AddNumberToObject(root, "boiler_setpoint", 0);
-  static cJSON *boiler_heat_duty_elm = cJSON_AddNumberToObject(root, "boiler_heat_duty", 0);
-  static cJSON *brew_temp_elm = cJSON_AddNumberToObject(root, "brew_temp", 0);
-  static cJSON *aux_temp_elm = cJSON_AddNumberToObject(root, "aux_temp", 0);
+static char info_topic[TOPIC_MAX_SIZE];
+static char payload[PAYLOAD_MAX_SIZE];
 
-  if (tick >= (g_last_iot_send + send_interval_msec)) {
-    g_last_iot_send = tick;
+static void _send_telemetry(time_t timestamp) {
+  static const char *telemetry_format =
+      R"({
+      "status": {
+        "timestamp": %)" PRIu64 R"(,
+        "internal.temp.val": %.2f,
+        "internal.temp.fault": %)" PRIu8 R"(,
+        "boiler1.temp.val": %.2f,
+        "boiler1.temp.fault": %)" PRIu8 R"(,
+        "boiler1.setpoint": %.2f,
+        "boiler1.heat_duty": %)" PRIu8 R"(,
+        "brew.temp.val": %.2f,
+        "brew.temp.fault": %)" PRIu8 R"(,
+        "boiler2.temp.val": %.2f,
+        "boiler2.temp.fault": %)" PRIu8 R"(
+        }
+      })";
 
-    struct measure_t data = {};
-    char buf[256];
+  struct measure_t data_internal = {};
+  rtds_get(&data_internal, RTD_INTERNAL_IDX);
+  struct measure_t data_boiler1 = {};
+  rtds_get(&data_boiler1, RTD_BREW_BOILER_IDX);
+  struct measure_t data_brew = {};
+  rtds_get(&data_brew, RTD_BREW_HEAD_IDX);
+  struct measure_t data_boiler2 = {};
+  rtds_get(&data_boiler2, RTD_STEAM_BOILER_IDX);
 
-    // Update fields now
-    cJSON_SetNumberValue(timestamp_elm, time(NULL));
+  size_t len = snprintf(payload, PAYLOAD_MAX_SIZE, telemetry_format,
+                        timestamp,
+                        (float)data_internal.value, data_internal.fault,
+                        (float)data_boiler1.value, data_boiler1.fault,
+                        (float)boiler_temp_get_current_setpoint(), (uint8_t)boiler_temp_get_duty(),
+                        (float)data_brew.value, data_brew.fault,
+                        (float)data_boiler2.value, data_boiler2.fault
+  );
 
-    rtds_get(&data, RTD_INTERNAL_IDX);
-    cJSON_SetNumberValue(internal_temp_elm, data.value);
+  MQTTPublishInfo_t publishInfo = {
+      .qos = MQTTQoS1,
+      .retain = false,
+      .dup = false,
+      .pTopicName = info_topic,
+      .topicNameLength = (uint16_t) strlen(info_topic),
+      .pPayload = payload,
+      .payloadLength = len,
+  };
 
-    rtds_get(&data, RTD_BREW_BOILER_IDX);
-    cJSON_SetNumberValue(boiler_temp_elm, data.value);
-
-    cJSON_SetNumberValue(boiler_setpoint_elm, boiler_temp_get_current_setpoint());
-
-    cJSON_SetNumberValue(boiler_heat_duty_elm, boiler_temp_get_duty());
-
-    rtds_get(&data, RTD_BREW_HEAD_IDX);
-    cJSON_SetNumberValue(brew_temp_elm, data.value);
-
-    rtds_get(&data, RTD_STEAM_BOILER_IDX);
-    cJSON_SetNumberValue(aux_temp_elm, data.value);
-
-    cJSON_PrintPreallocated(root, buf, 256, false);
-    // mqtt_send_telemetry(buf);
-  }
+  ESP_LOGD(TAG, "%.*s\n", len, payload);
+  mqtt_client_publish(&publishInfo, CONFIG_MQTT_ACK_TIMEOUT_MS);
 }
 
+
+
 void iot_process_events() {
+  time_t last_telemetry_update_tick = 0;
   while (_go) {
-    time_t time_millis = xTaskGetTickCount() * portTICK_PERIOD_MS;
+    time_t time_since_boot_millis = esp_timer_get_time() / 1000;
+    time_t wall_clock_now = time(nullptr);
+    auto send_interval = (power_is_active() ? IOT_SEND_INTERVAL_ACTIVE : IOT_SEND_INTERVAL_INACTIVE);
 
     // Send MQTT stuff as required
     if (xEventGroupGetBits(status_event_group) & CORE_MQTT_CLIENT_CONNECTED_BIT) {
-
-      auto send_state = xEventGroupGetBits(status_event_group) & SEND_STATE_BIT;
-      if (send_state && (time_millis - s_last_status_update_tick) > 10000) {
-        // No earlier than 10s for Google IoT
-        ESP_LOGI(TAG, "Sending new state");
-        s_last_status_update_tick = time_millis;
-        state_send(time(NULL));
-        xEventGroupClearBits(status_event_group, SEND_STATE_BIT);
+      if (app_metrics_update_required(MAX(10, send_interval/1000))) {
+        app_metrics_send(wall_clock_now, payload, PAYLOAD_MAX_SIZE);
+      }
+      if (device_info_update_required()) {
+        device_info_send(payload, PAYLOAD_MAX_SIZE);
       }
 
-      send_iot_events(time_millis, (power_is_active() ? IOT_SEND_INTERVAL_ACTIVE : IOT_SEND_INTERVAL_INACTIVE));
+      // Send telemetry
+      if((time_since_boot_millis - last_telemetry_update_tick) > send_interval) {
+        last_telemetry_update_tick = time_since_boot_millis;
+        _send_telemetry(wall_clock_now);
+      }
     }
 
     // Approximately every second...
-    time_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    if (CONTROL_LOOP_PERIOD > (now - time_millis)) {
+    time_t now = esp_timer_get_time() / 1000;
+    if (CONTROL_LOOP_PERIOD > (now - time_since_boot_millis)) {
       // Run event loop dispatch
-      vTaskDelay((CONTROL_LOOP_PERIOD - (now - time_millis)) / portTICK_PERIOD_MS);
+      vTaskDelay((CONTROL_LOOP_PERIOD - (now - time_since_boot_millis)) / portTICK_PERIOD_MS);
     }
   }
 }
 
 void iot_init() {
+  // Regular telemetry
+  sprintf(info_topic, "%s/%s/telemetry/status", CMAKE_THING_TYPE, identity_thing_id());
+  app_metrics_init();
+  device_info_init();
+
   homekit_init();
 }
 

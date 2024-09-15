@@ -8,7 +8,7 @@
 typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 typedef bool(*check_level_fn)();
 
-#define BOILER_REFILL_CFG_JSON_KEY      "boiler_refill."
+#define BOILER_REFILL_CFG_JSON_KEY      ""
 
 #define KEY_start_delay_ms              "start_delay"
 #define KEY_stabilise_ms                "stabilise_ms"
@@ -138,6 +138,8 @@ struct boiler_refill_status_t {
 
 
 void boiler_refill_init();
+
+void boiler_refill_handle_cfg(char* buffer, size_t len);
 
 void boiler_refill_delete();
 

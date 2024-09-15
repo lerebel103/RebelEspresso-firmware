@@ -9,6 +9,8 @@
 #include "boiler_refill_states.h"
 #include "out_signals.h"
 #include "hw_specs.h"
+#include "shadow/shadow_handler.h"
+#include "shadow_helper.h"
 #include <src/events.h>
 #include <esp_event.h>
 #include <src/sys/nvram_store.h>
@@ -28,6 +30,9 @@ const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 15000;
 const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 750;
 const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 1000;
 
+static device_shadow_handle_t shadow_handle{};
+static bool _cfg_update_required = true;
+
 static boiler_refill_cfg_t s_cfg;
 static boiler_refill_status_t s_status;
 
@@ -45,150 +50,176 @@ static TaskHandle_t s_monitor_task_handle;
 static void _load_nvram();
 
 void monitor_boiler_level(void *) {
-    uint32_t ulNotifiedValue;
-    uint64_t last = 0;
-    do {
-        // Read current boiler level and work out what state we need to be in
-        xTaskNotifyWait(0x00,      /* Don't clear any notification bits on entry. */
-                        ULONG_MAX, /* Reset the notification value to 0 on exit. */
-                        &ulNotifiedValue, /* Notified value pass out in
+  uint32_t ulNotifiedValue;
+  uint64_t last = 0;
+  do {
+    // Read current boiler level and work out what state we need to be in
+    xTaskNotifyWait(0x00,      /* Don't clear any notification bits on entry. */
+                    ULONG_MAX, /* Reset the notification value to 0 on exit. */
+                    &ulNotifiedValue, /* Notified value pass out in
                                                      ulNotifiedValue. */
-                        portMAX_DELAY);  /* Block indefinitely. */
+                    portMAX_DELAY);  /* Block indefinitely. */
 
-        auto now_ms = esp_timer_get_time() * 1e-3;
+    auto now_ms = esp_timer_get_time() * 1e-3;
 
-        // Don't run flat out, skip if less than acceptable time
-        if ( (now_ms - last) > MIN_SAMPLE_TIME_MS) {
-            last = now_ms;
-            boiler_refill_states_process(now_ms, check_level(), s_status_monitor);
-        }
-    } while (s_go);
+    // Don't run flat out, skip if less than acceptable time
+    if ((now_ms - last) > MIN_SAMPLE_TIME_MS) {
+      last = now_ms;
+      boiler_refill_states_process(now_ms, check_level(), s_status_monitor);
+    }
+  } while (s_go);
 
-    vTaskDelete(nullptr);
+  vTaskDelete(nullptr);
 }
 
 bool boiler_check_level() {
-    // Enable voltage on probe - measured settle time is 70ns, which is bugger all,
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_ON);
+  // Enable voltage on probe - measured settle time is 70ns, which is bugger all,
+  gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_ON);
 
-    hw_specs_read_water_level_mv(&s_status_monitor, &s_level_voltage);
+  hw_specs_read_water_level_mv(&s_status_monitor, &s_level_voltage);
 
-    // Done, disable to prevent electrolysis
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);
-    return s_level_voltage <= s_cfg.refill_mv_threshold;
+  // Done, disable to prevent electrolysis
+  gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);
+  return s_level_voltage <= s_cfg.refill_mv_threshold;
 }
 
 void boiler_set_check_level_fn(check_level_fn fn) {
-    check_level = fn;
+  check_level = fn;
 }
 
 static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-    if (id != TICK) {
-        return;
-    }
+  if (id != TICK) {
+    return;
+  }
 
-    // Not running any of this in standby
-    if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
-        return;
-    }
+  // Not running any of this in standby
+  if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
+    return;
+  }
 
-    if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
-        // In descale mode, we don't run any of this
-        return;
-    }
+  if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+    // In descale mode, we don't run any of this
+    return;
+  }
 
-    // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
-    uint64_t now_ms = 0;
-    if (event_data != nullptr) {
-        now_ms = *(uint64_t *) event_data;
-        now_ms = now_ms / 1e3;
-    }
+  // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
+  uint64_t now_ms = 0;
+  if (event_data != nullptr) {
+    now_ms = *(uint64_t *) event_data;
+    now_ms = now_ms / 1e3;
+  }
 
-    xTaskNotify(s_monitor_task_handle, 0xfff, eSetValueWithoutOverwrite);
+  xTaskNotify(s_monitor_task_handle, 0xfff, eSetValueWithoutOverwrite);
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-    if (id == POWER_STANDBY) {
-        boiler_refill_states_power_standby();
-    } else if (id == POWER_ACTIVE) {
-        boiler_refill_states_power_on();
-    }
+  if (id == POWER_STANDBY) {
+    boiler_refill_states_power_standby();
+  } else if (id == POWER_ACTIVE) {
+    boiler_refill_states_power_on();
+  }
 }
 
 static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-    // Handle solenoid valve open/close for descaling here
-    if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
-        if (id == BREW_STARTED) {
-            out_signals_set_level(OUT_SIGNALS_RELAY2, 1);
-        } else if (id == BREW_STOPPED) {
-            out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
-        }
+  // Handle solenoid valve open/close for descaling here
+  if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+    if (id == BREW_STARTED) {
+      out_signals_set_level(OUT_SIGNALS_RELAY2, 1);
+    } else if (id == BREW_STOPPED) {
+      out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
     }
+  }
+}
+
+static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+  // re-create the shadow then
+  _cfg_update_required = true;
+}
+
+static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, boiler_refill_update_cfg);
+  _cfg_update_required = true;
+}
+
+void boiler_refill_handle_cfg(char *buffer, size_t len) {
+  if (_cfg_update_required) {
+    cJSON *reported = cJSON_CreateObject();
+    auto cfg = boiler_refill_get_cfg();
+    cfg.to_json(reported, "");
+
+    shadow_helper_send_shadow(shadow_handle, buffer, len, reported);
+    _cfg_update_required = false;
+  }
 }
 
 void boiler_refill_init() {
+  check_level = boiler_check_level;
+  _load_nvram();
 
-    check_level = boiler_check_level;
+  // Start with boiler not ok, until we can get a reading
+  xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
 
-    _load_nvram();
+  // Output pins
+  gpio_config_t io_conf;
+  io_conf.intr_type = GPIO_INTR_DISABLE;
+  io_conf.mode = GPIO_MODE_OUTPUT;
+  io_conf.pin_bit_mask = (
+      (1ULL << PIN_WATER_LEVEL_ENABLE)
+  );
 
-    // Start with boiler not ok, until we can get a reading
-    xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
+  io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+  gpio_config(&io_conf);
 
-    // Output pins
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (
-            (1ULL << PIN_WATER_LEVEL_ENABLE)
-    );
+  // Turn off outputs
+  out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
+  gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);
 
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&io_conf);
+  // Configure ADC input
+  // Configure pins for voltage divider
+  ESP_LOGI(TAG, "Initialising ADC pin input");
 
-    // Turn off outputs
-    out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
-    gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);
+  // Init state machine
+  boiler_refill_states_init(s_cfg);
 
-    // Configure ADC input
-    // Configure pins for voltage divider
-    ESP_LOGI(TAG, "Initialising ADC pin input");
-
-    // Init state machine
-    boiler_refill_states_init(s_cfg);
-
-    // We want tick events
-    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK,
-                                                    _tick, nullptr));
+  // We want tick events
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
+                                             _tick, nullptr));
 
 
-    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_STANDBY,
-                                                    _power_events, nullptr));
-    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, POWER_ACTIVE,
-                                                    _power_events, nullptr));
-    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STARTED,
-                                                    _brew_events, nullptr));
-    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, BREW_STOPPED,
-                                                    _brew_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
+                                             _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
+                                             _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STARTED,
+                                             _brew_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STOPPED,
+                                             _brew_events, nullptr));
 
-    // Create task for boiler refill
-    s_go = true;
-    xTaskCreate(monitor_boiler_level, "monitor_level", 2560, nullptr, 2, &s_monitor_task_handle);
+  device_shadow_cfg_t shadow_cfg = {
+      .name = "boiler_refill",
+      .get=null_shadow_handler,
+      .updated = update_config_resp,
+      .deleted = _shadow_deleted_handler};
+  ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 
-    ESP_LOGI(TAG, "Initialised");
+  // Create task for boiler refill
+  s_go = true;
+  xTaskCreate(monitor_boiler_level, "monitor_level", 2560, nullptr, 2, &s_monitor_task_handle);
+
+  ESP_LOGI(TAG, "Initialised");
 }
 
 void boiler_refill_delete() {
-    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_STANDBY, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, POWER_ACTIVE, _power_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STARTED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, BREW_STOPPED, _brew_events));
-    ESP_ERROR_CHECK(esp_event_handler_unregister( MACHINE_EVENTS, TICK, _tick));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_STANDBY, _power_events));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_ACTIVE, _power_events));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, BREW_STARTED, _brew_events));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, BREW_STOPPED, _brew_events));
+  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, TICK, _tick));
 }
 
 double boiler_refill_level_mv() {
-    return s_level_voltage;
+  return s_level_voltage;
 }
 
 
@@ -197,115 +228,115 @@ double boiler_refill_level_mv() {
 // -----------------------------------------------------------------------------------------
 
 static void _load_nvram() {
-    nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+  nvs_handle my_handle;
+  ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
 
-    nvram_store_get_u16(my_handle, KEY_start_delay_ms, (uint16_t *) &s_cfg.start_delay_ms,
-                        (void *) &BOILER_REFILL_START_DELAY_MS_DEFAULT);
-    nvram_store_get_u16(my_handle, KEY_stabilise_ms, (uint16_t *) &s_cfg.stabilise_ms,
-                        (void *) &BOILER_REFILL_STABILISE_MS_DEFAULT);
-    nvram_store_get_u16(my_handle, KEY_refill_mv_threshold, (uint16_t *) &s_cfg.refill_mv_threshold,
-                        (void *) &BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT);
-    nvram_store_get_u16(my_handle, KEY_max_refill_time_ms, (uint16_t *) &s_cfg.max_refill_time_ms,
-                        (void *) &BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT);
-    nvram_store_get_u16(my_handle, KEY_adc_num_readings, (uint16_t *) &s_cfg.adc_num_readings,
-                        (void *) &BOILER_REFILL_ADC_NUM_READINGS_DEFAULT);
-    nvram_store_get_u16(my_handle, KEY_level_low_hysteresis_ms, (uint16_t *) &s_cfg.level_low_hysteresis_ms,
-                        (void *) &BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT);
-    nvram_store_get_u16(my_handle, KEY_level_ok_hysteresis_ms, (uint16_t *) &s_cfg.level_ok_hysteresis_ms,
-                        (void *) &BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_start_delay_ms, (uint16_t *) &s_cfg.start_delay_ms,
+                      (void *) &BOILER_REFILL_START_DELAY_MS_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_stabilise_ms, (uint16_t *) &s_cfg.stabilise_ms,
+                      (void *) &BOILER_REFILL_STABILISE_MS_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_refill_mv_threshold, (uint16_t *) &s_cfg.refill_mv_threshold,
+                      (void *) &BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_max_refill_time_ms, (uint16_t *) &s_cfg.max_refill_time_ms,
+                      (void *) &BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_adc_num_readings, (uint16_t *) &s_cfg.adc_num_readings,
+                      (void *) &BOILER_REFILL_ADC_NUM_READINGS_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_level_low_hysteresis_ms, (uint16_t *) &s_cfg.level_low_hysteresis_ms,
+                      (void *) &BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_level_ok_hysteresis_ms, (uint16_t *) &s_cfg.level_ok_hysteresis_ms,
+                      (void *) &BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT);
 
-    nvs_close(my_handle);
+  nvs_close(my_handle);
 }
 
 static void _save_nvram() {
-    nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+  nvs_handle my_handle;
+  ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
 
-    nvram_store_set_u16(my_handle, KEY_start_delay_ms, &s_cfg.start_delay_ms);
-    nvram_store_set_u16(my_handle, KEY_stabilise_ms, &s_cfg.stabilise_ms);
-    nvram_store_set_u16(my_handle, KEY_adc_num_readings, &s_cfg.adc_num_readings);
-    nvram_store_set_u16(my_handle, KEY_refill_mv_threshold, &s_cfg.refill_mv_threshold);
-    nvram_store_set_u16(my_handle, KEY_max_refill_time_ms, &s_cfg.max_refill_time_ms);
-    nvram_store_set_u16(my_handle, KEY_level_low_hysteresis_ms, &s_cfg.level_low_hysteresis_ms);
-    nvram_store_set_u16(my_handle, KEY_level_ok_hysteresis_ms, &s_cfg.level_ok_hysteresis_ms);
+  nvram_store_set_u16(my_handle, KEY_start_delay_ms, &s_cfg.start_delay_ms);
+  nvram_store_set_u16(my_handle, KEY_stabilise_ms, &s_cfg.stabilise_ms);
+  nvram_store_set_u16(my_handle, KEY_adc_num_readings, &s_cfg.adc_num_readings);
+  nvram_store_set_u16(my_handle, KEY_refill_mv_threshold, &s_cfg.refill_mv_threshold);
+  nvram_store_set_u16(my_handle, KEY_max_refill_time_ms, &s_cfg.max_refill_time_ms);
+  nvram_store_set_u16(my_handle, KEY_level_low_hysteresis_ms, &s_cfg.level_low_hysteresis_ms);
+  nvram_store_set_u16(my_handle, KEY_level_ok_hysteresis_ms, &s_cfg.level_ok_hysteresis_ms);
 
-    nvs_close(my_handle);
+  nvs_close(my_handle);
 }
 
 
 const boiler_refill_cfg_t &boiler_refill_get_cfg() {
-    return s_cfg;
+  return s_cfg;
 }
 
 void boiler_refill_update_cfg(const cJSON *json) {
-    boiler_refill_cfg_t new_config = s_cfg;
-    new_config.from_json(json);
-    boiler_refill_set_cfg(new_config);
+  boiler_refill_cfg_t new_config = s_cfg;
+  new_config.from_json(json);
+  boiler_refill_set_cfg(new_config);
 }
 
 void boiler_refill_set_cfg(boiler_refill_cfg_t config) {
-    if (config.start_delay_ms < 10000) {
-        s_cfg.start_delay_ms = config.start_delay_ms;
-    } else {
-        ESP_LOGE(TAG, "start_delay_ms is out of bounds: %d, ignoring.", config.start_delay_ms);
-    }
+  if (config.start_delay_ms < 10000) {
+    s_cfg.start_delay_ms = config.start_delay_ms;
+  } else {
+    ESP_LOGE(TAG, "start_delay_ms is out of bounds: %d, ignoring.", config.start_delay_ms);
+  }
 
-    if (config.stabilise_ms < 150) {
-        s_cfg.stabilise_ms = config.stabilise_ms;
-    } else {
-        ESP_LOGE(TAG, "stabilise_ms is out of bounds: %d, ignoring.", config.stabilise_ms);
-    }
+  if (config.stabilise_ms < 150) {
+    s_cfg.stabilise_ms = config.stabilise_ms;
+  } else {
+    ESP_LOGE(TAG, "stabilise_ms is out of bounds: %d, ignoring.", config.stabilise_ms);
+  }
 
-    if (config.adc_num_readings < 128) {
-        s_cfg.adc_num_readings = config.adc_num_readings;
-    } else {
-        ESP_LOGE(TAG, "adc_num_readings is out of bounds: %d, ignoring.", config.adc_num_readings);
-    }
+  if (config.adc_num_readings < 128) {
+    s_cfg.adc_num_readings = config.adc_num_readings;
+  } else {
+    ESP_LOGE(TAG, "adc_num_readings is out of bounds: %d, ignoring.", config.adc_num_readings);
+  }
 
-    if (config.refill_mv_threshold >= 150 && config.refill_mv_threshold <= 3100) {
-        s_cfg.refill_mv_threshold = config.refill_mv_threshold;
-    } else {
-        ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
-    }
+  if (config.refill_mv_threshold >= 150 && config.refill_mv_threshold <= 3100) {
+    s_cfg.refill_mv_threshold = config.refill_mv_threshold;
+  } else {
+    ESP_LOGE(TAG, "refill_mv_threshold is out of bounds: %d, ignoring.", config.refill_mv_threshold);
+  }
 
-    if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 30000) {
-        s_cfg.max_refill_time_ms = config.max_refill_time_ms;
-    } else {
-        ESP_LOGE(TAG, "max_refill_time_ms is out of bounds: %d, ignoring.", config.max_refill_time_ms);
-    }
+  if (config.max_refill_time_ms >= 1000 && config.max_refill_time_ms < 30000) {
+    s_cfg.max_refill_time_ms = config.max_refill_time_ms;
+  } else {
+    ESP_LOGE(TAG, "max_refill_time_ms is out of bounds: %d, ignoring.", config.max_refill_time_ms);
+  }
 
-    if (config.level_low_hysteresis_ms < 2000) {
-        s_cfg.level_low_hysteresis_ms = config.level_low_hysteresis_ms;
-    } else {
-        ESP_LOGE(TAG, "level_low_hysteresis_ms is out of bounds: %d, ignoring.", config.level_low_hysteresis_ms);
-    }
+  if (config.level_low_hysteresis_ms < 2000) {
+    s_cfg.level_low_hysteresis_ms = config.level_low_hysteresis_ms;
+  } else {
+    ESP_LOGE(TAG, "level_low_hysteresis_ms is out of bounds: %d, ignoring.", config.level_low_hysteresis_ms);
+  }
 
-    if (config.level_ok_hysteresis_ms < 2000) {
-        s_cfg.level_ok_hysteresis_ms = config.level_ok_hysteresis_ms;
-    } else {
-        ESP_LOGE(TAG, "level_ok_hysteresis_ms is out of bounds: %d, ignoring.", config.level_ok_hysteresis_ms);
-    }
+  if (config.level_ok_hysteresis_ms < 2000) {
+    s_cfg.level_ok_hysteresis_ms = config.level_ok_hysteresis_ms;
+  } else {
+    ESP_LOGE(TAG, "level_ok_hysteresis_ms is out of bounds: %d, ignoring.", config.level_ok_hysteresis_ms);
+  }
 
-    // Save what we can then
-    _save_nvram();
+  // Save what we can then
+  _save_nvram();
 }
 
 
 void boiler_refill_reset_cfg() {
-    nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
-    nvs_erase_all(my_handle);
-    nvs_close(my_handle);
+  nvs_handle my_handle;
+  ESP_ERROR_CHECK(nvs_open(BOILER_REFILL_NVS_CFG_STORE, NVS_READWRITE, &my_handle));
+  nvs_erase_all(my_handle);
+  nvs_close(my_handle);
 
-    _load_nvram();
+  _load_nvram();
 }
 
 const boiler_refill_status_t &boiler_refill_get_status() {
-    return s_status;
+  return s_status;
 }
 
 void boiler_refill_reset_stats() {
-    s_status.refill_error_count = 0;
+  s_status.refill_error_count = 0;
 }
 

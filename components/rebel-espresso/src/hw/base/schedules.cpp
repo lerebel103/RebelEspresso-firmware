@@ -8,6 +8,8 @@
 #include "pid.h"
 #include "brew_temp.h"
 #include "power.h"
+#include "shadow/shadow_handler.h"
+#include "shadow_helper.h"
 
 #define TAG "schedules"
 
@@ -18,6 +20,8 @@ const double SCHEDULES_DELTA_DEFAULT = 0.8;
 const double SCHEDULES_HYSTERESIS_DEFAULT = 2.0;
 
 
+static device_shadow_handle_t shadow_handle{};
+static bool _cfg_update_required = true;
 static schedules_cfg_t s_cfg;
 
 static uint64_t s_last_stats_save = 0;
@@ -147,11 +151,39 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
   }
 }
 
+static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+  // re-create the shadow then
+  _cfg_update_required = true;
+}
+
+static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, schedules_update_cfg);
+  _cfg_update_required = true;
+}
+
+void schedules_handle_cfg(char *buffer, size_t len) {
+  if (_cfg_update_required) {
+    cJSON *reported = cJSON_CreateObject();
+    auto cfg = schedules_get_cfg();
+    cfg.to_json(reported, "");
+
+    shadow_helper_send_shadow(shadow_handle, buffer, len, reported);
+    _cfg_update_required = false;
+  }
+}
+
 void schedules_init() {
   s_cfg = {};
 
   _load_nvram();
   _load_stats();
+
+  device_shadow_cfg_t shadow_cfg = {
+      .name = "schedules",
+      .get=null_shadow_handler,
+      .updated = update_config_resp,
+      .deleted = _shadow_deleted_handler};
+  ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 
   // Get our power events in place so we can run the process loop as needed
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,

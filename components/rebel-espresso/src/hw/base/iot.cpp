@@ -18,6 +18,9 @@
 #include "mqtt/mqtt_client.h"
 #include "app_metrics.h"
 #include "device_info.h"
+#include "brew_temp.h"
+#include "boiler_refill.h"
+#include "schedules.h"
 
 #define TAG "iot"
 
@@ -29,7 +32,7 @@
 static bool _go = true;
 
 #define TOPIC_MAX_SIZE (128)
-#define PAYLOAD_MAX_SIZE (2048)
+#define PAYLOAD_MAX_SIZE (4096)
 
 static char info_topic[TOPIC_MAX_SIZE];
 static char payload[PAYLOAD_MAX_SIZE];
@@ -98,15 +101,19 @@ void iot_process_events() {
       if (app_metrics_update_required(MAX(10, send_interval/1000))) {
         app_metrics_send(wall_clock_now, payload, PAYLOAD_MAX_SIZE);
       }
-      if (device_info_update_required()) {
-        device_info_send(payload, PAYLOAD_MAX_SIZE);
-      }
 
       // Send telemetry
       if((time_since_boot_millis - last_telemetry_update_tick) > send_interval) {
         last_telemetry_update_tick = time_since_boot_millis;
         _send_telemetry(wall_clock_now);
       }
+
+      // Take care of all device shadow configs
+      device_info_handle_cfg(payload, PAYLOAD_MAX_SIZE);
+      boiler_temp_handle_cfg(payload, PAYLOAD_MAX_SIZE);
+      brew_temp_handle_cfg(payload, PAYLOAD_MAX_SIZE);
+      boiler_refill_handle_cfg(payload, PAYLOAD_MAX_SIZE);
+      schedules_handle_cfg(payload, PAYLOAD_MAX_SIZE);
     }
 
     // Approximately every second...

@@ -4,7 +4,7 @@
 #include <esp_event_base.h>
 #include "pid.h"
 
-#define BREW_TEMP_CFG_JSON_KEY            "brew_temp."
+#define BREW_TEMP_CFG_JSON_KEY            ""
 #define NVS_BREW_TEMP_CFG_STORE           "cfg.brew_temp"
 #define NVS_BREW_TEMP_STATS_STORE         "sts.brew_temp"
 
@@ -117,6 +117,8 @@ struct brew_temp_trim_t {
 void brew_temp_init();
 
 void brew_temp_delete();
+
+void brew_temp_handle_cfg(char* buffer, size_t len);
 
 void brew_temp_process(uint64_t time_us, const measure_t &brew_head_data);
 

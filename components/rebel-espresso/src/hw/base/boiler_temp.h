@@ -11,7 +11,7 @@
 
 #define BOILER_SSR_PIN PIN_OUT_SSR1
 
-#define BOILER_CFG_JSON_KEY                 "boiler_temp."
+#define BOILER_CFG_JSON_KEY                 ""
 #define NVS_BOILER_CFG_STORE                "cfg.boiler_temp"
 #define NVS_BOILER_STATS_STORE              "sts.boiler_temp"
 
@@ -121,6 +121,9 @@ struct boiler_temp_status_t {
     }
 
 };
+
+void boiler_temp_handle_cfg(char* buffer, size_t len);
+
 
 void boiler_temp_init();
 

@@ -9,6 +9,8 @@
 #include "rtds.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
+#include "shadow/shadow_handler.h"
+#include "shadow_helper.h"
 
 #define TAG "Boiler"
 
@@ -18,6 +20,8 @@ const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
 const uint16_t BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT = 10;
 
 
+static device_shadow_handle_t shadow_handle{};
+static bool _cfg_update_required = true;
 static boiler_temp_cfg_t s_cfg;
 static ssr_ctrl_handle_t _ssr_handle;
 
@@ -238,6 +242,26 @@ void boiler_temp_process(uint64_t time_us, const measure_t &data) {
            data.value, result.duty, duty, setpoint);
 }
 
+static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+  // re-create the shadow then
+  _cfg_update_required = true;
+}
+
+static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, boiler_temp_update_cfg);
+  _cfg_update_required = true;
+}
+
+void boiler_temp_handle_cfg(char *buffer, size_t len) {
+  if (_cfg_update_required) {
+    cJSON *reported = cJSON_CreateObject();
+    auto cfg = boiler_temp_get_cfg();
+    cfg.to_json(reported, "");
+
+    shadow_helper_send_shadow(shadow_handle, buffer, len, reported);
+    _cfg_update_required = false;
+  }
+}
 
 void boiler_temp_init() {
   _load_nvram();
@@ -259,6 +283,13 @@ void boiler_temp_init() {
                                              _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
                                              _tick_events, nullptr));
+
+  device_shadow_cfg_t shadow_cfg = {
+      .name = "boiler_temp",
+      .get=null_shadow_handler,
+      .updated = update_config_resp,
+      .deleted = _shadow_deleted_handler};
+  ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 }
 
 void boiler_temp_delete() {
@@ -350,6 +381,7 @@ double boiler_setpoint_inc(double inc) {
 void boiler_set_active_setpoint(int idx) {
   if (idx >= 0 && idx < MAX_SETPOINTS) {
     s_cfg.pid.active_setpoint = idx;
+    _cfg_update_required = true;
   }
 }
 

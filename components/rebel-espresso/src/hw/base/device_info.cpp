@@ -13,7 +13,11 @@
 static device_shadow_handle_t shadow_handle{};
 static bool _update_required = false;
 
-void device_info_send(char *buffer, size_t max_len) {
+void device_info_handle_cfg(char *buffer, size_t max_len) {
+  if (!_update_required) {
+    return;
+  }
+
   static const char *metrics_format =
       R"({
       "state": {
@@ -40,7 +44,6 @@ void device_info_send(char *buffer, size_t max_len) {
                         device_metrics.boot_count, device_metrics.crash_count, device_metrics.last_crash_reason
   );
 
-  printf("%s\n", buffer);
   shadow_handler_update(shadow_handle, buffer, len);
   _update_required = false;
 }
@@ -50,13 +53,9 @@ static void _deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) 
   _update_required = true;
 }
 
-bool device_info_update_required() {
-  return _update_required;
-}
-
 void device_info_init() {
   // This will push our app info as a static shadow
   _update_required = true;
-  device_shadow_cfg_t shadow_cfg = {.name = "device-info", .get = null_shadow_handler, .deleted = _deleted_handler};
+  device_shadow_cfg_t shadow_cfg = {.name = "device_info", .get = null_shadow_handler, .deleted = _deleted_handler};
   ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 }

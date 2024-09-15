@@ -26,7 +26,7 @@ static hap_serv_t *s_boiler_service;
 #define BOILER_NAME "Boiler"
 
 #define SWITCH_TASK_PRIORITY  4
-#define HK_MAIN_STACK_SIZE (2 * 1024)
+#define HK_MAIN_STACK_SIZE (3 * 1024)
 #define HK_TASK_NAME      "homekit"
 
 #define BREW_TEMP_MIN 88

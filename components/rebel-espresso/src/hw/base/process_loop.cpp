@@ -127,7 +127,7 @@ void process_loop_init() {
   };
 
   ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&cfg));
-  xTaskCreate(_process_task, "process_loop", 2.5 * 1024, NULL, 7, &_process_task_handle);
+  xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 7, &_process_task_handle);
   ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
 
   // Get our power events in place so we can run the process loop as needed

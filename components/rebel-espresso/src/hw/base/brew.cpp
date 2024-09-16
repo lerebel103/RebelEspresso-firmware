@@ -10,10 +10,14 @@
 #include "brew.h"
 #include "out_signals.h"
 #include "hw_specs.h"
+#include "boiler_refill.h"
+#include "power.h"
 
 #define TAG "brew"
 
+#define BREW_MONITOR_PERIOD_MS  100
 
+static bool s_go = true;
 static bool _pump_sw_on = false;
 static bool _boiler_refilling = false;
 static bool s_descaled_entered = false;
@@ -73,11 +77,7 @@ static void _brew_switch_off(void *arg) {
  * configured ISR handler. So we need this secondary tick thing to ensure states
  * are consistent.
  */
-static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-  if (id != TICK) {
-    return;
-  }
-
+static void compute_brew_state() {
   // Not running any of this in standby
   if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
     return;
@@ -112,10 +112,33 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
   }
 }
 
+void monitor_brew(void *) {
+  do {
+    auto now_ms = (int64_t) (esp_timer_get_time() * 1e-3);
+
+    if (power_is_active()) {
+      if (! (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT)) {
+        boiler_refill_check(now_ms);
+      }
+      compute_brew_state();
+    }
+
+    auto diff = ( esp_timer_get_time() * 1e-3) - now_ms;
+    if (diff < BREW_MONITOR_PERIOD_MS) {
+
+      vTaskDelay(pdMS_TO_TICKS(BREW_MONITOR_PERIOD_MS - diff));
+    }
+  } while (s_go);
+
+  vTaskDelete(nullptr);
+}
+
+
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   if (id == POWER_STANDBY) {
     // Always stop pump regardless
     _pump_off();
+    _three_way_valve_off();
     xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
     s_descaled_entered = false;
   } else if (id == POWER_ACTIVE) {
@@ -126,7 +149,6 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     }
   }
 }
-
 
 void brew_init() {
   s_descaled_entered = false;
@@ -143,8 +165,8 @@ void brew_init() {
   io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
   gpio_config(&io_conf);
 
-  // Get everything synced up
-  _tick(NULL, MACHINE_EVENTS, TICK, NULL);
+  // Ensure all is low state.
+  _brew_switch_off(nullptr);
 
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_STARTED,
                                              _refill_events, nullptr));
@@ -155,12 +177,13 @@ void brew_init() {
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_ERROR,
                                              _refill_events, nullptr));
 
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
-                                             _tick, nullptr));
-
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
                                              _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
                                              _power_events, nullptr));
+
+  // Create task for boiler refill
+  s_go = true;
+  xTaskCreate(monitor_brew, "brew_check", 2560, nullptr, 2, nullptr);
 }
 

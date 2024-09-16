@@ -44,32 +44,18 @@ typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 
 // This is the function pointer to the level check function (used by test mock)
 static check_level_fn check_level;
-static bool s_go = false;
-static TaskHandle_t s_monitor_task_handle;
 
 static void _load_nvram();
 
-void monitor_boiler_level(void *) {
-  uint32_t ulNotifiedValue;
-  uint64_t last = 0;
-  do {
-    // Read current boiler level and work out what state we need to be in
-    xTaskNotifyWait(0x00,      /* Don't clear any notification bits on entry. */
-                    ULONG_MAX, /* Reset the notification value to 0 on exit. */
-                    &ulNotifiedValue, /* Notified value pass out in
-                                                     ulNotifiedValue. */
-                    portMAX_DELAY);  /* Block indefinitely. */
 
-    auto now_ms = esp_timer_get_time() * 1e-3;
+void boiler_refill_check(uint64_t now_ms) {
+  static uint64_t last_check = 0;
+  if (now_ms - last_check < MIN_SAMPLE_TIME_MS) {
+    return;
+  }
 
-    // Don't run flat out, skip if less than acceptable time
-    if ((now_ms - last) > MIN_SAMPLE_TIME_MS) {
-      last = now_ms;
-      boiler_refill_states_process(now_ms, check_level(), s_status_monitor);
-    }
-  } while (s_go);
-
-  vTaskDelete(nullptr);
+  last_check = now_ms;
+  boiler_refill_states_process(now_ms, check_level(), s_status_monitor);
 }
 
 bool boiler_check_level() {
@@ -108,8 +94,6 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     now_ms = *(uint64_t *) event_data;
     now_ms = now_ms / 1e3;
   }
-
-  xTaskNotify(s_monitor_task_handle, 0xfff, eSetValueWithoutOverwrite);
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -203,9 +187,6 @@ void boiler_refill_init() {
       .deleted = _shadow_deleted_handler};
   ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 
-  // Create task for boiler refill
-  s_go = true;
-  xTaskCreate(monitor_boiler_level, "monitor_level", 2560, nullptr, 2, &s_monitor_task_handle);
 
   ESP_LOGI(TAG, "Initialised");
 }

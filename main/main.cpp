@@ -12,6 +12,7 @@ extern "C" {
 #include "hw_specs.h"
 #include "thing_info.h"
 #include "controller.h"
+#include "app_metrics.h"
 
 #define TAG  "main"
 
@@ -28,10 +29,8 @@ extern "C" void app_main() {
   // Init hardware as early as possible
   hw_specs_init();
   thing_info_init();
-
-  ESP_LOGI(TAG, "Starting AWS connector");
-
   aws_connector_init(status_event_group);
+  app_metrics_init();
   controller_init();
 
   // Here's our control loop

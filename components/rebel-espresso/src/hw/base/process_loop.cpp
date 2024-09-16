@@ -59,13 +59,15 @@ static void _process_task(void *) {
   do {
     if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
       auto now_us = esp_timer_get_time();
-      ESP_LOGI(TAG, "Free Heap: %lu, Min Heap: %lu", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
 
       // Get latest temperatures
       rtds_update(hw_specs_handle_new_temp);
 
       // Send down tick event (async)
       ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, TICK, (void *) &now_us, sizeof(uint64_t), portMAX_DELAY));
+
+      auto elapsed_ms = (esp_timer_get_time() - now_us) / 1000;
+      ESP_LOGI(TAG, "Free Heap: %lu, Min Heap: %lu, ctr loop: %lld ms", esp_get_free_heap_size(), esp_get_minimum_free_heap_size(), elapsed_ms);
 
       // Done, reset ISR to go again and maintain watchdog timer
       esp_task_wdt_reset();

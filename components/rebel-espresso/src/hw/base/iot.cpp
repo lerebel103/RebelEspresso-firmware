@@ -129,7 +129,6 @@ void iot_process_events() {
 void iot_init() {
   // Regular telemetry
   sprintf(info_topic, "%s/%s/telemetry/status", CMAKE_THING_TYPE, identity_thing_id());
-  app_metrics_init();
   device_info_init();
 
   homekit_init();

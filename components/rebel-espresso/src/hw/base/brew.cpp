@@ -113,19 +113,29 @@ static void compute_brew_state() {
 }
 
 void monitor_brew(void *) {
+  static bool last_power_state;
   do {
     auto now_ms = (int64_t) (esp_timer_get_time() * 1e-3);
+    bool is_power_on = power_is_active();
 
-    if (power_is_active()) {
+    // Detect transition from off to on and set descale mode
+    if (!last_power_state && is_power_on) {
+      if (gpio_get_level(PIN_IN_BREW_EN) == 0) {
+        xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
+        s_descaled_entered = true;
+      }
+    }
+
+    if (is_power_on) {
       if (! (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT)) {
         boiler_refill_check(now_ms);
       }
       compute_brew_state();
     }
 
+    last_power_state = is_power_on;
     auto diff = ( esp_timer_get_time() * 1e-3) - now_ms;
     if (diff < BREW_MONITOR_PERIOD_MS) {
-
       vTaskDelay(pdMS_TO_TICKS(BREW_MONITOR_PERIOD_MS - diff));
     }
   } while (s_go);
@@ -133,20 +143,15 @@ void monitor_brew(void *) {
   vTaskDelete(nullptr);
 }
 
-
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   if (id == POWER_STANDBY) {
     // Always stop pump regardless
     _pump_off();
     _three_way_valve_off();
+
+    // Clear off descale mode
     xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
     s_descaled_entered = false;
-  } else if (id == POWER_ACTIVE) {
-    // If pump switch is on when active, we enter descaling mode
-    if (gpio_get_level(PIN_IN_BREW_EN) == 0) {
-      xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
-      s_descaled_entered = true;
-    }
   }
 }
 

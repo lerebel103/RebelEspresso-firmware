@@ -122,18 +122,6 @@ struct boiler_refill_cfg_t {
 
 struct boiler_refill_status_t {
     uint16_t refill_error_count = 0;
-
-    /**
-     * Report current configuration
-     */
-    void to_json(cJSON* config, const char* base_key) {
-        char* buf = (char*) malloc(64);
-
-        sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "refill_error_count", base_key);
-        cJSON_AddNumberToObject(config, buf, refill_error_count);
-
-        free(buf);
-    }
 };
 
 

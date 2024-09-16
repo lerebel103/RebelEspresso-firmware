@@ -24,15 +24,16 @@
 
 #define TAG "iot"
 
-#define CONTROL_LOOP_PERIOD         1000
+#define IOT_LOOP_PERIOD             1000
 #define IOT_SEND_INTERVAL_ACTIVE    1000
+#define IOT_METRICS_SEND_PERIOD     30000
 #define IOT_SEND_INTERVAL_INACTIVE  60000
 
 
 static bool _go = true;
 
 #define TOPIC_MAX_SIZE (128)
-#define PAYLOAD_MAX_SIZE (4096)
+#define PAYLOAD_MAX_SIZE (2 * 1024)
 
 static char info_topic[TOPIC_MAX_SIZE];
 static char payload[PAYLOAD_MAX_SIZE];
@@ -98,7 +99,7 @@ void iot_process_events() {
 
     // Send MQTT stuff as required
     if (xEventGroupGetBits(status_event_group) & CORE_MQTT_CLIENT_CONNECTED_BIT) {
-      if (app_metrics_update_required(MAX(10, send_interval/1000))) {
+      if (app_metrics_update_required(MAX(IOT_METRICS_SEND_PERIOD/1000, send_interval/1000))) {
         app_metrics_send(wall_clock_now, payload, PAYLOAD_MAX_SIZE);
       }
 
@@ -118,9 +119,9 @@ void iot_process_events() {
 
     // Approximately every second...
     time_t now = esp_timer_get_time() / 1000;
-    if (CONTROL_LOOP_PERIOD > (now - time_since_boot_millis)) {
+    if (IOT_LOOP_PERIOD > (now - time_since_boot_millis)) {
       // Run event loop dispatch
-      vTaskDelay((CONTROL_LOOP_PERIOD - (now - time_since_boot_millis)) / portTICK_PERIOD_MS);
+      vTaskDelay((IOT_LOOP_PERIOD - (now - time_since_boot_millis)) / portTICK_PERIOD_MS);
     }
   }
 }

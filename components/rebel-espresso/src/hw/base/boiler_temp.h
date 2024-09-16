@@ -101,25 +101,6 @@ struct boiler_temp_status_t {
     uint32_t temp_read_error_count;
     uint32_t temp_over_limit_count;
     uint32_t temp_out_of_range_count;
-
-    /**
-     * Report current configuration
-     */
-    void to_json(cJSON *config, const char *base_key) {
-        char *buf = (char *) malloc(64);
-
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_read_error_count", base_key);
-        cJSON_AddNumberToObject(config, buf, temp_read_error_count);
-
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_over_limit_count", base_key);
-        cJSON_AddNumberToObject(config, buf, temp_over_limit_count);
-
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_out_of_range_count", base_key);
-        cJSON_AddNumberToObject(config, buf, temp_out_of_range_count);
-
-        free(buf);
-    }
-
 };
 
 void boiler_temp_handle_cfg(char* buffer, size_t len);

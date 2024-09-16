@@ -14,7 +14,6 @@
 
 #define TAG "Boiler"
 
-
 const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
 const uint16_t BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT = 10;
@@ -373,6 +372,7 @@ double boiler_setpoint_inc(double inc) {
     ESP_ERROR_CHECK(nvs_open(NVS_BOILER_CFG_STORE, NVS_READWRITE, &my_handle));
     pid_save_setpoint(my_handle, s_cfg.pid);
     nvs_close(my_handle);
+    _cfg_update_required = true;
   }
 
   return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
@@ -381,7 +381,6 @@ double boiler_setpoint_inc(double inc) {
 void boiler_set_active_setpoint(int idx) {
   if (idx >= 0 && idx < MAX_SETPOINTS) {
     s_cfg.pid.active_setpoint = idx;
-    _cfg_update_required = true;
   }
 }
 

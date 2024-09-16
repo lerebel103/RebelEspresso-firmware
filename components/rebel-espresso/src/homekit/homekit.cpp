@@ -217,7 +217,9 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
   }
 
   uint64_t now = 0;
+  static uint64_t last_metrics = 0;
   static uint64_t last_power = 0;
+
   if (event_data != nullptr) {
     now = *(uint64_t *) event_data;
   }
@@ -227,15 +229,20 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
   hap_status_t status_code;
 
-  hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
-  brew_char_read(hc, &status_code, nullptr, nullptr);
-  hc = hap_serv_get_char_by_uuid(s_boiler_service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
-  boiler_char_read(hc, &status_code, nullptr, nullptr);
+  if (now - last_metrics > 2e6) {
+    hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
+    brew_char_read(hc, &status_code, nullptr, nullptr);
+    hc = hap_serv_get_char_by_uuid(s_boiler_service, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
+    boiler_char_read(hc, &status_code, nullptr, nullptr);
+
+    last_metrics = now;
+  }
 
   // refresh power state if we missed the event
   // Homekit connects much later in the piece, and we would have missed events if connection goes down.
   if (now - last_power > 5e6) {
     _power_events(nullptr, MACHINE_EVENTS, power_is_active() ? POWER_ACTIVE : POWER_STANDBY, nullptr);
+
     last_power = now;
   }
 }

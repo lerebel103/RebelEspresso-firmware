@@ -13,6 +13,9 @@
 #include "sntp/sntp_sync.h"
 #include "common/events_common.h"
 #include "fleet_provisioning/mqtt_provision.h"
+#include "boiler_refill.h"
+#include "boiler_temp.h"
+#include "brew_temp.h"
 
 #define TAG "app_metrics"
 #define NVS_STATS_NAMESPACE "stats"
@@ -52,16 +55,16 @@ void app_metrics_send(time_t now, char *buffer, size_t max_len) {
       R"({
       "metrics": {
         "timestamp": %)" PRIu64 R"(,
-        "uptime": %)" PRIu32 R"(,
-        "boot_count": %)" PRIu32 R"(,
-        "crash_count": %)" PRIu32 R"(,
-        "last_crash_reason": %)" PRIu32 R"(,
-        "heap_free": %)" PRIu32 R"(,
-        "heap_min": %)" PRIu32 R"(,
-        "wifi.connect_attempt_count": %)" PRIu32 R"(,
-        "wifi.disconnected_count": %)" PRIu32 R"(,
-        "wifi.connected_count": %)" PRIu32 R"(,
-        "wifi.connect_duration_ms": %)" PRIu32 R"(,
+        "sys.uptime": %)" PRIu32 R"(,
+        "sys.boot_cnt": %)" PRIu32 R"(,
+        "sys.crash_cnt": %)" PRIu32 R"(,
+        "sys.last_crash_reason": %)" PRIu32 R"(,
+        "sys.heap_free": %)" PRIu32 R"(,
+        "sys.heap_min": %)" PRIu32 R"(,
+        "wifi.conn_attempt_cnt": %)" PRIu32 R"(,
+        "wifi.disconn_cnt": %)" PRIu32 R"(,
+        "wifi.conned_cnt": %)" PRIu32 R"(,
+        "wifi.conn_duration_ms": %)" PRIu32 R"(,
         "wifi.rssi": %)" PRId8 R"(,
         "wifi.channel": %)" PRIu8 R"(,
         "wifi.ssid": "%s",
@@ -71,20 +74,31 @@ void app_metrics_send(time_t now, char *buffer, size_t max_len) {
         "wifi.nm_addr": "%s",
         "sntp.last_sync_time": %)" PRIu64 R"(,
         "sntp.sync_duration_ms": %)" PRIu32 R"(,
-        "mqtt.connect_attempt_count": %)" PRIu32 R"(,
-        "mqtt.disconnected_count": %)" PRIu32 R"(,
-        "mqtt.connected_count": %)" PRIu32 R"(,
-        "mqtt.connect_duration_ms": %)" PRIu32 R"(,
-        "mqtt.tx_pkt_count": %)" PRIu32 R"(,
-        "mqtt.tx_bytes_count": %)" PRIu64 R"(,
-        "mqtt.rx_pkt_count": %)" PRIu32 R"(,
-        "mqtt.rx_bytes_count": %)" PRIu64 R"(
+        "mqtt.conn_attempt_cnt": %)" PRIu32 R"(,
+        "mqtt.disconn_cnt": %)" PRIu32 R"(,
+        "mqtt.conned_cnt": %)" PRIu32 R"(,
+        "mqtt.conn_duration_ms": %)" PRIu32 R"(,
+        "mqtt.tx_pkt_cnt": %)" PRIu32 R"(,
+        "mqtt.tx_bytes_cnt": %)" PRIu64 R"(,
+        "mqtt.rx_pkt_cnt": %)" PRIu32 R"(,
+        "mqtt.rx_bytes_cnt": %)" PRIu64 R"(,
+        "boiler_refill.err": %)" PRIu16 R"(,
+        "boiler_temp.err_cnt": %)" PRIu32 R"(,
+        "boiler_temp.over_lim_cnt": %)" PRIu32 R"(,
+        "boiler_temp.range_cnt": %)" PRIu32 R"(,
+        "brew_temp.err_cnt": %)" PRIu32 R"(,
+        "brew_temp.over_lim_cnt": %)" PRIu32 R"(,
+        "brew_temp.range_cnt": %)" PRIu32 R"(
         }
       })";
 
   auto wifi_metrics = wifi_connect_get_metrics();
   auto mqtt_metrics = mqtt_client_get_metrics();
   auto sntp_metrics = sntp_sync_get_metrics();
+  const boiler_refill_status_t& boiler_refill = boiler_refill_get_status();
+  const boiler_temp_status_t& boiler_temp = boiler_temp_get_status();
+  const brew_temp_status_t& brew_temp = brew_temp_get_status();
+  
   auto uptime = (uint32_t)(esp_timer_get_time() * 1e-6);
   size_t len = snprintf(buffer, max_len, metrics_format,
                         now, uptime,
@@ -101,7 +115,11 @@ void app_metrics_send(time_t now, char *buffer, size_t max_len) {
                         mqtt_metrics.connected_count,
                         mqtt_metrics.connect_duration_ms,
                         mqtt_metrics.tx_pkt_count, mqtt_metrics.tx_bytes_count,
-                        mqtt_metrics.rx_pkt_count, mqtt_metrics.rx_bytes_count);
+                        mqtt_metrics.rx_pkt_count, mqtt_metrics.rx_bytes_count,
+                        boiler_refill.refill_error_count,
+                        boiler_temp.temp_read_error_count, boiler_temp.temp_over_limit_count, boiler_temp.temp_out_of_range_count,
+                        brew_temp.brew_temp_read_error_count, brew_temp.brew_temp_over_limit_count, brew_temp.brew_temp_out_of_range_count
+                        );
 
   _last_report_time = now;
   ESP_LOGD(TAG, "%.*s %d\n", len, buffer, len);

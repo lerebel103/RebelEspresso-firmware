@@ -129,15 +129,6 @@ struct schedules_cfg_t {
 
 struct schedules_status_t {
 
-  /**
-   * Report current configuration
-   */
-  void to_json(cJSON *config, const char *base_key) {
-    char *buf = (char *) malloc(64);
-
-    free(buf);
-  }
-
 };
 
 void schedules_init();

@@ -108,8 +108,10 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
   // Handle solenoid valve open/close for descaling here
   if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
     if (id == BREW_STARTED) {
+      ESP_LOGI(TAG, "Opening refill solenoid");
       out_signals_set_level(OUT_SIGNALS_RELAY2, 1);
     } else if (id == BREW_STOPPED) {
+      ESP_LOGI(TAG, "Closing refill solenoid");
       out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
     }
   }

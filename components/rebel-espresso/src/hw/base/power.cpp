@@ -38,8 +38,6 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     return;
   }
 
-  return;
-
   if (gpio_get_level(PIN_IN_SYS_EN) == 0) {
     /*if (s_is_low_power) {
         // Enter normal power mode
@@ -100,32 +98,21 @@ bool power_is_active() {
   return is_on;
 }
 
-static void IRAM_ATTR _handler(void*) {
-  if (gpio_get_level(PIN_IN_SYS_EN) == 0) {
-    _active();
-  } else {
-    _standby();
-  }
-}
-
 void power_init() {
   // No power until proven otherwise
   xEventGroupClearBits(status_event_group, POWER_ON_BIT);
   ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, portMAX_DELAY));
 
-  // --- Configure input switch that drives power state
-  gpio_isr_handler_add(PIN_IN_SYS_EN, _handler, nullptr);
+  _standby();
 
   gpio_config_t io_conf;
-  io_conf.intr_type = GPIO_INTR_ANYEDGE;
+  io_conf.intr_type = GPIO_INTR_DISABLE;
   io_conf.mode = GPIO_MODE_INPUT;
   io_conf.pin_bit_mask = ((1ULL << PIN_IN_SYS_EN));
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
   gpio_config(&io_conf);
 
-  // Initial state sync with gpio state
-  _handler(nullptr);
 
   // We want tick events
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick, nullptr));

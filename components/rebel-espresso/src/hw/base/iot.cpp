@@ -85,7 +85,7 @@ static void _send_telemetry(time_t timestamp) {
   };
 
   ESP_LOGD(TAG, "%.*s\n", len, payload);
-  mqtt_client_publish(&publishInfo, CONFIG_MQTT_ACK_TIMEOUT_MS);
+  mqtt_client_publish(&publishInfo, CONFIG_MQTT_AWSC_ACK_TIMEOUT_MS);
 }
 
 

@@ -290,7 +290,7 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
    */
 
   TickType_t endTick = xTaskGetTickCount();
-  ESP_LOGI(TAG, "Render Took %" PRIu32 "ms\r\n", pdTICKS_TO_MS(endTick - startTick));
+  ESP_LOGD(TAG, "Render Took %" PRIu32 "ms\r\n", pdTICKS_TO_MS(endTick - startTick));
 }
 
 static void _draw_provisioning(FontxFile *fx16M) {

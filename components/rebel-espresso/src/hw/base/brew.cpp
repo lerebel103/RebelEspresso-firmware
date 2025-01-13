@@ -11,16 +11,16 @@
 #include "out_signals.h"
 #include "hw_specs.h"
 #include "boiler_refill.h"
-#include "power.h"
 
 #define TAG "brew"
-
-#define BREW_MONITOR_PERIOD_MS  100
 
 static bool s_go = true;
 static bool _pump_sw_on = false;
 static bool _boiler_refilling = false;
-static bool s_descaled_entered = false;
+
+static bool s_power_on = false;
+static TaskHandle_t brew_task_handle;
+
 
 static void _pump_on() {
   out_signals_set_level(OUT_SIGNALS_RELAY1, 1);
@@ -52,10 +52,30 @@ static void _refill_events(void *handler_args, esp_event_base_t base, int32_t id
   }
 }
 
-static void _brew_switch_off(void *arg) {
-  bool is_on = _pump_sw_on;
+static void _brew_switch_on() {
+  // Not running any of this in standby
+  if (!s_power_on) {
+    return;
+  }
 
+  bool is_on = _pump_sw_on;
+  _pump_sw_on = true;
+
+  if (!is_on) {
+    _three_way_valve_on();
+    _pump_on();
+
+    // notify brew started
+    auto now_us = esp_timer_get_time();
+    ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, 0,
+                                   portMAX_DELAY));
+  }
+}
+
+static void _brew_switch_off() {
+  bool is_on = _pump_sw_on;
   _pump_sw_on = false;
+
   if (!_boiler_refilling) {
     _pump_off();
   }
@@ -70,73 +90,41 @@ static void _brew_switch_off(void *arg) {
   }
 }
 
-/*
- * It's annoying to have to do this.
- * Unfortunately we can't get the edge state accurately if positive and negative
- * interrupt is selected, which makes it unreliable to drive the pump from a single
- * configured ISR handler. So we need this secondary tick thing to ensure states
- * are consistent.
- */
-static void compute_brew_state() {
-  // Not running any of this in standby
-  if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
-    return;
-  }
-
-  bool is_pump_powered = out_signals_get_level(OUT_SIGNALS_RELAY1);
-
-  if (s_descaled_entered && gpio_get_level(PIN_IN_BREW_EN) == 1) {
-    // Don't run normal pump on/off if we are in descale mode until the pump switch is cycled once.
-    s_descaled_entered = false;
-  } else if (hw_specs_is_aux_in_activated()) {
-    // Then we are out of water in water tank, disable
-    _pump_off();
-  } else if (!s_descaled_entered) {
-    // maintain pump state with switch
-    if (gpio_get_level(PIN_IN_BREW_EN) == 0 && !is_pump_powered) {
-      _pump_sw_on = true;
-
-      // Send start event then
-      auto now_us = esp_timer_get_time();
-      ESP_ERROR_CHECK(
-          esp_event_post(MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, sizeof(uint64_t),
-                         portMAX_DELAY));
-
-      _three_way_valve_on();
-      _pump_on();
-    } else if (gpio_get_level(PIN_IN_BREW_EN) == 1 && is_pump_powered) {
-      _brew_switch_off(nullptr);
-    }
-  } else {
-    _pump_off();
-  }
+static void IRAM_ATTR _handler(void *) {
+  // Notify task to handle state change
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  xTaskNotifyFromISR(brew_task_handle, 0, eNoAction, &xHigherPriorityTaskWoken);
+  portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
+
+/* Task that monitors the brew switch state and takes appropriate actions outside an ISR context */
 void monitor_brew(void *) {
-  static bool last_power_state;
+  uint64_t last_monitor_brew_us = 0;
+  auto debounce_ms = 50;
+  bool last_state = false;
+
   do {
-    auto now_ms = (int64_t) (esp_timer_get_time() * 1e-3);
-    bool is_power_on = power_is_active();
+    // Wait for notification from ISR
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(debounce_ms));
 
-    // Detect transition from off to on and set descale mode
-    if (!last_power_state && is_power_on) {
-      if (gpio_get_level(PIN_IN_BREW_EN) == 0) {
-        xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
-        s_descaled_entered = true;
-      }
+    // Debounce
+    auto now_us = esp_timer_get_time();
+    if (now_us - last_monitor_brew_us < debounce_ms * 1000) {
+      continue;
     }
+    last_monitor_brew_us = now_us;
 
-    if (is_power_on) {
-      if (! (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT)) {
-        boiler_refill_check(now_ms);
-      }
-      compute_brew_state();
+    // Don't process if we have the same state
+    bool state = gpio_get_level(PIN_IN_BREW_EN) == 0;
+    if (state != last_state) {
+    last_state = state;
+
+    if (state) {
+      _brew_switch_on();
+    } else {
+      _brew_switch_off();
     }
-
-    last_power_state = is_power_on;
-    auto diff = ( esp_timer_get_time() * 1e-3) - now_ms;
-    if (diff < BREW_MONITOR_PERIOD_MS) {
-      vTaskDelay(pdMS_TO_TICKS(BREW_MONITOR_PERIOD_MS - diff));
     }
   } while (s_go);
 
@@ -145,33 +133,46 @@ void monitor_brew(void *) {
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   if (id == POWER_STANDBY) {
+    s_power_on = false;
+
     // Always stop pump regardless
     _pump_off();
     _three_way_valve_off();
 
     // Clear off descale mode
     xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
-    s_descaled_entered = false;
+  } else if (id == POWER_ACTIVE) {
+    // If pump switch is on when active, we enter descaling mode
+    if (gpio_get_level(PIN_IN_BREW_EN) == 0) {
+      xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
+    }
+
+    s_power_on = true;
   }
 }
 
+
 void brew_init() {
-  s_descaled_entered = false;
+  s_power_on = false;
 
-  // --- Configure input switch that drives the pump
+  // Ensure all is low state.
+  _brew_switch_off();
+
+  // Create task to monitor brew switch state
+  s_go = true;
+  xTaskCreate(monitor_brew, "monitor_brew", 2560, nullptr, 6, &brew_task_handle);
+
+  // --- Configure input switch that drives power state
+  gpio_isr_handler_add(PIN_IN_BREW_EN, _handler, nullptr);
+
   gpio_config_t io_conf;
-  io_conf.intr_type = GPIO_INTR_DISABLE;
+  io_conf.intr_type = GPIO_INTR_ANYEDGE;
   io_conf.mode = GPIO_MODE_INPUT;
-  io_conf.pin_bit_mask = (
-      (1ULL << PIN_IN_BREW_EN)
-  );
-
+  io_conf.pin_bit_mask = ((1ULL << PIN_IN_BREW_EN));
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
   gpio_config(&io_conf);
 
-  // Ensure all is low state.
-  _brew_switch_off(nullptr);
 
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_STARTED,
                                              _refill_events, nullptr));
@@ -186,9 +187,5 @@ void brew_init() {
                                              _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
                                              _power_events, nullptr));
-
-  // Create task for boiler refill
-  s_go = true;
-  xTaskCreate(monitor_brew, "brew_check", 2560, nullptr, 2, nullptr);
 }
 

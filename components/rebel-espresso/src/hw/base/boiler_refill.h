@@ -127,8 +127,6 @@ struct boiler_refill_status_t {
 
 void boiler_refill_init();
 
-void boiler_refill_check(uint64_t now_ms);
-
 void boiler_refill_handle_cfg(char* buffer, size_t len);
 
 void boiler_refill_delete();

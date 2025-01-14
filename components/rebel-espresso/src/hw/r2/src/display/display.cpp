@@ -27,6 +27,7 @@ extern "C" {
 #include "events.h"
 #include "../../../../../../../managed_components/espressif__qrcode/qrcodegen.h"
 #include "wifi/wifi_connect.h"
+#include "brew.h"
 
 #define TAG "tft"
 
@@ -320,20 +321,45 @@ static void _draw_refill_water_tank(FontxFile *fx) {
 }
 
 static void _draw_brew_counter(FontxFile *fx1, FontxFile *fx2) {
-  char buf[64];
+  char buf[80];
   int seconds = (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time);
   sprintf(buf, "%ds", seconds);
 
   int num_chars = 2;
   if (seconds >= 10) {
     num_chars += 1;
-  } else if (num_chars >= 100) {
-    num_chars += 2;
+  }
+  if (seconds >= 100) {
+    num_chars += 1;
   }
 
   int x = (CONFIG_WIDTH - num_chars * 32) / 2;
-  int y = 84 + 64;
-  lcdDrawString(&dev, fx2, x, y, (uint8_t *) buf, WHITE);
+  int y = 84 + 24;
+
+  uint16_t color;
+  if (seconds > 45) {
+    color = RED;
+  } else if (seconds > 30) {
+    color = PURPLE;
+  } else {
+    color = GREEN;
+  }
+  lcdDrawString(&dev, fx2, x, y, (uint8_t *) buf, color);
+
+  // Brew counter
+  auto status = brew_get_status();
+  x = 5;
+  y += 52;
+  sprintf(buf, "Brew count: %lu", status.brew_count);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *) buf, WHITE);
+  y += 25;
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *) "Descale:", WHITE);
+  y += 25;
+  sprintf(buf, " -Count: %lu", status.descale_count);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *) buf, WHITE);
+  strftime(buf, sizeof(buf), " -Last: %d/%m/%y", localtime(&status.last_descale_time));
+  y += 26;
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *) buf, WHITE);
 }
 
 static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -385,7 +411,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         lcdFillScreen(&dev, BLACK);
         last_state = state;
       }
-      _draw_brew_counter(fx32M, fx64M);
+      _draw_brew_counter(fx24M, fx64M);
     } else if (power_is_active()) {
       state = 5;
       if (state != last_state) {

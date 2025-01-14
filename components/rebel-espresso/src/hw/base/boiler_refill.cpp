@@ -43,20 +43,9 @@ static uint8_t s_status_monitor = 0;
 typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 
 // This is the function pointer to the level check function (used by test mock)
-static check_level_fn check_level;
+static check_level_fn check_level = nullptr;
 
 static void _load_nvram();
-
-
-void boiler_refill_check(uint64_t now_ms) {
-  static uint64_t last_check = 0;
-  if (now_ms - last_check < MIN_SAMPLE_TIME_MS) {
-    return;
-  }
-
-  last_check = now_ms;
-  boiler_refill_states_process(now_ms, check_level(), s_status_monitor);
-}
 
 bool boiler_check_level() {
   // Enable voltage on probe - measured settle time is 70ns, which is bugger all,

@@ -39,13 +39,13 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.4.0
+    version: 5.4.1
 direct_dependencies:
 - espressif/cbor
 - espressif/libsodium
 - espressif/mdns
 - espressif/qrcode
 - idf
-manifest_hash: a78ea75a45c8361600b9711f2d7765201d2a9d5fc13e7bb0b67d823466dd23a7
+manifest_hash: 9ad1efd03277c603439a1b1a15a68014200a9ce23d242cd8c490937c15148725
 target: esp32
 version: 2.0.0

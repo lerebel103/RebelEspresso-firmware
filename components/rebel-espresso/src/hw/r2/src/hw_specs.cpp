@@ -64,7 +64,7 @@ void hw_specs_init() {
       .glitch_ignore_cnt = 7,
       .intr_priority = 0,
       .trans_queue_depth = 0,
-      .flags = {.enable_internal_pullup = true},
+      .flags = {.enable_internal_pullup = true, .allow_pd = false},
   };
 
   ESP_ERROR_CHECK(i2c_new_master_bus(&conf, &s_i2c_handle));

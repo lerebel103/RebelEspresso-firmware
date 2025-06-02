@@ -100,6 +100,9 @@ IF (NOT NVRAM_STORAGE_PARTITION)
     SET(NVRAM_STORAGE_PARTITION "storage" CACHE INTERNAL "NVS partition name" FORCE)
 ENDIF ()
 
+# Set hardware revision dependent files
+file(COPY components/rebel-espresso/src/hw/r${HARDWARE_REVISION_MAJOR}/sdkconfig DESTINATION ${CMAKE_SOURCE_DIR}/)
+
 # Add homekit and AWS stuff
 if(DEFINED ENV{HOMEKIT_PATH})
     set(HOMEKIT_PATH $ENV{HOMEKIT_PATH})
@@ -122,20 +125,21 @@ execute_process(
         COMMAND_ERROR_IS_FATAL ANY
 )
 
-set(IDF_TARGET esp32)
-set(PROJECT_NAME coffee-drivah-firmware)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
-
+if(DEFINED ENV{HOMEKIT_PATH})
+    set(HOMEKIT_PATH $ENV{HOMEKIT_PATH})
+else()
+    set(HOMEKIT_PATH ${CMAKE_CURRENT_LIST_DIR}/components/esp-homekit-sdk)
+endif(DEFINED ENV{HOMEKIT_PATH})
+set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${HOMEKIT_PATH}/components ${HOMEKIT_PATH}/components/homekit )
 
 # Rename target binary file with correct versioning
 set(DEPLOY_BASE_DIR ${CMAKE_BINARY_DIR}/deploy)
 set(FIRMWARE_TARGET_DIR ${DEPLOY_BASE_DIR}/firmware)
 
-SET(CMAKE_CXX_STANDARD -std=c++14)
-SET(CMAKE_C_STANDARD -std=c11)
+SET(CMAKE_CXX_STANDARD 17)
+SET(CMAKE_C_STANDARD 17)
 
-# Set compile flags to give us something that will provide good perfomance
+# Set compile flags to give us something that will provide good performance
 STRING(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
 IF (LOWERCASE_CMAKE_BUILD_TYPE MATCHES debug)
     SET(CMAKE_C_FLAGS "-O0 -Os -ffast-math ${CMAKE_C_FLAGS}")
@@ -147,11 +151,18 @@ ELSE ()
     MESSAGE(FATAL_ERROR "Build type '${CMAKE_BUILD_TYPE}' is unknown")
 ENDIF ()
 
+# Issues with incompatible pointer types in aws ota libraries ...
+SET(CMAKE_C_FLAGS "-Wno-error=incompatible-pointer-types ${CMAKE_C_FLAGS}")
+SET(CMAKE_CXX_FLAGS "-Wno-error=incompatible-pointer-types ${CMAKE_CXX_FLAGS}")
+
+
 MESSAGE(STATUS "Using CFLAGS ${CMAKE_C_FLAGS}")
 MESSAGE(STATUS "Using CXXFLAGS ${CMAKE_CXX_FLAGS}")
 
-# Rename target binary file with Hardware Revision, Firmware version and build type.
-# SET(FINAL_FILE "${PROJECT_NAME}-r${HARDWARE_REVISION_MAJOR}-v${FIRMWARE_VERSION}-${GIT_SHORT_HASH}-${CMAKE_BUILD_TYPE}.bin")
+set(IDF_TARGET esp32)
+set(PROJECT_NAME coffee-drivah-firmware)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
 
 # Package binaries into firmware directory
 add_custom_command(TARGET app POST_BUILD
@@ -160,25 +171,25 @@ add_custom_command(TARGET app POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E rm -fr "${DEPLOY_BASE_DIR}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEPLOY_BASE_DIR}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEPLOY_BASE_DIR}/bin"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEPLOY_BASE_DIR}/policies"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${FIRMWARE_TARGET_DIR}"
 
         # Drop in versio info
         COMMAND ${CMAKE_COMMAND} -E echo "${FIRMWARE_VERSION}" > "${FIRMWARE_TARGET_DIR}/firmware_version.txt"
         COMMAND ${CMAKE_COMMAND} -E echo "r${HARDWARE_REVISION_MAJOR}" > "${FIRMWARE_TARGET_DIR}/hardware_revision.txt"
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/ci/bin/* "${DEPLOY_BASE_DIR}/bin/"
 
         # Copy relevent firmware files over
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.bin" "${FIRMWARE_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.bin" "${FIRMWARE_TARGET_DIR}/firmware.bin"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.elf" "${FIRMWARE_TARGET_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.map" "${FIRMWARE_TARGET_DIR}"
 
-        # Now copy buildspec across for deployment
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/ci/buildspec*.yaml" "${DEPLOY_BASE_DIR}"
-        )
+        # Now copy aws iot core policies across also
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/policies/*.yaml" "${DEPLOY_BASE_DIR}/policies/"
+)
 
 add_custom_command(TARGET bootloader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/partition_table/*.bin" "${FIRMWARE_TARGET_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/bootloader/*.bin" "${FIRMWARE_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/partition_table/*.bin" "${FIRMWARE_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/bootloader/*.bin" "${FIRMWARE_TARGET_DIR}"
 )
 
 # And finally the target that zips up the firmware as a single artefact

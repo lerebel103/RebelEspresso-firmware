@@ -99,13 +99,13 @@ void process_loop_init() {
       .direction = GPTIMER_COUNT_UP,
       .resolution_hz = 1 * 1000 * 1000, // 1MHz, 1 tick = 1us
       .intr_priority = 3,
-      .flags = {0, 0},
+      .flags = {0, 0, 0 }
   };
 
   ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &s_timer));
 
   gptimer_alarm_config_t alarm_config = {
-      .alarm_count = (int) (TIMER_INTERVAL0_SEC * 1000 * 1000), // alarm target = 1s @resolution 1MHz
+      .alarm_count = static_cast<int>((TIMER_INTERVAL0_SEC * 1000 * 1000)), // alarm target = 1s @resolution 1MHz
       .reload_count = 0,
       .flags = {
           .auto_reload_on_alarm = true,

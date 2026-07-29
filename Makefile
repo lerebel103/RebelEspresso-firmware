@@ -28,19 +28,23 @@ CMAKE_VARS = \
 # Targets
 ###############################################################################
 
-.PHONY: build clean fullclean menuconfig shell setup submodules
+.PHONY: build test clean fullclean menuconfig shell setup submodules
 
 ## Build firmware
 build:
 	$(DOCKER_RUN) idf.py $(CMAKE_VARS) build
 
+## Run unit tests in QEMU
+test:
+	$(DOCKER_RUN) bash -c "cd test_app && idf.py build && /workspace/test_app/run_qemu.sh"
+
 ## Clean build artifacts
 clean:
 	$(DOCKER_RUN) idf.py fullclean
 
-## Full clean including managed components
+## Full clean including managed components and test build
 fullclean:
-	$(DOCKER_RUN) bash -c "idf.py fullclean && rm -rf managed_components"
+	$(DOCKER_RUN) bash -c "idf.py fullclean && rm -rf managed_components test_app/build"
 
 ## Interactive menuconfig
 menuconfig:

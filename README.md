@@ -34,10 +34,36 @@ make build BUILD_STAGE=prd BUILD_TYPE=Release HW_REVISION=2
 ### Other build targets
 
 ```bash
+make test         # run unit tests in QEMU (no hardware needed)
 make menuconfig   # interactive Kconfig editor
 make clean        # clean build artifacts
 make fullclean    # clean everything including managed components
 make shell        # drop into the container with full IDF toolchain
+```
+
+## Testing
+
+Unit tests run inside QEMU (an ESP32 emulator) within Docker — no physical hardware required.
+
+```bash
+make test
+```
+
+This builds the test app, creates a QEMU flash image, and runs all tests in the emulator. Tests cover:
+
+- **PID controller** — algorithm correctness, reset behavior, config validation
+- **JSON config** — cJSON serialization round-trips, partial updates, array handling
+- **NVS persistence** — store/retrieve for all value types, default handling, erase
+- **Event loop** — handler registration, event delivery, data passing, FreeRTOS primitives
+
+Tests are in `test_app/main/test_*.cpp`. To add a new test, create a `TEST_CASE` in any `.cpp` file listed in `test_app/main/CMakeLists.txt`.
+
+```bash
+# Run tests interactively inside the container
+make shell
+cd test_app
+idf.py build
+./run_qemu.sh
 ```
 
 ## Flashing
@@ -111,6 +137,10 @@ Open the project and select "Reopen in Container" when prompted. The dev contain
 ├── components/             # ESP-IDF components (submodules + local)
 ├── main/                   # Application source
 │   └── idf_component.yml   # IDF Component Manager manifest
+├── test_app/               # QEMU-based unit tests
+│   ├── main/test_*.cpp     # Test source files
+│   ├── run_qemu.sh         # QEMU test runner script
+│   └── sdkconfig.defaults  # Minimal config for test builds
 └── .devcontainer/          # VS Code Dev Container config
 ```
 

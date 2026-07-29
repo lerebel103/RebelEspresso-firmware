@@ -4,7 +4,7 @@
 
 #define FIRMWARE_VERSION "@FIRMWARE_VERSION@"
 
-#define HARDWARE_REVISION "@HARDWARE_REVISION@"
+#define HARDWARE_REVISION_MAJOR "@HARDWARE_REVISION_MAJOR@"
 
 /**
  * Git revision this build came from

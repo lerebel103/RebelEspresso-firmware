@@ -2,9 +2,9 @@
 
 #include <cstring>
 #include <cJSON.h>
-#include "sys/str_utils.h"
+#include "str_utils.h"
 #include "src/sys/nvram_store.h"
-#include "window.h"
+#include "measure.h"
 
 
 #define PID_CFG_JSON_KEY "pid."
@@ -123,7 +123,7 @@ void pid_reset(pid_struct_t& pid);
 pid_result_t pid_process(
         pid_struct_t& pid,
         pid_cfg_t& cfg,
-        uint64_t time_us, const reading_t& data);
+        uint64_t time_us, const measure_t& data);
 
 void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg);
 

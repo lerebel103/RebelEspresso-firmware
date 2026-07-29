@@ -3,12 +3,12 @@
 
 #include <esp_event_base.h>
 #include <cJSON.h>
-#include <src/sys/str_utils.h>
+#include "str_utils.h"
 
 typedef void(*state_fn)(bool level_ok, TickType_t now_ms);
 typedef bool(*check_level_fn)();
 
-#define BOILER_REFILL_CFG_JSON_KEY      "boiler_refill."
+#define BOILER_REFILL_CFG_JSON_KEY      ""
 
 #define KEY_start_delay_ms              "start_delay"
 #define KEY_stabilise_ms                "stabilise_ms"
@@ -122,22 +122,12 @@ struct boiler_refill_cfg_t {
 
 struct boiler_refill_status_t {
     uint16_t refill_error_count = 0;
-
-    /**
-     * Report current configuration
-     */
-    void to_json(cJSON* config, const char* base_key) {
-        char* buf = (char*) malloc(64);
-
-        sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "refill_error_count", base_key);
-        cJSON_AddNumberToObject(config, buf, refill_error_count);
-
-        free(buf);
-    }
 };
 
 
-void boiler_refill_init(esp_event_loop_handle_t event_loop);
+void boiler_refill_init();
+
+void boiler_refill_handle_cfg(char* buffer, size_t len);
 
 void boiler_refill_delete();
 

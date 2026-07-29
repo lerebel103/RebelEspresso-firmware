@@ -6,12 +6,13 @@
 #include <src/events.h>
 #include <esp_event.h>
 #include <esp_log.h>
+#include <driver/gpio.h>
 #include "setpoint_selector.h"
 #include "boiler_temp.h"
 
 #define TAG "setpoint_selector"
 
-static esp_event_loop_handle_t s_event_loop;
+
 static bool _setpoint_selector_sw_on = false;
 static bool _boiler_refilling = false;
 
@@ -56,8 +57,8 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     }
 }
 
-void setpoint_selector_init(esp_event_loop_handle_t event_loop) {
-    s_event_loop = event_loop;
+void setpoint_selector_init() {
+
 
     gpio_config_t io_conf;
 
@@ -75,8 +76,8 @@ void setpoint_selector_init(esp_event_loop_handle_t event_loop) {
     // Get everything synced up
     _tick(NULL, MACHINE_EVENTS, TICK, NULL);
 
-    ESP_ERROR_CHECK(esp_event_handler_register_with(s_event_loop, MACHINE_EVENTS, TICK,
-                                                    _tick, s_event_loop));
+    ESP_ERROR_CHECK(esp_event_handler_register( MACHINE_EVENTS, TICK,
+                                                    _tick, nullptr));
 
 }
 

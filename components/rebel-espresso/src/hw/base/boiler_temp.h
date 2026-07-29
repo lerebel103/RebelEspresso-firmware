@@ -7,12 +7,11 @@
 
 #include "rtds.h"
 #include "pid.h"
-#include "rmt_duty_map.h"
-#include "sys/str_utils.h"
+#include "str_utils.h"
 
 #define BOILER_SSR_PIN PIN_OUT_SSR1
 
-#define BOILER_CFG_JSON_KEY                 "boiler_temp."
+#define BOILER_CFG_JSON_KEY                 ""
 #define NVS_BOILER_CFG_STORE                "cfg.boiler_temp"
 #define NVS_BOILER_STATS_STORE              "sts.boiler_temp"
 
@@ -102,32 +101,16 @@ struct boiler_temp_status_t {
     uint32_t temp_read_error_count;
     uint32_t temp_over_limit_count;
     uint32_t temp_out_of_range_count;
-
-    /**
-     * Report current configuration
-     */
-    void to_json(cJSON *config, const char *base_key) {
-        char *buf = (char *) malloc(64);
-
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_read_error_count", base_key);
-        cJSON_AddNumberToObject(config, buf, temp_read_error_count);
-
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_over_limit_count", base_key);
-        cJSON_AddNumberToObject(config, buf, temp_over_limit_count);
-
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_out_of_range_count", base_key);
-        cJSON_AddNumberToObject(config, buf, temp_out_of_range_count);
-
-        free(buf);
-    }
-
 };
 
-void boiler_temp_init(esp_event_loop_handle_t event_loop);
+void boiler_temp_handle_cfg(char* buffer, size_t len);
+
+
+void boiler_temp_init();
 
 void boiler_temp_delete();
 
-void boiler_temp_process(uint64_t time_us, const reading_t &data);
+void boiler_temp_process(uint64_t time_us, const measure_t &data);
 
 /**
  * Get current duty value applied to the SSR

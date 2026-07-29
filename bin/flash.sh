@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 set -e
 
 # Working dir of this script
@@ -45,9 +46,9 @@ ${esp_tool} write_flash ${nvs_factory_offset} "${out_dir}/${thing_id}_factory_nv
 
 # Cleanup
 echo "Cleaning up"
-rm "${out_dir}/app_data.csv"
-rm "${out_dir}/${thing_id}_factory_nvs.csv"
-rm "${out_dir}/${thing_id}_factory_nvs.bin"
+#rm "${out_dir}/app_data.csv"
+#rm "${out_dir}/${thing_id}_factory_nvs.csv"
+#rm "${out_dir}/${thing_id}_factory_nvs.bin"
 
 # Now echo the device public key
 echo "Device public key is:"

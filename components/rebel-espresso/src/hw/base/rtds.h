@@ -1,7 +1,7 @@
 #pragma once
 
 #include <hal/spi_types.h>
-#include "reading.h"
+#include "measure.h"
 
 struct rtds_cfg_t {
 };
@@ -20,7 +20,7 @@ enum units_enum_t {
     UNIT_FARENHEIGHT
 };
 
-typedef void (*rtd_update_cb_t)(uint64_t time_us, const struct reading_t& data, uint8_t rtd_idx);
+typedef void (*rtd_update_cb_t)(uint64_t time_us, const struct measure_t data, uint8_t rtd_idx);
 
 int rtds_init(spi_host_device_t spi, const struct rtds_cfg_t* cfg);
 
@@ -36,7 +36,7 @@ void rtds_update(rtd_update_cb_t cb);
  * @param data
  * @param idx
  */
-esp_err_t rtds_get(struct reading_t* data, uint8_t idx);
+esp_err_t rtds_get(struct measure_t* data, uint8_t idx);
 
 inline units_enum_t rtds_get_unit() {
     return UNIT_CELCIUS;

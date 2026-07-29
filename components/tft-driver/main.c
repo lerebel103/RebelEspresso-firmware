@@ -1229,6 +1229,8 @@ void ILI9341(void *pvParameters)
 }
 
 
+[[noreturn]]
+
 void app_main(void)
 {
 	ESP_LOGI(TAG, "Initializing SPIFFS");

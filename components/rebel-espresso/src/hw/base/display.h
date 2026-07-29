@@ -7,7 +7,7 @@ extern "C" {
 #include <stdint-gcc.h>
 #include <esp_event_base.h>
 
-void display_init(esp_event_loop_handle_t event_loop);
+void display_init();
 
 #ifdef __cplusplus
 }

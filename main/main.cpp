@@ -5,49 +5,38 @@ extern "C" {
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 #include <esp_log.h>
-#include <esp_system.h>
 }
 
-#include <sys/ota.h>
 #include <esp_event.h>
-#include <src/hw/base/hw_specs.h>
-#include "state.h"
-#include "controller.h"
+#include "aws_connector.h"
+#include "hw_specs.h"
 #include "thing_info.h"
-#include "sys/nvram_store.h"
+#include "controller.h"
+#include "app_metrics.h"
 
 #define TAG  "main"
 
-// Event group pointer so we get system events to sync up
+// Event group pointer, so we get system events to sync up
 EventGroupHandle_t status_event_group;
 
 extern "C" void app_main() {
-    esp_event_loop_args_t event_loop_args = {
-            .queue_size = 10,
-            .task_name = "App Event Loop", // No task will be created
-            .task_priority = uxTaskPriorityGet(NULL),
-            .task_stack_size = 2548,
-            .task_core_id = tskNO_AFFINITY
-    };
-    esp_event_loop_handle_t event_loop;
-    ESP_ERROR_CHECK(esp_event_loop_create(&event_loop_args, &event_loop));
-    status_event_group = xEventGroupCreate();
+  esp_log_level_set("coreMQTT", ESP_LOG_ERROR);
+  esp_log_level_set("gpio", ESP_LOG_ERROR);
 
-    // Init hardware as early as possible
-    nvram_store_init();
-    store_inc_cycle_count();
-    hw_specs_init(event_loop);
-    thing_info_init();
-    ota_check_pending_validate_begin();
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+  status_event_group = xEventGroupCreate();
 
-    esp_log_level_set("gpio", ESP_LOG_ERROR);
+  // Init hardware as early as possible
+  hw_specs_init();
+  thing_info_init();
+  aws_connector_init(status_event_group);
+  app_metrics_init();
+  controller_init();
 
-    state_print_system_info();
-    controller_init(event_loop);
-
-    // Here's our control loop
-    controller_enter_loop();
-    esp_event_loop_delete(event_loop);
+  // Here's our control loop
+  controller_enter_loop();
+  esp_event_loop_delete_default();
 }
+
 
 

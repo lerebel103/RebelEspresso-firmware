@@ -2,20 +2,16 @@
 
 #include <freertos/event_groups.h>
 #include <esp_event_base.h>
+#include <common/events_common.h>
 
 
 extern EventGroupHandle_t status_event_group;
 
-#define POWER_ON_BIT                BIT0
-#define BOILER_LEVEL_OK_BIT         BIT1
-#define WIFI_CONNECTED_BIT          BIT2
-#define TIME_SYNC_BIT               BIT3
-#define MQTT_CONNECTED_BIT          BIT4
-#define OTA_PERFORMED_BIT           BIT5
-#define REFRESH_DISPLAY_BIT         BIT6
-#define SEND_STATE_BIT              BIT7
-#define DESCALE_MODE_BIT            BIT8
-#define PROVISIONING_BIT            BIT9
+#define START_BIT                   MAX_ESP32_AWS_CONNECTOR_EVENTS_BIT
+#define POWER_ON_BIT                ( START_BIT << 1 )
+#define BOILER_LEVEL_OK_BIT         ( START_BIT << 2 )
+#define DESCALE_MODE_BIT            ( START_BIT << 3 )
+#define PROVISIONING_BIT            ( START_BIT << 4 )
 
 
 

@@ -14,14 +14,9 @@ struct controller_cfg_t {
 };
 
 
-void controller_init(esp_event_loop_handle_t event_loop);
+void controller_init();
 
 void controller_enter_loop();
-
-void controller_cfg_to_json(cJSON *root, const char* base_key);
-void controller_status_to_json(cJSON *root, const char* base_key);
-
-void controller_handle_new_cfg(const cJSON* cfg);
 
 #ifdef __cplusplus
 }

@@ -53,8 +53,11 @@ cmake-build-*
 *.bin
 *.elf
 
-venv
+/venv
 /sdkconfig
 sdkconfig.old
 
 /monitor.log
+/certs
+/managed_components
+

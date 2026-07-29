@@ -5,9 +5,9 @@ IF (PROJECT_SOURCE_DIR)
 ENDIF()
 
 file(GLOB_RECURSE HARDWARE_SPECIFIC_SRCS
-        hw/r${HARDWARE_REVISION}/*.h
-        hw/r${HARDWARE_REVISION}/*.c
-        hw/r${HARDWARE_REVISION}/*.cpp
+        hw/r${HARDWARE_REVISION_MAJOR}/*.h
+        hw/r${HARDWARE_REVISION_MAJOR}/*.c
+        hw/r${HARDWARE_REVISION_MAJOR}/*.cpp
         )
 
 
@@ -16,8 +16,8 @@ set(COMPONENT_SRCDIRS
         src/utils
         src/sys
         src/hw/base
-        src/hw/r${HARDWARE_REVISION}/src
-        src/hw/r${HARDWARE_REVISION}/src/display
+        src/hw/r${HARDWARE_REVISION_MAJOR}/src
+        src/hw/r${HARDWARE_REVISION_MAJOR}/src/display
         src/homekit
         )
 
@@ -25,12 +25,13 @@ set(COMPONENT_REQUIRES
         mbedtls
         json
         nvs_flash
+        esp32-aws-connector
 
         app_update
         console
         esp-tls
-        esp-google-iot
-        esp_adc_cal
+        driver
+        esp_adc
         esp_hap_core
         esp_hap_apple_profiles
         esp_rom
@@ -38,8 +39,8 @@ set(COMPONENT_REQUIRES
         wifi_provisioning
         qrcode
         ESP32-MAX31865
-        u8g2
         tft-driver
+        esp-ssr-controller
         )
 
 set(COMPONENT_ADD_INCLUDEDIRS
@@ -48,8 +49,7 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src/utils"
         "./_generated/"
         "./src/hw/base/"
-        "./src/hw/r${HARDWARE_REVISION}/src"
-        "../u8g2/csrc"
+        "./src/hw/r${HARDWARE_REVISION_MAJOR}/src"
         )
 
 idf_component_register(

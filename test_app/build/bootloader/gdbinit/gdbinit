@@ -1,2 +1,0 @@
-source /workspace/test_app/build/bootloader/gdbinit/symbols
-source /workspace/test_app/build/bootloader/gdbinit/connect

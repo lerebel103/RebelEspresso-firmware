@@ -4,6 +4,8 @@
 
 # Build output (idf.py build directory)
 /build/
+/test_app/build/
+/test_app/sdkconfig
 /cmake-build-*/
 
 # sdkconfig is auto-generated from sdkconfig.defaults — don't track it

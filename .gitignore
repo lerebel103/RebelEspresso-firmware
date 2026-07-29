@@ -1,63 +1,78 @@
-# Prerequisites
-*.d
+# ==============================================================================
+# RebelEspresso Firmware .gitignore
+# ==============================================================================
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Build output (idf.py build directory)
+/build/
+/cmake-build-*/
 
-# Precompiled Headers
-*.gch
-*.pch
+# sdkconfig is auto-generated from sdkconfig.defaults — don't track it
+/sdkconfig
+/sdkconfig.old
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Python files
-*.pyc
-
-# mercurial
-*.hg
+# ESP-IDF managed components (fetched at build time by IDF Component Manager)
+/managed_components/
 
 # Generated folders
 **/_generated/
 
-# Suspect build folders one may have
-BUILD
-build*
-cmake-build-*
+# ==============================================================================
+# Python
+# ==============================================================================
+*.pyc
+__pycache__/
+.venv/
+/venv/
 
-# Suspect IDE files, we never want this stuff committed as it is developer specific
-.idea
-
-# Not now, it's an arduino project
-.DS_Store
+# ==============================================================================
+# Compiled objects and libraries
+# ==============================================================================
+*.d
+*.slo
+*.lo
+*.o
+*.obj
+*.gch
+*.pch
+*.so
+*.dylib
+*.dll
+*.mod
+*.smod
+*.lai
+*.la
+*.a
+*.lib
+*.exe
+*.out
+*.app
 *.bin
 *.elf
 
-/venv
-/sdkconfig
-sdkconfig.old
+# ==============================================================================
+# IDE and editor
+# ==============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
+# ==============================================================================
+# OS files
+# ==============================================================================
+.DS_Store
+Thumbs.db
+
+# ==============================================================================
+# Project-specific
+# ==============================================================================
+
+# Certificates are fetched at build time from AWS
+/certs/
+
+# Monitor logs
 /monitor.log
-/certs
-/managed_components
 
+# Mercurial (legacy)
+*.hg

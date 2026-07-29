@@ -1,0 +1,32 @@
+{
+  "name": "RebelEspresso ESP-IDF",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "idf.espIdfPath": "/opt/esp/idf",
+        "idf.toolsPath": "/opt/esp",
+        "idf.pythonBinPath": "/opt/esp/python_env/idf5.4_py3.12_env/bin/python",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "C_Cpp.default.compilerPath": "/opt/esp/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc",
+        "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json"
+      },
+      "extensions": [
+        "espressif.esp-idf-extension",
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools"
+      ]
+    }
+  },
+  "containerEnv": {
+    "IDF_TARGET": "esp32",
+    "BUILD_STAGE": "dev"
+  },
+  "postCreateCommand": "git config --global --add safe.directory /workspace && git submodule update --init --recursive",
+  "remoteUser": "root"
+}

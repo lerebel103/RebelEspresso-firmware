@@ -43,28 +43,42 @@ find_package(Git REQUIRED)
 execute_process(
         COMMAND
         ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         RESULT_VARIABLE
         GIT_SHORT_HASH_RESULT
         OUTPUT_VARIABLE
         GIT_SHORT_HASH
+        ERROR_QUIET
 )
-STRING(STRIP ${GIT_SHORT_HASH} GIT_SHORT_HASH)
+if(GIT_SHORT_HASH_RESULT EQUAL 0 AND GIT_SHORT_HASH)
+    STRING(STRIP "${GIT_SHORT_HASH}" GIT_SHORT_HASH)
+else()
+    set(GIT_SHORT_HASH "unknown")
+endif()
 SET(GIT_SHORT_HASH ${GIT_SHORT_HASH} CACHE INTERNAL "" FORCE)
 
 # Cool, get our tag
 execute_process(
         COMMAND
         ${GIT_EXECUTABLE} for-each-ref refs/tags --sort=-taggerdate --count=1 --format=%\(refname:short\)
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         RESULT_VARIABLE
         GIT_LAST_TAG_RESULT
         OUTPUT_VARIABLE
         GIT_LAST_TAG
+        ERROR_QUIET
 )
-STRING(STRIP ${GIT_LAST_TAG} GIT_LAST_TAG)
 
-string(REPLACE "." ";" VERSION_LIST ${GIT_LAST_TAG})
-list(GET VERSION_LIST 0 PROJECT_VERSION_MAJOR)
-list(GET VERSION_LIST 1 PROJECT_VERSION_MINOR)
+if(GIT_LAST_TAG_RESULT EQUAL 0 AND GIT_LAST_TAG)
+    STRING(STRIP "${GIT_LAST_TAG}" GIT_LAST_TAG)
+    string(REPLACE "." ";" VERSION_LIST ${GIT_LAST_TAG})
+    list(GET VERSION_LIST 0 PROJECT_VERSION_MAJOR)
+    list(GET VERSION_LIST 1 PROJECT_VERSION_MINOR)
+else()
+    set(GIT_LAST_TAG "0.0")
+    set(PROJECT_VERSION_MAJOR 0)
+    set(PROJECT_VERSION_MINOR 0)
+endif()
 
 MESSAGE(STATUS ">> Last tag from GIT is '${GIT_LAST_TAG}'")
 
@@ -73,12 +87,18 @@ MESSAGE(STATUS ">> Last tag from GIT is '${GIT_LAST_TAG}'")
 execute_process(
         COMMAND
         ${GIT_EXECUTABLE} rev-list ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.. --count
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         RESULT_VARIABLE
         GIT_PATCH_RESULT
         OUTPUT_VARIABLE
         PROJECT_VERSION_PATCH
+        ERROR_QUIET
 )
-STRING(STRIP ${PROJECT_VERSION_PATCH} PROJECT_VERSION_PATCH)
+if(GIT_PATCH_RESULT EQUAL 0 AND PROJECT_VERSION_PATCH)
+    STRING(STRIP "${PROJECT_VERSION_PATCH}" PROJECT_VERSION_PATCH)
+else()
+    set(PROJECT_VERSION_PATCH 0)
+endif()
 set(PROJECT_VERSION_PATCH 0)
 
 # Versioning derived from last tag
@@ -100,8 +120,13 @@ IF (NOT NVRAM_STORAGE_PARTITION)
     SET(NVRAM_STORAGE_PARTITION "storage" CACHE INTERNAL "NVS partition name" FORCE)
 ENDIF ()
 
-# Set hardware revision dependent files
-file(COPY components/rebel-espresso/src/hw/r${HARDWARE_REVISION_MAJOR}/sdkconfig DESTINATION ${CMAKE_SOURCE_DIR}/)
+# Hardware revision dependent sdkconfig defaults
+# idf.py natively reads sdkconfig.defaults from the project root.
+# For hardware-specific overrides, point SDKCONFIG_DEFAULTS to both the base
+# defaults and the hardware-specific one.
+set(SDKCONFIG_DEFAULTS
+    "${CMAKE_SOURCE_DIR}/sdkconfig.defaults"
+)
 
 # Add homekit and AWS stuff
 if(DEFINED ENV{HOMEKIT_PATH})
@@ -117,13 +142,20 @@ set(EXTRA_COMPONENT_DIRS
         components/esp-aws-iot/libraries/common/
 )
 
-# Pull codesign certificate
+# Pull codesign certificate (non-fatal — allows offline builds, cert may already exist)
 execute_process(
         COMMAND
         ${CMAKE_SOURCE_DIR}/bin/get-codesign-cert.py ${CODESIGN_URL} ${CMAKE_SOURCE_DIR}/certs/aws_codesign.crt
         COMMAND_ECHO STDOUT
-        COMMAND_ERROR_IS_FATAL ANY
+        RESULT_VARIABLE CODESIGN_RESULT
 )
+if(NOT CODESIGN_RESULT EQUAL 0)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/certs/aws_codesign.crt")
+        MESSAGE(WARNING "Failed to refresh codesign cert, using existing cached copy.")
+    else()
+        MESSAGE(WARNING "Failed to fetch codesign cert and no cached copy exists. OTA verification will not work.")
+    endif()
+endif()
 
 if(DEFINED ENV{HOMEKIT_PATH})
     set(HOMEKIT_PATH $ENV{HOMEKIT_PATH})

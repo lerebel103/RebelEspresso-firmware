@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zip \
     unzip \
     jq \
+    clang-tidy \
+    clang-format \
+    cppcheck \
     && rm -rf /var/lib/apt/lists/*
 
 # Install project-specific Python packages into IDF's Python environment.

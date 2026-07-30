@@ -34,7 +34,7 @@ CMAKE_VARS = \
 # Targets
 ###############################################################################
 
-.PHONY: build test clean fullclean menuconfig shell setup submodules docker
+.PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker
 
 ## Build firmware
 build: .docker-image
@@ -43,6 +43,24 @@ build: .docker-image
 ## Run unit tests in QEMU
 test: .docker-image
 	$(DOCKER_RUN) bash -c "cd test_app && idf.py build && /workspace/test_app/run_qemu.sh"
+
+## Static analysis with clang-tidy (requires build first for compile_commands.json)
+lint: .docker-image
+	$(DOCKER_RUN) /workspace/scripts/lint.sh
+
+## Lint with auto-fix
+lint-fix: .docker-image
+	$(DOCKER_RUN) /workspace/scripts/lint.sh --fix
+
+## Format source files with clang-format
+format: .docker-image
+	$(DOCKER_RUN) bash -c "find components/rebel-espresso/src components/esp32-aws-connector/src main \
+		-name '*.cpp' -o -name '*.c' -o -name '*.h' | xargs clang-format -i"
+
+## Check formatting (dry-run, exits non-zero if changes needed)
+format-check: .docker-image
+	$(DOCKER_RUN) bash -c "find components/rebel-espresso/src components/esp32-aws-connector/src main \
+		-name '*.cpp' -o -name '*.c' -o -name '*.h' | xargs clang-format --dry-run --Werror"
 
 ## Clean build artifacts
 clean:

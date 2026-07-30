@@ -1,0 +1,58 @@
+---
+# clang-format configuration for ESP32 firmware
+# Based on LLVM style with adjustments for embedded C/C++ conventions.
+
+BasedOnStyle: LLVM
+Language: Cpp
+
+# Indentation
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+IndentCaseLabels: true
+NamespaceIndentation: None
+
+# Braces
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Line length
+ColumnLimit: 120
+
+# Includes
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # ESP-IDF system headers
+  - Regex: '^<(freertos|esp_|driver/|hal/|soc/|nvs|sdkconfig)'
+    Priority: 2
+  # Standard library
+  - Regex: '^<'
+    Priority: 3
+  # Project headers
+  - Regex: '^"'
+    Priority: 1
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+
+# Pointers and references
+PointerAlignment: Right
+ReferenceAlignment: Left
+
+# Other
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SpacesInParentheses: false
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# C++ specific
+Cpp11BracedListStyle: true
+FixNamespaceComments: true
+...

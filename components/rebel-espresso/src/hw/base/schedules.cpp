@@ -8,7 +8,7 @@
 #include "pid.h"
 #include "brew_temp.h"
 #include "power.h"
-#include "shadow/shadow_handler.h"
+#include "shadow_helper.h"
 #include "shadow_helper.h"
 
 #define TAG "schedules"
@@ -151,13 +151,12 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
   }
 }
 
-static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+static void _shadow_deleted_handler(void *, void *) {
   // re-create the shadow then
   _cfg_update_required = true;
 }
 
-static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
-  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, schedules_update_cfg);
+static void update_config_resp(void *, void *) {
   _cfg_update_required = true;
 }
 

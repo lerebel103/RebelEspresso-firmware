@@ -18,6 +18,6 @@ idf_component_register(
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/base"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso"
     REQUIRES
-        unity nvs_flash esp_event json driver esp_timer
+        unity nvs_flash esp_event cjson driver esp_timer
     WHOLE_ARCHIVE
 )

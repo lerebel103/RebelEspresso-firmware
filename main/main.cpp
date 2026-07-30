@@ -20,7 +20,6 @@ extern "C" {
 EventGroupHandle_t status_event_group;
 
 extern "C" void app_main() {
-  esp_log_level_set("coreMQTT", ESP_LOG_ERROR);
   esp_log_level_set("gpio", ESP_LOG_ERROR);
 
   ESP_ERROR_CHECK(esp_event_loop_create_default());

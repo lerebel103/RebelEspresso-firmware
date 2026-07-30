@@ -11,14 +11,13 @@ set(COMPONENTS
     esp_common
     esp_rom
     esp_hw_support
-    newlib
     heap
     log
     soc
     hal
     esp_timer
     driver
-    json
+    cjson
     unity
     partition_table
     spi_flash

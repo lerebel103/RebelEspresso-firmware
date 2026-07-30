@@ -9,7 +9,6 @@
 #include "rtds.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
-#include "shadow/shadow_handler.h"
 #include "shadow_helper.h"
 
 #define TAG "Boiler"
@@ -241,13 +240,13 @@ void boiler_temp_process(uint64_t time_us, const measure_t &data) {
            data.value, result.duty, duty, setpoint);
 }
 
-static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+static void _shadow_deleted_handler(void *, void *) {
   // re-create the shadow then
   _cfg_update_required = true;
 }
 
-static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
-  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, boiler_temp_update_cfg);
+static void update_config_resp(void *, void *) {
+  // Shadow updates removed — config is now managed locally only
   _cfg_update_required = true;
 }
 

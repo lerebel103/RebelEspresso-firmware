@@ -22,8 +22,7 @@ set(COMPONENT_SRCDIRS
         )
 
 set(COMPONENT_REQUIRES
-        mbedtls
-        json
+        cjson
         nvs_flash
         esp32-aws-connector
 
@@ -32,12 +31,11 @@ set(COMPONENT_REQUIRES
         esp-tls
         driver
         esp_adc
+        esp_driver_i2c
         esp_hap_core
         esp_hap_apple_profiles
         esp_rom
         spiffs
-        wifi_provisioning
-        qrcode
         ESP32-MAX31865
         tft-driver
         esp-ssr-controller

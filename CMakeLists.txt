@@ -138,8 +138,6 @@ set(EXTRA_COMPONENT_DIRS
         ${EXTRA_COMPONENT_DIRS}
         ${HOMEKIT_PATH}/components
         ${HOMEKIT_PATH}/components/homekit
-        components/esp-aws-iot/libraries
-        components/esp-aws-iot/libraries/common/
 )
 
 # Pull codesign certificate (non-fatal — allows offline builds, cert may already exist)

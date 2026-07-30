@@ -42,7 +42,7 @@ ESP_EVENT_DEFINE_BASE(MACHINE_EVENTS);
 #define ESP_INTR_FLAG_DEFAULT \
     (ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 |ESP_INTR_FLAG_LEVEL3)
 
-static spi_host_device_t s_spi = HSPI_HOST;
+static spi_host_device_t s_spi = SPI2_HOST;
 
 void _init_spi() {
   // SPI initialisation

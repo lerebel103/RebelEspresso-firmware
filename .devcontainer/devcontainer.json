@@ -11,9 +11,7 @@
       "settings": {
         "idf.espIdfPath": "/opt/esp/idf",
         "idf.toolsPath": "/opt/esp",
-        "idf.pythonBinPath": "/opt/esp/python_env/idf5.4_py3.12_env/bin/python",
         "terminal.integrated.defaultProfile.linux": "bash",
-        "C_Cpp.default.compilerPath": "/opt/esp/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc",
         "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json"
       },
       "extensions": [

@@ -4,7 +4,6 @@
 #include <freertos/task.h>
 
 #include <esp_log.h>
-#include <driver/i2c.h>
 #include <sys/param.h>
 #include <driver/i2c_master.h>
 #include <cstring>
@@ -14,9 +13,6 @@
 
 #define TAG "eeprom"
 
-#define ACK_CHECK_EN    0x1     /*!< I2C master will check ack from slave*/
-#define ACK_VAL         I2C_MASTER_ACK      /*!< I2C ack value */
-#define NACK_VAL        I2C_MASTER_NACK     /*!< I2C nack value */
 #define PAGE_SIZE       32
 
 #ifndef I2C_MASTER_NUM

@@ -14,6 +14,7 @@
 
 # ESP-IDF managed components (fetched at build time by IDF Component Manager)
 /managed_components/
+/test_app/managed_components/
 
 # Generated folders
 **/_generated/

@@ -78,8 +78,8 @@ menuconfig: .docker-image
 shell: .docker-image
 	$(DOCKER_COMPOSE) run --rm -it idf bash
 
-## First-time setup: submodules + Docker image
-setup: submodules .docker-image
+## First-time setup: submodules + Docker image + hooks
+setup: submodules .docker-image setup-hooks
 
 ## Force rebuild the Docker image
 docker:
@@ -89,3 +89,9 @@ docker:
 ## Init/update git submodules
 submodules:
 	git submodule update --init --recursive
+
+## Install git hooks
+setup-hooks:
+	@cp scripts/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "Pre-commit hook installed."

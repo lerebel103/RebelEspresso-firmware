@@ -136,13 +136,13 @@ menu "TFT Configuration"
 
 	config INVERSION
 		bool "Enable Display Inversion"
-		default false
+		default n
 		help
 			Enable Display Inversion.
 
 	config RGB_COLOR
 		bool "Change BGR filter to RGB filter"
-		default false
+		default n
 		help
 			Change BGR color filter to RGB color filter
 

@@ -7,6 +7,7 @@
 /test_app/build/
 /test_app/sdkconfig
 /cmake-build-*/
+.docker-image
 
 # sdkconfig is auto-generated from sdkconfig.defaults — don't track it
 /sdkconfig

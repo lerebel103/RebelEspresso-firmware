@@ -24,18 +24,24 @@ CMAKE_VARS = \
 	-DHARDWARE_REVISION_MAJOR=$(HW_REVISION) \
 	-DTHING_TYPE=$(THING_TYPE)
 
+# Sentinel file tracking when the Docker image was last built.
+# Rebuilds only when Dockerfile, requirements, or constraints change.
+.docker-image: Dockerfile requirements.txt constraints.txt
+	$(DOCKER_COMPOSE) build
+	@touch .docker-image
+
 ###############################################################################
 # Targets
 ###############################################################################
 
-.PHONY: build test clean fullclean menuconfig shell setup submodules
+.PHONY: build test clean fullclean menuconfig shell setup submodules docker
 
 ## Build firmware
-build:
+build: .docker-image
 	$(DOCKER_RUN) idf.py $(CMAKE_VARS) build
 
 ## Run unit tests in QEMU
-test:
+test: .docker-image
 	$(DOCKER_RUN) bash -c "cd test_app && idf.py build && /workspace/test_app/run_qemu.sh"
 
 ## Clean build artifacts
@@ -47,16 +53,20 @@ fullclean:
 	$(DOCKER_RUN) bash -c "idf.py fullclean && rm -rf managed_components test_app/build"
 
 ## Interactive menuconfig
-menuconfig:
+menuconfig: .docker-image
 	$(DOCKER_COMPOSE) run --rm -it idf idf.py menuconfig
 
 ## Shell inside the build container
-shell:
+shell: .docker-image
 	$(DOCKER_COMPOSE) run --rm -it idf bash
 
-## First-time setup: submodules + Docker image build
-setup: submodules
+## First-time setup: submodules + Docker image
+setup: submodules .docker-image
+
+## Force rebuild the Docker image
+docker:
 	$(DOCKER_COMPOSE) build
+	@touch .docker-image
 
 ## Init/update git submodules
 submodules:

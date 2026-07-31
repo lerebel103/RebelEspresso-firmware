@@ -14,16 +14,21 @@
 #define MAX_BODY_SIZE 1024
 
 /**
- * Read request body into a buffer. Returns length read, or -1 on error.
+ * Read request body into a buffer (loops until complete). Returns length read, or -1 on error.
  */
 static int _read_body(httpd_req_t *req, char *buf, size_t max_len) {
     int total = req->content_len;
     if (total <= 0 || (size_t)total >= max_len) {
         return -1;
     }
-    int received = httpd_req_recv(req, buf, total);
-    if (received <= 0) {
-        return -1;
+    int received = 0;
+    while (received < total) {
+        int ret = httpd_req_recv(req, buf + received, total - received);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            return -1;
+        }
+        received += ret;
     }
     buf[received] = '\0';
     return received;
@@ -31,6 +36,7 @@ static int _read_body(httpd_req_t *req, char *buf, size_t max_len) {
 
 /**
  * Extract the config name from URI: /api/config/<name> or /api/config/<name>/reset
+ * Strips query strings and path suffixes.
  */
 static bool _parse_config_name(const char *uri, char *name, size_t name_len) {
     const char *prefix = "/api/config/";
@@ -38,8 +44,10 @@ static bool _parse_config_name(const char *uri, char *name, size_t name_len) {
         return false;
     }
     const char *start = uri + strlen(prefix);
-    const char *end = strchr(start, '/');
-    size_t len = end ? (size_t)(end - start) : strlen(start);
+    // End at '/', '?', or end of string
+    const char *end = start;
+    while (*end && *end != '/' && *end != '?') end++;
+    size_t len = (size_t)(end - start);
     if (len == 0 || len >= name_len) {
         return false;
     }

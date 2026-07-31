@@ -33,8 +33,8 @@ static bool _rollback_validated = false;
 
 /**
  * OTA rollback self-test: mark the firmware as valid once WiFi is connected
- * and the web server is running. If neither happens within 30s of boot,
- * the bootloader will roll back on the next crash/reboot.
+ * and the web server is running. If neither happens, the firmware stays
+ * unvalidated and the bootloader will roll back on the next crash/reboot.
  */
 static void _check_rollback_validation() {
     if (_rollback_validated) {

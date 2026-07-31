@@ -8,7 +8,7 @@ Add a lightweight HTTP-based web interface to replace the AWS IoT Thing Shadow c
 
 ### R1: HTTP Server
 - Use ESP-IDF's built-in `esp_http_server` component (already available, zero additional flash cost)
-- Serve on port 80 (default), configurable via NVS
+- Serve on port 8080 (HomeKit uses port 80)
 - Maximum 5 concurrent connections
 - Only active when WiFi is connected (NOT in AP provisioning mode)
 - Hardware revision 2 only
@@ -79,8 +79,8 @@ Add a lightweight HTTP-based web interface to replace the AWS IoT Thing Shadow c
   POST /api/config/:name/reset  — reset section to defaults
 
   GET  /api/system/info         — device info, versions, metrics
-  POST /api/system/ota          — upload firmware binary (multipart/form-data)
-  POST /api/system/ota-ui       — upload web UI assets (tar.gz, written to data partition)
+  POST /api/system/ota          — upload firmware binary (application/octet-stream)
+  POST /api/system/ota-ui       — upload web UI (gzipped HTML, written to data partition)
   POST /api/system/reboot       — trigger reboot
   POST /api/system/factory-reset — erase NVS and reboot
 
@@ -110,8 +110,8 @@ Before writing a received firmware binary to flash, validate:
 
 After flashing and rebooting:
 
-5. **Rollback safety**: `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y` is already configured. The new firmware must call `esp_ota_mark_app_valid_and_cancel_rollback()` after successful boot. If the new firmware crashes before this call, the bootloader automatically rolls back to the previous version on next reboot.
-6. **Self-test**: the app marks itself valid only after WiFi connects successfully and the HTTP server starts (proving the critical path works)
+5. **Rollback safety**: `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y` is already configured. The new firmware must call `esp_ota_mark_app_valid_cancel_rollback()` after successful boot. If the new firmware crashes before this call, the bootloader automatically rolls back to the previous version on next reboot.
+6. **Self-test**: the app marks itself valid only after WiFi connects successfully and the HTTP server starts (proving the critical path works). There is no explicit timeout — the firmware stays unvalidated until both conditions are met or a crash triggers rollback.
 
 No code signing required — validation is structural (correct binary format + correct project) not cryptographic.
 
@@ -191,7 +191,7 @@ On every boot, the firmware:
 
 | Key | Namespace | Type | Description |
 |-----|-----------|------|-------------|
-| `http_auth_enabled` | `sys` | u8 | 0=disabled, 1=enabled |
+| `http_auth_en` | `sys` | u8 | 0=disabled, 1=enabled |
 | `http_auth_hash` | `sys` | str | SHA256 hex of password |
 | `http_port` | `sys` | u16 | HTTP server port (default 80) |
 

@@ -34,6 +34,12 @@ static esp_err_t _static_handler(httpd_req_t *req) {
     const char *query = strchr(uri, '?');
     size_t uri_len = query ? (size_t)(query - uri) : strlen(uri);
 
+    // Reject path traversal attempts
+    if (strstr(uri, "..") != NULL) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
+        return ESP_FAIL;
+    }
+
     // Default to index.htm for root or paths without extension
     if (uri_len == 1 && uri[0] == '/') {
         snprintf(filepath, sizeof(filepath), "%s/index.htm", DATA_MOUNT_POINT);

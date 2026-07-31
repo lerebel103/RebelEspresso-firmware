@@ -27,7 +27,13 @@ static void _load_auth_state() {
 
     if (s_auth_enabled) {
         size_t len = sizeof(s_password_hash);
-        nvs_get_str(handle, NVS_KEY_AUTH_HASH, s_password_hash, &len);
+        esp_err_t err = nvs_get_str(handle, NVS_KEY_AUTH_HASH, s_password_hash, &len);
+        if (err != ESP_OK || strlen(s_password_hash) != SHA256_HEX_LEN) {
+            // Hash missing or corrupt — disable auth to prevent lockout
+            ESP_LOGW(TAG, "Auth hash missing/corrupt — disabling auth");
+            s_auth_enabled = false;
+            memset(s_password_hash, 0, sizeof(s_password_hash));
+        }
     }
 
     nvs_close(handle);
@@ -142,8 +148,17 @@ static esp_err_t _auth_post_handler(httpd_req_t *req) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid body");
         return ESP_FAIL;
     }
-    httpd_req_recv(req, body, len);
-    body[len] = '\0';
+    int received = 0;
+    while (received < len) {
+        int ret = httpd_req_recv(req, body + received, len - received);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Receive error");
+            return ESP_FAIL;
+        }
+        received += ret;
+    }
+    body[received] = '\0';
 
     cJSON *json = cJSON_Parse(body);
     if (!json) {

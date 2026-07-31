@@ -115,7 +115,7 @@ monitor:
 
 ## Build web UI (gzip static files into data/ directory)
 webapp:
-	@webapp/build.sh
+	$(DOCKER_RUN) bash -c "/workspace/webapp/build.sh"
 
 ## Run web UI locally with mock API (for development)
 webapp-dev:

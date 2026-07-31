@@ -199,7 +199,7 @@ static esp_err_t _ota_ui_handler(httpd_req_t *req) {
     }
 
     // Write directly to the data partition filesystem
-    FILE *f = fopen(DATA_MOUNT_POINT "/index.gz", "w");
+    FILE *f = fopen(DATA_MOUNT_POINT "/index.gz", "wb");
     if (!f) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open file for writing");
         return ESP_FAIL;
@@ -257,23 +257,14 @@ static esp_err_t _config_export_handler(httpd_req_t *req) {
     httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"config.json\"");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
-    // Stream JSON object section by section via chunked transfer
+    // Stream JSON object section by section via chunked transfer.
+    // Only one section's cJSON object is in memory at any moment.
     httpd_resp_send_chunk(req, "{", 1);
 
-    // Helper: serialize one section, send as chunk, then free immediately
-    struct { const char *key; void (*to_json)(cJSON *, const char *); } sections[] = {
-        {"boiler_temp", nullptr},
-        {"brew_temp", nullptr},
-        {"boiler_refill", nullptr},
-        {"schedules", nullptr},
-    };
-
-    bool first = true;
     // boiler_temp
     {
-        if (!first) httpd_resp_send_chunk(req, ",", 1);
-        first = false;
-        httpd_resp_send_chunk(req, "\"boiler_temp\":", 13);
+        const char *key = "\"boiler_temp\":";
+        httpd_resp_send_chunk(req, key, strlen(key));
         cJSON *obj = cJSON_CreateObject();
         auto cfg = boiler_temp_get_cfg();
         cfg.to_json(obj, "");
@@ -284,7 +275,8 @@ static esp_err_t _config_export_handler(httpd_req_t *req) {
     }
     // brew_temp
     {
-        httpd_resp_send_chunk(req, ",\"brew_temp\":", 12);
+        const char *key = ",\"brew_temp\":";
+        httpd_resp_send_chunk(req, key, strlen(key));
         cJSON *obj = cJSON_CreateObject();
         auto cfg = brew_temp_get_cfg();
         cfg.to_json(obj, "");
@@ -295,7 +287,8 @@ static esp_err_t _config_export_handler(httpd_req_t *req) {
     }
     // boiler_refill
     {
-        httpd_resp_send_chunk(req, ",\"boiler_refill\":", 16);
+        const char *key = ",\"boiler_refill\":";
+        httpd_resp_send_chunk(req, key, strlen(key));
         cJSON *obj = cJSON_CreateObject();
         auto cfg = boiler_refill_get_cfg();
         cfg.to_json(obj, "");
@@ -306,7 +299,8 @@ static esp_err_t _config_export_handler(httpd_req_t *req) {
     }
     // schedules
     {
-        httpd_resp_send_chunk(req, ",\"schedules\":", 13);
+        const char *key = ",\"schedules\":";
+        httpd_resp_send_chunk(req, key, strlen(key));
         cJSON *obj = cJSON_CreateObject();
         auto cfg = schedules_get_cfg();
         cfg.to_json(obj, "");
@@ -338,11 +332,17 @@ static esp_err_t _config_import_handler(httpd_req_t *req) {
         return ESP_FAIL;
     }
 
-    int received = httpd_req_recv(req, buf, req->content_len);
-    if (received <= 0) {
-        free(buf);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Receive error");
-        return ESP_FAIL;
+    int total = req->content_len;
+    int received = 0;
+    while (received < total) {
+        int ret = httpd_req_recv(req, buf + received, total - received);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            free(buf);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Receive error");
+            return ESP_FAIL;
+        }
+        received += ret;
     }
     buf[received] = '\0';
 

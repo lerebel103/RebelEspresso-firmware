@@ -229,3 +229,9 @@ add_custom_target(deploy ALL
 )
 
 target_add_binary_data(${PROJECT_NAME}.elf "certs/aws_codesign.crt" TEXT)
+
+# Generate FAT filesystem image for the web UI (data partition)
+# The webapp/build.sh step populates the data/ directory before cmake runs.
+if(EXISTS "${CMAKE_SOURCE_DIR}/data")
+    fatfs_create_spiflash_image(data ${CMAKE_SOURCE_DIR}/data FLASH_IN_PROJECT)
+endif()

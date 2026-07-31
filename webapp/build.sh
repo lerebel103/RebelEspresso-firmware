@@ -13,13 +13,13 @@ mkdir -p "$OUTPUT_DIR"
 
 # Gzip the HTML (single file SPA)
 gzip -9 -k "${SCRIPT_DIR}/index.html"
-mv "${SCRIPT_DIR}/index.html.gz" "$OUTPUT_DIR/index.html.gz"
+mv "${SCRIPT_DIR}/index.html.gz" "$OUTPUT_DIR/index.gz"
 
 # Also keep the uncompressed version for browsers that don't accept gzip
-cp "${SCRIPT_DIR}/index.html" "$OUTPUT_DIR/index.html"
+cp "${SCRIPT_DIR}/index.html" "$OUTPUT_DIR/index.htm"
 
 echo "Web UI built:"
 ls -la "$OUTPUT_DIR"
 echo ""
-echo "Gzipped size: $(wc -c < "$OUTPUT_DIR/index.html.gz") bytes"
-echo "Uncompressed: $(wc -c < "$OUTPUT_DIR/index.html") bytes"
+echo "Gzipped size: $(wc -c < "$OUTPUT_DIR/index.gz") bytes"
+echo "Uncompressed: $(wc -c < "$OUTPUT_DIR/index.htm") bytes"

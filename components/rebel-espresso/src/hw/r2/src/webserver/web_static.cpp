@@ -23,16 +23,6 @@ static const char *_get_mime_type(const char *path) {
 }
 
 /**
- * Check if a gzipped version of the file exists.
- * Returns true if .gz version exists and sets gz_path.
- */
-static bool _has_gzip(const char *path, char *gz_path, size_t gz_path_len) {
-    snprintf(gz_path, gz_path_len, "%s.gz", path);
-    struct stat st;
-    return (stat(gz_path, &st) == 0);
-}
-
-/**
  * Serve a file from the data partition.
  * Prefers .gz version if available (serves with Content-Encoding: gzip).
  */
@@ -44,19 +34,27 @@ static esp_err_t _static_handler(httpd_req_t *req) {
     const char *query = strchr(uri, '?');
     size_t uri_len = query ? (size_t)(query - uri) : strlen(uri);
 
-    // Default to index.html for root or paths without extension
+    // Default to index.htm for root or paths without extension
     if (uri_len == 1 && uri[0] == '/') {
-        snprintf(filepath, sizeof(filepath), "%s/index.html", DATA_MOUNT_POINT);
+        snprintf(filepath, sizeof(filepath), "%s/index.htm", DATA_MOUNT_POINT);
     } else {
         snprintf(filepath, sizeof(filepath), "%s%.*s", DATA_MOUNT_POINT, (int)uri_len, uri);
     }
 
-    // Try gzipped version first
+    // Try gzipped version first (.gz suffix)
     char gz_path[140];
     const char *serve_path = filepath;
     bool is_gzip = false;
 
-    if (_has_gzip(filepath, gz_path, sizeof(gz_path))) {
+    // For index.htm, try index.gz
+    if (strstr(filepath, "index.htm")) {
+        snprintf(gz_path, sizeof(gz_path), "%s/index.gz", DATA_MOUNT_POINT);
+    } else {
+        snprintf(gz_path, sizeof(gz_path), "%s.gz", filepath);
+    }
+
+    struct stat st;
+    if (stat(gz_path, &st) == 0) {
         serve_path = gz_path;
         is_gzip = true;
     }
@@ -64,10 +62,12 @@ static esp_err_t _static_handler(httpd_req_t *req) {
     // Open file
     FILE *f = fopen(serve_path, "r");
     if (!f) {
-        // Try index.html for SPA routing (any path without extension)
+        // Try index.htm for SPA routing (any path without extension)
         if (!strchr(uri + 1, '.')) {
-            snprintf(filepath, sizeof(filepath), "%s/index.html", DATA_MOUNT_POINT);
-            if (_has_gzip(filepath, gz_path, sizeof(gz_path))) {
+            snprintf(filepath, sizeof(filepath), "%s/index.htm", DATA_MOUNT_POINT);
+            snprintf(gz_path, sizeof(gz_path), "%s/index.gz", DATA_MOUNT_POINT);
+            struct stat st2;
+            if (stat(gz_path, &st2) == 0) {
                 serve_path = gz_path;
                 is_gzip = true;
             } else {

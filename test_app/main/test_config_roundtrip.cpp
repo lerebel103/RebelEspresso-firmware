@@ -290,3 +290,118 @@ TEST_CASE("Config: PID config NVS save and reload", "[config]") {
     TEST_ASSERT_EQUAL_DOUBLE(original.setpoints[1], loaded.setpoints[1]);
     TEST_ASSERT_EQUAL_DOUBLE(original.over_setpoint_perc, loaded.over_setpoint_perc);
 }
+
+
+// ============================================================================
+// Config Export/Import composite format
+// ============================================================================
+
+TEST_CASE("Config: composite export format can be re-imported", "[config]") {
+    // Simulates: export produces {"boiler_temp":{...},"brew_temp":{...},...}
+    // and import applies each section from the composite document.
+
+    // Set known values in boiler_temp
+    boiler_temp_cfg_t bt_cfg = {};
+    bt_cfg.pid.P = 8.8;
+    bt_cfg.pid.I = 0.6;
+    bt_cfg.pid.D = 200.0;
+    bt_cfg.pid.setpoints[0] = 110.0;
+    bt_cfg.mains_hz = 60;
+
+    // Set known values in boiler_refill
+    boiler_refill_cfg_t br_cfg = {};
+    br_cfg.start_delay_ms = 2000;
+    br_cfg.max_refill_time_ms = 10000;
+    br_cfg.level_low_hysteresis_ms = 500;
+
+    // Build composite export document (same format as /api/system/config-export)
+    cJSON *export_doc = cJSON_CreateObject();
+
+    cJSON *bt_json = cJSON_CreateObject();
+    bt_cfg.to_json(bt_json, "");
+    cJSON_AddItemToObject(export_doc, "boiler_temp", bt_json);
+
+    cJSON *br_json = cJSON_CreateObject();
+    br_cfg.to_json(br_json, "");
+    cJSON_AddItemToObject(export_doc, "boiler_refill", br_json);
+
+    // Serialize to string (simulates what the export endpoint produces)
+    char *exported = cJSON_PrintUnformatted(export_doc);
+    TEST_ASSERT_NOT_NULL(exported);
+    TEST_ASSERT_LESS_THAN(4096, strlen(exported)); // must fit in import 4KB limit
+    cJSON_Delete(export_doc);
+
+    // Now parse it back (simulates what the import endpoint does)
+    cJSON *import_doc = cJSON_Parse(exported);
+    TEST_ASSERT_NOT_NULL(import_doc);
+    cJSON_free(exported);
+
+    // Apply each section if present (same logic as _config_import_handler)
+    cJSON *section = cJSON_GetObjectItem(import_doc, "boiler_temp");
+    TEST_ASSERT_NOT_NULL(section);
+    boiler_temp_cfg_t bt_restored = {};
+    bt_restored.from_json(section);
+    TEST_ASSERT_EQUAL_DOUBLE(8.8, bt_restored.pid.P);
+    TEST_ASSERT_EQUAL_DOUBLE(0.6, bt_restored.pid.I);
+    TEST_ASSERT_EQUAL_DOUBLE(200.0, bt_restored.pid.D);
+    TEST_ASSERT_EQUAL_DOUBLE(110.0, bt_restored.pid.setpoints[0]);
+    TEST_ASSERT_EQUAL(60, bt_restored.mains_hz);
+
+    section = cJSON_GetObjectItem(import_doc, "boiler_refill");
+    TEST_ASSERT_NOT_NULL(section);
+    boiler_refill_cfg_t br_restored = {};
+    br_restored.from_json(section);
+    TEST_ASSERT_EQUAL(2000, br_restored.start_delay_ms);
+    TEST_ASSERT_EQUAL(10000, br_restored.max_refill_time_ms);
+    TEST_ASSERT_EQUAL(500, br_restored.level_low_hysteresis_ms);
+
+    // Sections not present in the export should not be found
+    TEST_ASSERT_NULL(cJSON_GetObjectItem(import_doc, "brew_temp"));
+    TEST_ASSERT_NULL(cJSON_GetObjectItem(import_doc, "schedules"));
+
+    cJSON_Delete(import_doc);
+}
+
+TEST_CASE("Config: export document stays under 4KB limit", "[config]") {
+    // Verify that a full export (all 4 sections with typical values) fits in 4KB
+    cJSON *full = cJSON_CreateObject();
+
+    cJSON *bt = cJSON_CreateObject();
+    boiler_temp_cfg_t bt_cfg = {};
+    bt_cfg.pid.P = 7.0; bt_cfg.pid.I = 0.5; bt_cfg.pid.D = 170.0;
+    bt_cfg.pid.setpoints[0] = 105.0; bt_cfg.pid.setpoints[1] = 140.0;
+    bt_cfg.mains_hz = 50; bt_cfg.temp_error_restart_time_sec = 60;
+    bt_cfg.to_json(bt, "");
+    cJSON_AddItemToObject(full, "boiler_temp", bt);
+
+    cJSON *bw = cJSON_CreateObject();
+    brew_temp_cfg_t bw_cfg = {};
+    bw_cfg.pid.P = 3.0; bw_cfg.pid.setpoints[0] = 93.5;
+    bw_cfg.enabled = true; bw_cfg.max_damping_perc = 10.0;
+    bw_cfg.to_json(bw, "");
+    cJSON_AddItemToObject(full, "brew_temp", bw);
+
+    cJSON *br = cJSON_CreateObject();
+    boiler_refill_cfg_t br_cfg = {};
+    br_cfg.start_delay_ms = 1000; br_cfg.max_refill_time_ms = 15000;
+    br_cfg.to_json(br, "");
+    cJSON_AddItemToObject(full, "boiler_refill", br);
+
+    cJSON *sc = cJSON_CreateObject();
+    schedules_cfg_t sc_cfg = {};
+    sc_cfg.enabled = true;
+    sc_cfg.times[1][0] = {true, 6, 30, 22, 0};
+    sc_cfg.to_json(sc, "");
+    cJSON_AddItemToObject(full, "schedules", sc);
+
+    char *str = cJSON_PrintUnformatted(full);
+    TEST_ASSERT_NOT_NULL(str);
+    size_t len = strlen(str);
+    TEST_ASSERT_LESS_THAN(4096, len);
+
+    // Log size for visibility
+    printf("  Full config export size: %d bytes\n", (int)len);
+
+    cJSON_free(str);
+    cJSON_Delete(full);
+}

@@ -196,5 +196,4 @@ On every boot, the firmware:
 | `http_port` | `sys` | u16 | HTTP server port (default 80) |
 
 ## Open Questions
-- Maximum firmware file size to accept is determined by the OTA partition size (2000KB). The build must verify the binary fits.
-- Future consideration: should the `factory` partition also be updatable, or remain as a known-good fallback?
+None — all resolved.

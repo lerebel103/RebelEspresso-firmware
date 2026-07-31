@@ -17,6 +17,8 @@ set(COMPONENTS
     hal
     esp_timer
     driver
+    esp_driver_spi
+    esp_adc
     cjson
     unity
     partition_table

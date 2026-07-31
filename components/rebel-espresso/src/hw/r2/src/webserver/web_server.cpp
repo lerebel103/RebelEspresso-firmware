@@ -69,6 +69,7 @@ esp_err_t web_server_start() {
 
     // Configure and start HTTP server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.server_port = 8080;  // Port 80 is used by HomeKit
     config.max_uri_handlers = 20;
     config.max_open_sockets = MAX_CONNECTIONS;
     config.uri_match_fn = httpd_uri_match_wildcard;

@@ -55,11 +55,23 @@ nav .tab.active { color: var(--primary); background: var(--card); }
 .card h3 { font-size: 0.9em; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 
 /* Status grid */
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
 .stat { text-align: center; }
-.stat .value { font-size: 1.8em; font-weight: 700; }
+.stat .value { font-size: 1.6em; font-weight: 700; }
 .stat .label { font-size: 0.75em; color: var(--text-dim); margin-top: 2px; }
 .stat .unit { font-size: 0.5em; color: var(--text-dim); }
+
+/* Temperature table */
+.temp-table { width: 100%; border-collapse: collapse; }
+.temp-table tr { border-bottom: 1px solid var(--border); }
+.temp-table tr:last-child { border-bottom: none; }
+.temp-table td { padding: 12px 4px; vertical-align: baseline; }
+.temp-label { font-size: 0.85em; color: var(--text-dim); width: 60px; font-weight: 600; }
+.temp-current { font-size: 2.2em; font-weight: 700; text-align: right; }
+.temp-unit { font-size: 0.9em; color: var(--text-dim); padding-left: 2px; vertical-align: super; }
+.temp-sep { color: var(--border); padding: 0 8px; font-size: 1.2em; }
+.temp-setpoint { font-size: 1.3em; font-weight: 600; color: var(--text-dim); text-align: right; }
+.temp-unit-sm { font-size: 0.7em; color: var(--border); padding-left: 2px; vertical-align: super; }
 
 /* Forms */
 .form-group { margin-bottom: 12px; }
@@ -123,7 +135,9 @@ nav .tab.active { color: var(--primary); background: var(--card); }
 @media (max-width: 480px) {
   nav .tabs { gap: 2px; }
   nav .tab { padding: 6px 8px; font-size: 0.8em; }
-  .stat .value { font-size: 1.4em; }
+  .stat .value { font-size: 1.2em; }
+  .temp-current { font-size: 1.8em; }
+  .temp-setpoint { font-size: 1.1em; }
   .form-row { grid-template-columns: 1fr; }
 }
 </style>
@@ -147,19 +161,32 @@ nav .tab.active { color: var(--primary); background: var(--card); }
   <div id="status" class="page active">
     <div class="card">
       <h3>Temperatures</h3>
-      <div class="stat-grid">
-        <div class="stat"><div class="value" id="s-boiler">--<span class="unit">&deg;C</span></div><div class="label">Boiler</div></div>
-        <div class="stat"><div class="value" id="s-setpoint">--<span class="unit">&deg;C</span></div><div class="label">Setpoint</div></div>
-        <div class="stat"><div class="value" id="s-duty">--<span class="unit">%</span></div><div class="label">Duty</div></div>
-        <div class="stat"><div class="value" id="s-brew">--<span class="unit">&deg;C</span></div><div class="label">Brew Head</div></div>
-      </div>
+      <table class="temp-table">
+        <tr>
+          <td class="temp-label">Brew</td>
+          <td class="temp-current" id="s-brew">--</td>
+          <td class="temp-unit">&deg;C</td>
+          <td class="temp-sep">/</td>
+          <td class="temp-setpoint" id="s-brew-sp">--</td>
+          <td class="temp-unit-sm">&deg;C</td>
+        </tr>
+        <tr>
+          <td class="temp-label">Boiler</td>
+          <td class="temp-current" id="s-boiler">--</td>
+          <td class="temp-unit">&deg;C</td>
+          <td class="temp-sep">/</td>
+          <td class="temp-setpoint" id="s-setpoint">--</td>
+          <td class="temp-unit-sm">&deg;C</td>
+        </tr>
+      </table>
     </div>
     <div class="card">
       <h3>Machine State</h3>
       <div class="stat-grid">
         <div class="stat"><div class="value" id="s-power">--</div><div class="label">Power</div></div>
-        <div class="stat"><div class="value" id="s-level">--</div><div class="label">Boiler Level</div></div>
-        <div class="stat"><div class="value" id="s-wifi">--</div><div class="label">WiFi (dBm)</div></div>
+        <div class="stat"><div class="value" id="s-duty">--<span class="unit">%</span></div><div class="label">Duty</div></div>
+        <div class="stat"><div class="value" id="s-level">--</div><div class="label">Level</div></div>
+        <div class="stat"><div class="value" id="s-wifi">--</div><div class="label">WiFi</div></div>
         <div class="stat"><div class="value" id="s-uptime">--</div><div class="label">Uptime</div></div>
       </div>
     </div>
@@ -278,13 +305,14 @@ let statusInterval;
 async function refreshStatus() {
   try {
     const d = await api('status');
-    document.getElementById('s-boiler').innerHTML = (d.temperatures?.boiler?.toFixed(1) || '--') + '<span class="unit">&deg;C</span>';
-    document.getElementById('s-setpoint').innerHTML = (d.temperatures?.boiler_setpoint?.toFixed(1) || '--') + '<span class="unit">&deg;C</span>';
+    document.getElementById('s-brew').textContent = d.temperatures?.brew_head?.toFixed(1) || '--';
+    document.getElementById('s-brew-sp').textContent = d.temperatures?.brew_head_setpoint?.toFixed(1) || '--';
+    document.getElementById('s-boiler').textContent = d.temperatures?.boiler?.toFixed(1) || '--';
+    document.getElementById('s-setpoint').textContent = d.temperatures?.boiler_setpoint?.toFixed(1) || '--';
     document.getElementById('s-duty').innerHTML = (d.temperatures?.boiler_duty || '0') + '<span class="unit">%</span>';
-    document.getElementById('s-brew').innerHTML = (d.temperatures?.brew_head?.toFixed(1) || '--') + '<span class="unit">&deg;C</span>';
     document.getElementById('s-power').textContent = d.power_active ? 'ON' : 'STANDBY';
     document.getElementById('s-level').textContent = d.boiler_level || '--';
-    document.getElementById('s-wifi').textContent = d.wifi?.rssi || '--';
+    document.getElementById('s-wifi').textContent = (d.wifi?.rssi || '--') + ' dBm';
     const up = Math.floor(d.uptime_sec || 0);
     const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
     document.getElementById('s-uptime').textContent = h + 'h ' + m + 'm';

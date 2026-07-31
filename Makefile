@@ -14,7 +14,7 @@ BUILD_DIR    ?= build
 
 # Serial port — auto-detected if not specified
 PORT ?= $(shell find /dev -name 'cu.usbserial*' -o -name 'cu.SLAB_USB*' -o -name 'cu.wchusbserial*' 2>/dev/null | head -1)
-BAUD ?= 460800
+BAUD ?= 2000000
 
 # Docker
 DOCKER_COMPOSE = docker compose

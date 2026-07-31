@@ -15,6 +15,10 @@
 #include "web_auth.h"
 #include "common/identity.h"
 #include "app_metrics.h"
+#include "boiler_temp.h"
+#include "brew_temp.h"
+#include "boiler_refill.h"
+#include "schedules.h"
 
 #define TAG "api_system"
 #define OTA_BUF_SIZE 4096
@@ -240,6 +244,143 @@ static esp_err_t _ota_ui_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+// --- GET /api/system/config-export ---
+// Streams config one section at a time to minimise heap usage.
+// Only one section's JSON is in memory at any moment.
+
+#define CONFIG_MAX_IMPORT_SIZE 4096
+
+static esp_err_t _config_export_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"config.json\"");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+    // Stream JSON object section by section via chunked transfer
+    httpd_resp_send_chunk(req, "{", 1);
+
+    // Helper: serialize one section, send as chunk, then free immediately
+    struct { const char *key; void (*to_json)(cJSON *, const char *); } sections[] = {
+        {"boiler_temp", nullptr},
+        {"brew_temp", nullptr},
+        {"boiler_refill", nullptr},
+        {"schedules", nullptr},
+    };
+
+    bool first = true;
+    // boiler_temp
+    {
+        if (!first) httpd_resp_send_chunk(req, ",", 1);
+        first = false;
+        httpd_resp_send_chunk(req, "\"boiler_temp\":", 13);
+        cJSON *obj = cJSON_CreateObject();
+        auto cfg = boiler_temp_get_cfg();
+        cfg.to_json(obj, "");
+        char *s = cJSON_PrintUnformatted(obj);
+        httpd_resp_send_chunk(req, s, strlen(s));
+        cJSON_free(s);
+        cJSON_Delete(obj);
+    }
+    // brew_temp
+    {
+        httpd_resp_send_chunk(req, ",\"brew_temp\":", 12);
+        cJSON *obj = cJSON_CreateObject();
+        auto cfg = brew_temp_get_cfg();
+        cfg.to_json(obj, "");
+        char *s = cJSON_PrintUnformatted(obj);
+        httpd_resp_send_chunk(req, s, strlen(s));
+        cJSON_free(s);
+        cJSON_Delete(obj);
+    }
+    // boiler_refill
+    {
+        httpd_resp_send_chunk(req, ",\"boiler_refill\":", 16);
+        cJSON *obj = cJSON_CreateObject();
+        auto cfg = boiler_refill_get_cfg();
+        cfg.to_json(obj, "");
+        char *s = cJSON_PrintUnformatted(obj);
+        httpd_resp_send_chunk(req, s, strlen(s));
+        cJSON_free(s);
+        cJSON_Delete(obj);
+    }
+    // schedules
+    {
+        httpd_resp_send_chunk(req, ",\"schedules\":", 13);
+        cJSON *obj = cJSON_CreateObject();
+        auto cfg = schedules_get_cfg();
+        cfg.to_json(obj, "");
+        char *s = cJSON_PrintUnformatted(obj);
+        httpd_resp_send_chunk(req, s, strlen(s));
+        cJSON_free(s);
+        cJSON_Delete(obj);
+    }
+
+    httpd_resp_send_chunk(req, "}", 1);
+    httpd_resp_send_chunk(req, NULL, 0); // end chunked transfer
+    return ESP_OK;
+}
+
+// --- POST /api/system/config-import ---
+// Accepts a JSON body (max 4KB) and applies each section found.
+
+static esp_err_t _config_import_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
+    if (req->content_len <= 0 || req->content_len >= CONFIG_MAX_IMPORT_SIZE) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Body empty or too large (max 4KB)");
+        return ESP_FAIL;
+    }
+
+    char *buf = (char *)malloc(req->content_len + 1);
+    if (!buf) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
+        return ESP_FAIL;
+    }
+
+    int received = httpd_req_recv(req, buf, req->content_len);
+    if (received <= 0) {
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Receive error");
+        return ESP_FAIL;
+    }
+    buf[received] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    free(buf); // free the raw buffer immediately
+
+    if (!root) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    int applied = 0;
+
+    // Apply each section if present
+    cJSON *section = cJSON_GetObjectItem(root, "boiler_temp");
+    if (section) { boiler_temp_update_cfg(section); applied++; }
+
+    section = cJSON_GetObjectItem(root, "brew_temp");
+    if (section) { brew_temp_update_cfg(section); applied++; }
+
+    section = cJSON_GetObjectItem(root, "boiler_refill");
+    if (section) { boiler_refill_update_cfg(section); applied++; }
+
+    section = cJSON_GetObjectItem(root, "schedules");
+    if (section) { schedules_update_cfg(section); applied++; }
+
+    cJSON_Delete(root);
+
+    char resp[64];
+    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"sections_applied\":%d}", applied);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_sendstr(req, resp);
+
+    ESP_LOGI(TAG, "Config import: %d sections applied", applied);
+    return ESP_OK;
+}
+
 // --- POST /api/system/reboot ---
 
 static esp_err_t _reboot_handler(httpd_req_t *req) {
@@ -301,6 +442,22 @@ void web_api_system_register(httpd_handle_t server) {
         .user_ctx = nullptr,
     };
     httpd_register_uri_handler(server, &reboot_uri);
+
+    const httpd_uri_t config_export_uri = {
+        .uri = "/api/system/config-export",
+        .method = HTTP_GET,
+        .handler = _config_export_handler,
+        .user_ctx = nullptr,
+    };
+    httpd_register_uri_handler(server, &config_export_uri);
+
+    const httpd_uri_t config_import_uri = {
+        .uri = "/api/system/config-import",
+        .method = HTTP_POST,
+        .handler = _config_import_handler,
+        .user_ctx = nullptr,
+    };
+    httpd_register_uri_handler(server, &config_import_uri);
 
     const httpd_uri_t factory_reset_uri = {
         .uri = "/api/system/factory-reset",

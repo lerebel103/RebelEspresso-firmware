@@ -203,6 +203,14 @@ nav .tab.active { color: var(--primary); background: var(--card); }
       </div>
     </div>
     <div class="card">
+      <h3>Configuration Backup</h3>
+      <div class="btn-group">
+        <a class="btn btn-secondary" href="/api/system/config-export" download="config.json">Export Config</a>
+        <label class="btn btn-secondary" style="cursor:pointer">Import Config<input type="file" id="cfg-import-file" accept=".json" style="display:none" onchange="importConfig()"></label>
+      </div>
+      <div id="import-status" style="margin-top:8px;font-size:0.85em;color:var(--text-dim)"></div>
+    </div>
+    <div class="card">
       <h3>Actions</h3>
       <div class="btn-group">
         <button class="btn btn-secondary" onclick="reboot()">Reboot</button>
@@ -404,6 +412,22 @@ async function uploadOTA() {
 async function reboot() {
   if (!confirm('Reboot the device?')) return;
   try { await api('system/reboot', { method: 'POST' }); toast('Rebooting...', 'success'); } catch(e) {}
+}
+
+async function importConfig() {
+  const file = document.getElementById('cfg-import-file').files[0];
+  if (!file) return;
+  const status = document.getElementById('import-status');
+  status.textContent = 'Importing...';
+  try {
+    const text = await file.text();
+    if (text.length > 4096) { status.textContent = 'File too large (max 4KB)'; toast('File too large', 'error'); return; }
+    const resp = await api('system/config-import', { method: 'POST', headers: {'Content-Type':'application/json'}, body: text });
+    status.textContent = 'Imported ' + resp.sections_applied + ' section(s)';
+    toast('Config imported', 'success');
+    loadConfig();
+  } catch (e) { status.textContent = 'Import failed: ' + e.message; toast('Import failed', 'error'); }
+  document.getElementById('cfg-import-file').value = '';
 }
 
 async function factoryReset() {

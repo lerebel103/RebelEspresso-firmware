@@ -82,6 +82,10 @@ shell: .docker-image
 webapp:
 	@webapp/build.sh
 
+## Run web UI locally with mock API (for development)
+webapp-dev:
+	@python3 webapp/dev-server.py
+
 ## First-time setup: submodules + Docker image + hooks
 setup: submodules .docker-image setup-hooks
 

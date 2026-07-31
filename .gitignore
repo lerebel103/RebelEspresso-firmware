@@ -9,6 +9,9 @@
 /cmake-build-*/
 .docker-image
 
+# Web UI build output (generated from webapp/ sources)
+/data/
+
 # sdkconfig is auto-generated from sdkconfig.defaults — don't track it
 /sdkconfig
 /sdkconfig.old

@@ -34,10 +34,10 @@ CMAKE_VARS = \
 # Targets
 ###############################################################################
 
-.PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker
+.PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker webapp
 
 ## Build firmware
-build: .docker-image
+build: .docker-image webapp
 	$(DOCKER_RUN) idf.py $(CMAKE_VARS) build
 
 ## Run unit tests in QEMU
@@ -77,6 +77,10 @@ menuconfig: .docker-image
 ## Shell inside the build container
 shell: .docker-image
 	$(DOCKER_COMPOSE) run --rm -it idf bash
+
+## Build web UI (gzip static files into data/ directory)
+webapp:
+	@webapp/build.sh
 
 ## First-time setup: submodules + Docker image + hooks
 setup: submodules .docker-image setup-hooks

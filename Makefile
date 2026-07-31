@@ -89,17 +89,20 @@ shell: .docker-image
 ## Flash everything (firmware + bootloader + partition table + web UI)
 flash:
 	cd build && esptool.py --chip esp32 -p $(PORT) -b $(BAUD) \
-		--before default_reset --after hard_reset write_flash @flash_args
+		--before default_reset --after hard_reset write_flash \
+		$$(sed '1d' flash_args)
 
 ## Flash firmware only (preserves NVS, bootloader, web UI)
 flash-app:
 	cd build && esptool.py --chip esp32 -p $(PORT) -b $(BAUD) \
-		--before default_reset --after hard_reset write_flash @flash_app_args
+		--before default_reset --after hard_reset write_flash \
+		$$(sed '1d' flash_app_args)
 
 ## Flash web UI only (no firmware change)
 flash-ui:
 	cd build && esptool.py --chip esp32 -p $(PORT) -b $(BAUD) \
-		--before default_reset --after hard_reset write_flash @data-flash_args
+		--before default_reset --after hard_reset write_flash \
+		$$(sed '1d' data-flash_args)
 
 ## Serial monitor
 monitor:

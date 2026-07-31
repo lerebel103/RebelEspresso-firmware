@@ -103,24 +103,38 @@ Disabled by default. Once a password is set via the Auth page, all API endpoints
 
 After `make build`, the build tree at `build/` contains everything needed to flash. The build system generates `flash_args` which tells esptool exactly what to write and where — no manual addresses required.
 
+### Full flash (first-time setup)
+
+Writes everything: bootloader, partition table, firmware, fonts, and web UI.
+
 ```bash
-# Auto-detect port and flash
 cd build && esptool.py --chip esp32 -p /dev/cu.usbserial-* -b 460800 \
     --before default_reset --after hard_reset write_flash @flash_args
 ```
 
-Or with an explicit port:
+### Firmware + Web UI update (preserves NVS config)
 
 ```bash
-cd build && esptool.py --chip esp32 -p /dev/cu.usbserial-0001 -b 460800 \
-    --before default_reset --after hard_reset write_flash @flash_args
+cd build && esptool.py --chip esp32 -p /dev/cu.usbserial-* -b 460800 \
+    --before default_reset --after hard_reset \
+    write_flash 0x10000 coffee-drivah-firmware.bin 0x909000 data.bin
 ```
 
-### Erase flash
+### Web UI only (no firmware change, no reboot required)
+
+```bash
+cd build && esptool.py --chip esp32 -p /dev/cu.usbserial-* -b 460800 \
+    --before default_reset --after hard_reset \
+    write_flash 0x909000 data.bin
+```
+
+### Erase flash (wipes everything including NVS)
 
 ```bash
 esptool.py --chip esp32 -p /dev/cu.usbserial-* erase_flash
 ```
+
+> NVS (user configuration) is never overwritten by any of the above except `erase_flash`. Your WiFi credentials, PID settings, schedules, and auth password are preserved across firmware updates.
 
 ## Monitoring
 

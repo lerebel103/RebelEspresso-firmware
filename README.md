@@ -66,6 +66,39 @@ idf.py build
 ./run_qemu.sh
 ```
 
+## Web Interface
+
+The firmware includes a built-in HTTP web interface for configuration and monitoring (hardware revision 2 only). It starts automatically after WiFi connects.
+
+### Development
+
+```bash
+make webapp-dev    # local dev server at http://localhost:8080 (mock API)
+```
+
+Edit `webapp/index.html` and refresh the browser — no build or hardware needed.
+
+### REST API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/status` | GET | Live machine status (temps, power, refill, wifi) |
+| `/api/config/:name` | GET | Read config section (boiler_temp, brew_temp, boiler_refill, schedules) |
+| `/api/config/:name` | PUT | Update config (JSON body, partial merge) |
+| `/api/config/:name/reset` | POST | Reset section to defaults |
+| `/api/system/info` | GET | Device info, versions, heap, uptime |
+| `/api/system/ota` | POST | Upload firmware binary |
+| `/api/system/ota-ui` | POST | Upload web UI (gzipped HTML) |
+| `/api/system/reboot` | POST | Reboot device |
+| `/api/system/factory-reset` | POST | Erase NVS and reboot |
+| `/api/auth` | GET | Auth status |
+| `/api/auth` | POST | Set password (enables auth) |
+| `/api/auth` | DELETE | Disable auth |
+
+### Authentication
+
+Disabled by default. Once a password is set via the Auth page, all API endpoints require HTTP Basic Auth. Static files (the UI itself) remain open so the login prompt appears.
+
 ## Flashing
 
 After `make build`, the build tree at `build/` contains everything needed to flash. The build system generates `flash_args` which tells esptool exactly what to write and where — no manual addresses required.

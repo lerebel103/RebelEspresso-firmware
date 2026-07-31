@@ -7,15 +7,9 @@
 [submodule "components/esp-homekit-sdk"]
 	path = components/esp-homekit-sdk
 	url = https://github.com/espressif/esp-homekit-sdk.git
-[submodule "components/esp-wolfssl"]
-	path = components/esp-wolfssl
-	url = https://github.com/espressif/esp-wolfssl.git
 [submodule "components/esp-ssr-controller"]
 	path = components/esp-ssr-controller
 	url = https://github.com/lerebel103/esp-ssr-controller.git
 [submodule "components/esp32-aws-connector"]
 	path = components/esp32-aws-connector
 	url = https://github.com/lerebel103/esp32-aws-connector.git
-[submodule "components/esp-aws-iot"]
-	path = components/esp-aws-iot
-	url = https://github.com/lerebel103/esp-aws-iot.git

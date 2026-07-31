@@ -13,7 +13,6 @@ idf_component_register(
         "nvram_store_test_shim.cpp"
     INCLUDE_DIRS
         "."
-        "stubs"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/utils"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/sys"

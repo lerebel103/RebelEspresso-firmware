@@ -6,6 +6,7 @@
 #include <cJSON.h>
 #include <cstring>
 
+#include "web_auth.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
 #include "boiler_refill.h"
@@ -18,6 +19,8 @@
 #define TAG "api_status"
 
 static esp_err_t _status_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
     cJSON *root = cJSON_CreateObject();
 
     // Temperatures

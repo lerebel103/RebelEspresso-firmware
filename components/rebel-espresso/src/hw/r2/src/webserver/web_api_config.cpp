@@ -4,6 +4,7 @@
 #include <cJSON.h>
 #include <cstring>
 
+#include "web_auth.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
 #include "boiler_refill.h"
@@ -50,6 +51,8 @@ static bool _parse_config_name(const char *uri, char *name, size_t name_len) {
 // --- GET /api/config/:name ---
 
 static esp_err_t _config_get_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
     char name[32];
     if (!_parse_config_name(req->uri, name, sizeof(name))) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid config name");
@@ -94,6 +97,8 @@ static esp_err_t _config_get_handler(httpd_req_t *req) {
 // --- PUT /api/config/:name ---
 
 static esp_err_t _config_put_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
     char name[32];
     if (!_parse_config_name(req->uri, name, sizeof(name))) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid config name");
@@ -141,6 +146,8 @@ static esp_err_t _config_put_handler(httpd_req_t *req) {
 // --- POST /api/config/:name/reset ---
 
 static esp_err_t _config_reset_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
     char name[32];
     if (!_parse_config_name(req->uri, name, sizeof(name))) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid config name");

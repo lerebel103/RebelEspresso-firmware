@@ -10,7 +10,9 @@
 #include <cJSON.h>
 #include <nvs_flash.h>
 #include <cstring>
+#include <unistd.h>
 
+#include "web_auth.h"
 #include "common/identity.h"
 #include "app_metrics.h"
 
@@ -20,6 +22,7 @@
 // --- GET /api/system/info ---
 
 static esp_err_t _info_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
     const esp_app_desc_t *app = esp_app_get_description();
     auto identity = identity_get();
     auto metrics = app_metrics_get();
@@ -52,6 +55,8 @@ static esp_err_t _info_handler(httpd_req_t *req) {
 // --- POST /api/system/ota ---
 
 static esp_err_t _ota_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
     ESP_LOGI(TAG, "OTA update started, content length: %d", req->content_len);
 
     const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
@@ -173,9 +178,73 @@ static esp_err_t _ota_handler(httpd_req_t *req) {
     return ESP_OK; // unreachable
 }
 
+// --- POST /api/system/ota-ui ---
+// Receives a gzipped file and writes it as index.gz on the data partition.
+// No reboot needed — takes effect on next page load.
+
+#define DATA_MOUNT_POINT "/data"
+
+static esp_err_t _ota_ui_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
+    ESP_LOGI(TAG, "UI OTA started, content length: %d", req->content_len);
+
+    if (req->content_len <= 0 || req->content_len > (512 * 1024)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File too large (max 512KB)");
+        return ESP_FAIL;
+    }
+
+    // Write directly to the data partition filesystem
+    FILE *f = fopen(DATA_MOUNT_POINT "/index.gz", "w");
+    if (!f) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open file for writing");
+        return ESP_FAIL;
+    }
+
+    char *buf = (char *)malloc(OTA_BUF_SIZE);
+    if (!buf) {
+        fclose(f);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
+        return ESP_FAIL;
+    }
+
+    int remaining = req->content_len;
+    bool success = true;
+
+    while (remaining > 0) {
+        int recv_len = httpd_req_recv(req, buf, (remaining < OTA_BUF_SIZE) ? remaining : OTA_BUF_SIZE);
+        if (recv_len <= 0) {
+            if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            success = false;
+            break;
+        }
+        if (fwrite(buf, 1, recv_len, f) != (size_t)recv_len) {
+            success = false;
+            break;
+        }
+        remaining -= recv_len;
+    }
+
+    free(buf);
+    fclose(f);
+
+    if (!success) {
+        unlink(DATA_MOUNT_POINT "/index.gz");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Write failed");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "UI OTA complete: %d bytes written", req->content_len);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"status\":\"ok\",\"message\":\"Web UI updated\"}");
+    return ESP_OK;
+}
+
 // --- POST /api/system/reboot ---
 
 static esp_err_t _reboot_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"status\":\"ok\",\"message\":\"Rebooting...\"}");
 
@@ -187,6 +256,8 @@ static esp_err_t _reboot_handler(httpd_req_t *req) {
 // --- POST /api/system/factory-reset ---
 
 static esp_err_t _factory_reset_handler(httpd_req_t *req) {
+    if (!web_auth_check(req)) return ESP_FAIL;
+
     ESP_LOGW(TAG, "Factory reset requested!");
 
     httpd_resp_set_type(req, "application/json");
@@ -214,6 +285,14 @@ void web_api_system_register(httpd_handle_t server) {
         .user_ctx = nullptr,
     };
     httpd_register_uri_handler(server, &ota_uri);
+
+    const httpd_uri_t ota_ui_uri = {
+        .uri = "/api/system/ota-ui",
+        .method = HTTP_POST,
+        .handler = _ota_ui_handler,
+        .user_ctx = nullptr,
+    };
+    httpd_register_uri_handler(server, &ota_ui_uri);
 
     const httpd_uri_t reboot_uri = {
         .uri = "/api/system/reboot",

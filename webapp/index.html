@@ -158,15 +158,12 @@ nav .tab.active { color: var(--primary); background: var(--card); }
 
   <!-- CONFIG PAGE -->
   <div id="config" class="page">
-    <div class="card">
-      <h3>Configuration Section</h3>
-      <div class="form-group">
-        <select id="cfg-section" onchange="loadConfig()">
-          <option value="boiler_temp">Boiler Temperature</option>
-          <option value="brew_temp">Brew Temperature</option>
-          <option value="boiler_refill">Boiler Refill</option>
-          <option value="schedules">Schedules</option>
-        </select>
+    <div class="card" style="padding-bottom:0">
+      <div class="tabs" style="margin:-16px -16px 0; padding:12px 16px; border-bottom:1px solid var(--border); display:flex; gap:4px; overflow-x:auto;">
+        <button class="tab cfg-tab active" data-cfg="boiler_temp">Boiler</button>
+        <button class="tab cfg-tab" data-cfg="brew_temp">Brew</button>
+        <button class="tab cfg-tab" data-cfg="boiler_refill">Refill</button>
+        <button class="tab cfg-tab" data-cfg="schedules">Schedules</button>
       </div>
     </div>
     <div class="card" id="cfg-card">
@@ -212,7 +209,10 @@ nav .tab.active { color: var(--primary); background: var(--card); }
       <p id="auth-status" style="margin-bottom:12px;color:var(--text-dim)">Loading...</p>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="auth-password" placeholder="Enter new password">
+        <div style="position:relative">
+          <input type="password" id="auth-password" placeholder="Enter new password" style="padding-right:40px">
+          <button type="button" onclick="togglePwVis()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:0.8em;" id="pw-toggle">Show</button>
+        </div>
       </div>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="setPassword()">Set Password</button>
@@ -277,9 +277,22 @@ statusInterval = setInterval(refreshStatus, 2000);
 refreshStatus();
 
 // CONFIG
+let currentConfigSection = 'boiler_temp';
+
+// Config tab switching
+document.querySelectorAll('.cfg-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.cfg-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentConfigSection = tab.dataset.cfg;
+    loadConfig();
+  });
+});
+
 async function loadConfig() {
-  const section = document.getElementById('cfg-section').value;
-  document.getElementById('cfg-title').textContent = section.replace(/_/g, ' ');
+  const section = currentConfigSection;
+  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules'};
+  document.getElementById('cfg-title').textContent = titles[section] || section;
   try {
     const data = await api('config/' + section);
     const fields = document.getElementById('cfg-fields');
@@ -299,7 +312,7 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
-  const section = document.getElementById('cfg-section').value;
+  const section = currentConfigSection;
   const inputs = document.querySelectorAll('#cfg-fields input');
   const body = {};
   inputs.forEach(inp => {
@@ -315,7 +328,7 @@ async function saveConfig() {
 }
 
 async function resetConfig() {
-  const section = document.getElementById('cfg-section').value;
+  const section = currentConfigSection;
   if (!confirm('Reset ' + section + ' to factory defaults?')) return;
   try {
     await api('config/' + section + '/reset', { method: 'POST' });
@@ -416,6 +429,13 @@ async function disableAuth() {
     toast('Auth disabled', 'success');
     loadAuthStatus();
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function togglePwVis() {
+  const inp = document.getElementById('auth-password');
+  const btn = document.getElementById('pw-toggle');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+  else { inp.type = 'password'; btn.textContent = 'Show'; }
 }
 </script>
 </body>

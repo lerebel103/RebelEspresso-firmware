@@ -18,6 +18,7 @@ set(COMPONENT_SRCDIRS
         src/hw/base
         src/hw/r${HARDWARE_REVISION_MAJOR}/src
         src/hw/r${HARDWARE_REVISION_MAJOR}/src/display
+        src/hw/r${HARDWARE_REVISION_MAJOR}/src/webserver
         src/homekit
         )
 
@@ -36,6 +37,10 @@ set(COMPONENT_REQUIRES
         esp_hap_apple_profiles
         esp_rom
         spiffs
+        esp_http_server
+        fatfs
+        mbedtls
+        esp_wifi
         ESP32-MAX31865
         tft-driver
         esp-ssr-controller

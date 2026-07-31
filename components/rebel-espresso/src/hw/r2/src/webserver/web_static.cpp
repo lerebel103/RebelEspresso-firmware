@@ -12,7 +12,7 @@
  * Determine MIME type from file extension.
  */
 static const char *_get_mime_type(const char *path) {
-    if (strstr(path, ".html")) return "text/html";
+    if (strstr(path, ".htm")) return "text/html";
     if (strstr(path, ".js")) return "application/javascript";
     if (strstr(path, ".css")) return "text/css";
     if (strstr(path, ".json")) return "application/json";
@@ -60,7 +60,7 @@ static esp_err_t _static_handler(httpd_req_t *req) {
     }
 
     // Open file
-    FILE *f = fopen(serve_path, "r");
+    FILE *f = fopen(serve_path, "rb");
     if (!f) {
         // Try index.htm for SPA routing (any path without extension)
         if (!strchr(uri + 1, '.')) {
@@ -74,7 +74,7 @@ static esp_err_t _static_handler(httpd_req_t *req) {
                 serve_path = filepath;
                 is_gzip = false;
             }
-            f = fopen(serve_path, "r");
+            f = fopen(serve_path, "rb");
         }
 
         if (!f) {

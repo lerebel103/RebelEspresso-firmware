@@ -53,6 +53,10 @@ Add a lightweight HTTP-based web interface to replace the AWS IoT Thing Shadow c
   - Progress indicator during upload/flash
   - Automatic reboot after successful flash
   - Display result (success / error with reason)
+- **OTA Web UI Update**:
+  - Separate upload for web UI assets (tar.gz or zip of gzipped files)
+  - Writes to `data` FAT partition, replacing existing UI files
+  - No reboot required (takes effect on next page load)
 - **System Actions**:
   - Reboot button
   - Factory reset button (erases NVS)
@@ -76,6 +80,7 @@ Add a lightweight HTTP-based web interface to replace the AWS IoT Thing Shadow c
 
   GET  /api/system/info         — device info, versions, metrics
   POST /api/system/ota          — upload firmware binary (multipart/form-data)
+  POST /api/system/ota-ui       — upload web UI assets (tar.gz, written to data partition)
   POST /api/system/reboot       — trigger reboot
   POST /api/system/factory-reset — erase NVS and reboot
 
@@ -101,7 +106,7 @@ Before writing a received firmware binary to flash, validate:
 1. **Magic byte check**: first 4 bytes must be ESP32 image magic (`0xE9`)
 2. **Project name match**: `esp_app_desc_t.project_name` must equal `"coffee-drivah-firmware"` (prevents flashing wrong firmware)
 3. **Version check**: incoming version must differ from running version (prevents re-flashing same build)
-4. **Size check**: binary must fit in the OTA partition (≤ 2MB)
+4. **Size check**: binary must fit in the OTA partition (≤ 2000KB, as defined by `partitions.csv`)
 
 After flashing and rebooting:
 
@@ -191,5 +196,5 @@ On every boot, the firmware:
 | `http_port` | `sys` | u16 | HTTP server port (default 80) |
 
 ## Open Questions
-- Should OTA also update the web UI assets on the `data` partition, or is that a separate upload?
-- Maximum firmware file size to accept (hard cap at partition size, but should we limit further for safety)?
+- Maximum firmware file size to accept is determined by the OTA partition size (2000KB). The build must verify the binary fits.
+- Future consideration: should the `factory` partition also be updatable, or remain as a known-good fallback?

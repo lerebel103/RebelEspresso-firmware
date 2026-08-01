@@ -53,7 +53,7 @@ void _init_spi() {
   busConfig.max_transfer_sz = 4096;
   busConfig.flags = SPICOMMON_BUSFLAG_MASTER;
 
-  esp_err_t err = spi_bus_initialize(s_spi, &busConfig, 1);
+  esp_err_t err = spi_bus_initialize(s_spi, &busConfig, SPI_DMA_CH_AUTO);
 
   // INVALID_STATE means the host is already in use - that's OK
   if (err == ESP_ERR_INVALID_STATE) {

@@ -7,6 +7,7 @@
 #include "web_auth.h"
 #include "power.h"
 #include "brew_temp.h"
+#include "homekit/homekit.h"
 
 #define TAG "api_control"
 
@@ -63,6 +64,7 @@ static esp_err_t _power_handler(httpd_req_t *req) {
 
   bool is_active = power_is_active();
   ESP_LOGI(TAG, "Power %s (requested: %s)", is_active ? "ON" : "OFF", want_active ? "ON" : "OFF");
+  homekit_notify_power_changed(is_active);
 
   cJSON *resp = cJSON_CreateObject();
   cJSON_AddBoolToObject(resp, "active", is_active);
@@ -127,6 +129,7 @@ static esp_err_t _brew_temp_handler(httpd_req_t *req) {
   brew_temp_set_setpoint(setpoint);
   double actual = brew_temp_get_setpoint();
   ESP_LOGI(TAG, "Brew temp setpoint: %.1f", actual);
+  homekit_notify_setpoint_changed((float)actual);
 
   cJSON *resp = cJSON_CreateObject();
   cJSON_AddNumberToObject(resp, "setpoint", actual);

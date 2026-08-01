@@ -338,6 +338,32 @@ switch_err:
   vTaskDelete(NULL);
 }
 
+void homekit_notify_setpoint_changed(float setpoint) {
+  if (service == nullptr) return;
+  hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_TARGET_TEMPERATURE);
+  if (hc != nullptr) {
+    hap_val_t val;
+    val.f = setpoint;
+    hap_char_update_val(hc, &val);
+    ESP_LOGI(TAG, "HomeKit notified: brew setpoint %.1f", setpoint);
+  }
+}
+
+void homekit_notify_power_changed(bool active) {
+  if (service == nullptr) return;
+  hap_val_t val;
+  val.u = active ? 1 : 0;
+  hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_TARGET_HEATING_COOLING_STATE);
+  if (hc != nullptr) {
+    hap_char_update_val(hc, &val);
+  }
+  hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_CURRENT_HEATING_COOLING_STATE);
+  if (hc != nullptr) {
+    hap_char_update_val(hc, &val);
+  }
+  ESP_LOGI(TAG, "HomeKit notified: power %s", active ? "ON" : "OFF");
+}
+
 void homekit_terminate() {
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_STANDBY, _power_events));
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_ACTIVE, _power_events));

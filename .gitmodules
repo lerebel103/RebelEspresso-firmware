@@ -7,6 +7,3 @@
 [submodule "components/esp-ssr-controller"]
 	path = components/esp-ssr-controller
 	url = https://github.com/lerebel103/esp-ssr-controller.git
-[submodule "components/connectivity"]
-	path = components/connectivity
-	url = https://github.com/lerebel103/esp32-aws-connector.git

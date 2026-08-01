@@ -14,7 +14,7 @@ if [ -z "$STAGED" ]; then
 fi
 
 # Filter to only our project source directories (not submodules or managed components)
-FILES=$(echo "$STAGED" | grep -E '^(main/|components/rebel-espresso/src/|components/connectivity/src/|components/tft-driver/|test_app/main/)' || true)
+FILES=$(echo "$STAGED" | grep -E '^(main/|components/rebel-espresso/src/|components/esp-connectivity/src/|components/tft-driver/|test_app/main/)' || true)
 
 if [ -z "$FILES" ]; then
     exit 0

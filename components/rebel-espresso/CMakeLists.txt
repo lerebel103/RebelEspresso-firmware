@@ -18,7 +18,7 @@ set(COMPONENT_SRCDIRS
 set(COMPONENT_REQUIRES
         cjson
         nvs_flash
-        connectivity
+        esp-connectivity
 
         app_update
         console
@@ -31,7 +31,6 @@ set(COMPONENT_REQUIRES
         esp_rom
         spiffs
         esp_http_server
-        fatfs
         mbedtls
         esp_wifi
         ESP32-MAX31865
@@ -48,8 +47,13 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src/hw/r2/src"
         )
 
+# The web UI is pre-gzipped (webapp/index.html.gz) and embedded in the firmware binary.
+# To update: edit webapp/index.html, then run: gzip -9 -k -f webapp/index.html
+set(WEBAPP_GZ "${CMAKE_SOURCE_DIR}/webapp/index.html.gz")
+
 idf_component_register(
         SRC_DIRS ${COMPONENT_SRCDIRS}
         REQUIRES ${COMPONENT_REQUIRES}
         INCLUDE_DIRS ${COMPONENT_ADD_INCLUDEDIRS}
+        EMBED_FILES ${WEBAPP_GZ}
 )

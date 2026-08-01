@@ -35,9 +35,9 @@ CMAKE_VARS = \
 
 .PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker webapp
 
-## Build firmware
-build: .docker-image webapp
-	$(DOCKER_RUN) idf.py $(CMAKE_VARS) build
+## Build firmware (includes embedded web UI)
+build: .docker-image
+	$(DOCKER_RUN) bash -c "gzip -9 -n -k -f /workspace/webapp/index.html && idf.py $(CMAKE_VARS) build"
 
 ## Run unit tests in QEMU
 test: .docker-image
@@ -53,12 +53,12 @@ lint-fix: .docker-image
 
 ## Format source files with clang-format
 format: .docker-image
-	$(DOCKER_RUN) bash -c "find components/rebel-espresso/src components/connectivity/src main \
+	$(DOCKER_RUN) bash -c "find components/rebel-espresso/src components/esp-connectivity/src main \
 		-name '*.cpp' -o -name '*.c' -o -name '*.h' | xargs clang-format -i"
 
 ## Check formatting (dry-run, exits non-zero if changes needed)
 format-check: .docker-image
-	$(DOCKER_RUN) bash -c "find components/rebel-espresso/src components/connectivity/src main \
+	$(DOCKER_RUN) bash -c "find components/rebel-espresso/src components/esp-connectivity/src main \
 		-name '*.cpp' -o -name '*.c' -o -name '*.h' | xargs clang-format --dry-run --Werror"
 
 ## Clean build artifacts
@@ -81,37 +81,27 @@ shell: .docker-image
 # Flash and Monitor (host — uses build tree's flash_args, no hardcoded addresses)
 ###############################################################################
 
-.PHONY: flash flash-app flash-ui monitor
+.PHONY: flash flash-app monitor
 
-## Flash everything (firmware + bootloader + partition table + web UI)
+## Flash everything (firmware + bootloader + partition table)
 flash:
 	cd $(BUILD_DIR) && esptool.py --chip esp32 -p $(PORT) -b $(BAUD) \
 		--before default_reset --after hard_reset write_flash \
 		$$(sed '1d' flash_args)
 
-## Flash firmware only (preserves NVS, bootloader, web UI)
+## Flash firmware only (preserves NVS config)
 flash-app:
 	cd $(BUILD_DIR) && esptool.py --chip esp32 -p $(PORT) -b $(BAUD) \
 		--before default_reset --after hard_reset write_flash \
 		$$(sed '1d' flash_app_args)
-
-## Flash web UI only (no firmware change)
-flash-ui:
-	cd $(BUILD_DIR) && esptool.py --chip esp32 -p $(PORT) -b $(BAUD) \
-		--before default_reset --after hard_reset write_flash \
-		$$(sed '1d' data-flash_args)
 
 ## Serial monitor
 monitor:
 	python3 -m serial.tools.miniterm $(PORT) 115200
 
 ###############################################################################
-# Web UI
+# Web UI (development only — production UI is embedded in firmware)
 ###############################################################################
-
-## Build web UI (gzip static files into data/ directory)
-webapp: .docker-image
-	$(DOCKER_RUN) bash -c "/workspace/webapp/build.sh"
 
 ## Run web UI locally with mock API (for development)
 webapp-dev:

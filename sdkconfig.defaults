@@ -4,7 +4,7 @@
 # Only non-default settings are tracked here. The full sdkconfig is generated
 # at build time by idf.py from these defaults. Do NOT edit sdkconfig directly.
 #
-# Hardware: ESP32, 16MB flash, ST7796 TFT, NimBLE, WiFi, AWS IoT, HomeKit
+# Hardware: ESP32, 16MB flash, ST7796 TFT, WiFi, HomeKit
 #
 
 # Target and flash
@@ -28,18 +28,8 @@ CONFIG_BOOTLOADER_DATA_FACTORY_RESET="nvs"
 CONFIG_BOOTLOADER_HOLD_TIME_GPIO=5
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
-# Bluetooth — NimBLE only, BLE-only mode
-CONFIG_BT_ENABLED=y
-CONFIG_BT_NIMBLE_ENABLED=y
-CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
-CONFIG_BTDM_CTRL_BLE_MAX_CONN=3
-CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
-CONFIG_BT_NIMBLE_MAX_BONDS=3
-CONFIG_BT_NIMBLE_MAX_CCCDS=8
-CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=256
-CONFIG_BT_NIMBLE_SECURITY_ENABLE=y
-CONFIG_BT_NIMBLE_SM_LEGACY=y
-CONFIG_BT_NIMBLE_SM_SC=y
+# Bluetooth — disabled (BLE provisioning removed)
+# CONFIG_BT_ENABLED is not set
 
 # Wi-Fi
 CONFIG_ESP_WIFI_ENABLED=y
@@ -106,10 +96,6 @@ CONFIG_MBEDTLS_SHA512_C=y
 
 # Logging
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
-CONFIG_BT_NIMBLE_LOG_LEVEL_INFO=y
-
-# Coexistence
-CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 
 # Suppress legacy I2C driver deprecation warning (used by HomeKit MFi)
 CONFIG_I2C_SUPPRESS_DEPRECATE_WARN=y

@@ -40,10 +40,41 @@ nav .tabs { display: flex; gap: 4px; margin-left: auto; }
 nav .tab {
   background: none; border: none; color: var(--text-dim); padding: 8px 12px;
   border-radius: var(--radius); cursor: pointer; font-size: 0.85em;
-  transition: all 0.2s;
+  transition: all 0.2s; display: flex; align-items: center; gap: 6px;
 }
+nav .tab svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
 nav .tab:hover { color: var(--text); background: var(--card); }
 nav .tab.active { color: var(--primary); background: var(--card); }
+nav .tab .tab-label { display: inline; }
+
+/* Burger menu button */
+.burger { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; margin-left: auto; }
+.burger svg { width: 22px; height: 22px; fill: currentColor; }
+
+/* Mobile nav overlay */
+.nav-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6); z-index: 200;
+}
+.nav-overlay.open { display: block; }
+.nav-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 220px;
+  background: var(--surface); border-left: 1px solid var(--border);
+  z-index: 201; padding: 20px 0; display: flex; flex-direction: column;
+}
+.nav-drawer .tab {
+  background: none; border: none; color: var(--text-dim); padding: 14px 20px;
+  font-size: 0.95em; cursor: pointer; text-align: left; display: flex;
+  align-items: center; gap: 12px; transition: all 0.2s;
+}
+.nav-drawer .tab svg { width: 18px; height: 18px; fill: currentColor; flex-shrink: 0; }
+.nav-drawer .tab:hover { color: var(--text); background: var(--card); }
+.nav-drawer .tab.active { color: var(--primary); background: var(--card); }
+
+@media (max-width: 580px) {
+  nav .tabs { display: none; }
+  .burger { display: block; }
+}
 
 /* Cards */
 .card {
@@ -132,14 +163,40 @@ nav .tab.active { color: var(--primary); background: var(--card); }
 .progress-bar { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
 
 /* Responsive */
-@media (max-width: 480px) {
-  nav .tabs { gap: 2px; }
-  nav .tab { padding: 6px 8px; font-size: 0.8em; }
+@media (max-width: 580px) {
+  nav .tabs { display: none; }
+  .burger { display: block; }
   .stat .value { font-size: 1.2em; }
   .temp-current { font-size: 1.8em; }
   .temp-setpoint { font-size: 1.1em; }
   .form-row { grid-template-columns: 1fr; }
 }
+@media (min-width: 581px) and (max-width: 720px) {
+  nav .tab .tab-label { display: none; }
+  nav .tab { padding: 8px; }
+}
+/* Power button */
+.power-btn {
+  width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--border);
+  background: var(--card); color: var(--text-dim); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.3s;
+}
+.power-btn:hover { border-color: var(--text-dim); }
+.power-btn.on { border-color: var(--success); color: var(--success); background: rgba(76,175,80,0.1); }
+.power-btn.off { border-color: var(--text-dim); color: var(--text-dim); }
+
+/* WiFi network list */
+.wifi-net { display:flex;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;cursor:pointer;transition:all 0.2s; }
+.wifi-net:hover { border-color:var(--primary);background:var(--card); }
+.wifi-net.selected { border-color:var(--primary);background:var(--card); }
+.wifi-net-ssid { flex:1;font-size:0.9em;font-weight:500; }
+.wifi-net-meta { font-size:0.75em;color:var(--text-dim);margin-left:8px; }
+.wifi-signal { display:flex;align-items:flex-end;gap:1px;margin-left:8px;height:14px; }
+.wifi-signal span { width:3px;background:var(--border);border-radius:1px; }
+.wifi-signal span.active { background:var(--success); }
+.wifi-signal .bar1 { height:4px; } .wifi-signal .bar2 { height:7px; } .wifi-signal .bar3 { height:10px; } .wifi-signal .bar4 { height:14px; }
+.wifi-net-auth { font-size:0.7em;color:var(--text-dim);background:var(--bg);padding:2px 6px;border-radius:3px;margin-left:6px; }
 </style>
 </head>
 <body>
@@ -148,47 +205,98 @@ nav .tab.active { color: var(--primary); background: var(--card); }
   <div class="container">
     <span class="logo">RebelEspresso</span>
     <div class="tabs">
-      <button class="tab active" data-page="status">Status</button>
-      <button class="tab" data-page="config">Config</button>
-      <button class="tab" data-page="system">System</button>
-      <button class="tab" data-page="auth">Auth</button>
+      <button class="tab active" data-page="status"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg><span class="tab-label">Status</span></button>
+      <button class="tab" data-page="wifi"><svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg><span class="tab-label">WiFi</span></button>
+      <button class="tab" data-page="config"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg><span class="tab-label">Config</span></button>
+      <button class="tab" data-page="system"><svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg><span class="tab-label">System</span></button>
+      <button class="tab" data-page="auth"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg><span class="tab-label">Auth</span></button>
     </div>
+    <button class="burger" id="burger-btn" onclick="toggleMenu()">
+      <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
   </div>
 </nav>
+
+<!-- Mobile navigation drawer -->
+<div class="nav-overlay" id="nav-overlay" onclick="closeMenu()">
+  <div class="nav-drawer" onclick="event.stopPropagation()">
+    <button class="tab active" data-page="status"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>Status</button>
+    <button class="tab" data-page="wifi"><svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>WiFi</button>
+    <button class="tab" data-page="config"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Config</button>
+    <button class="tab" data-page="system"><svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>System</button>
+    <button class="tab" data-page="auth"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>Auth</button>
+  </div>
+</div>
 
 <div class="container">
   <!-- STATUS PAGE -->
   <div id="status" class="page active">
-    <div class="card">
-      <h3>Temperatures</h3>
-      <table class="temp-table">
-        <tr>
-          <td class="temp-label">Brew</td>
-          <td class="temp-current" id="s-brew">--</td>
-          <td class="temp-unit">&deg;C</td>
-          <td class="temp-sep">/</td>
-          <td class="temp-setpoint" id="s-brew-sp">--</td>
-          <td class="temp-unit-sm">&deg;C</td>
-        </tr>
-        <tr>
-          <td class="temp-label">Boiler</td>
-          <td class="temp-current" id="s-boiler">--</td>
-          <td class="temp-unit">&deg;C</td>
-          <td class="temp-sep">/</td>
-          <td class="temp-setpoint" id="s-setpoint">--</td>
-          <td class="temp-unit-sm">&deg;C</td>
-        </tr>
-      </table>
+    <!-- Power toggle -->
+    <div class="card" style="text-align:center;padding:20px;">
+      <button class="power-btn" id="power-btn" onclick="togglePower()">
+        <svg viewBox="0 0 24 24" width="36" height="36"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/></svg>
+      </button>
+      <div id="power-label" style="margin-top:8px;font-size:0.85em;color:var(--text-dim)">--</div>
     </div>
+
+    <!-- Temperature gauges -->
     <div class="card">
-      <h3>Machine State</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="text-align:center;">
+          <div style="font-size:0.75em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Brew Head</div>
+          <div style="font-size:2.4em;font-weight:700;" id="s-brew">--</div>
+          <div style="font-size:0.8em;color:var(--text-dim);margin-top:2px;">target <span id="s-brew-sp">--</span>&deg;C</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:0.75em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Boiler</div>
+          <div style="font-size:2.4em;font-weight:700;" id="s-boiler">--</div>
+          <div style="font-size:0.8em;color:var(--text-dim);margin-top:2px;">target <span id="s-setpoint">--</span>&deg;C</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Brew temp control -->
+    <div class="card">
+      <h3>Brew Temperature</h3>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="btn btn-secondary" onclick="adjustBrewTemp(-0.5)" style="font-size:1.2em;padding:8px 14px;">-</button>
+        <div style="flex:1;text-align:center;">
+          <span id="brew-sp-display" style="font-size:1.8em;font-weight:700;">--</span>
+          <span style="font-size:0.9em;color:var(--text-dim);">&deg;C</span>
+        </div>
+        <button class="btn btn-secondary" onclick="adjustBrewTemp(0.5)" style="font-size:1.2em;padding:8px 14px;">+</button>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:0.75em;color:var(--text-dim);">Range: 88 - 96&deg;C</div>
+    </div>
+
+    <!-- Machine stats -->
+    <div class="card">
       <div class="stat-grid">
-        <div class="stat"><div class="value" id="s-power">--</div><div class="label">Power</div></div>
         <div class="stat"><div class="value" id="s-duty">--<span class="unit">%</span></div><div class="label">Duty</div></div>
         <div class="stat"><div class="value" id="s-level">--</div><div class="label">Level</div></div>
-        <div class="stat"><div class="value" id="s-wifi">--</div><div class="label">WiFi</div></div>
+        <div class="stat"><div class="value" id="s-wifi">--</div><div class="label">Signal</div></div>
         <div class="stat"><div class="value" id="s-uptime">--</div><div class="label">Uptime</div></div>
       </div>
+    </div>
+  </div>
+
+  <!-- WIFI PAGE -->
+  <div id="wifi" class="page">
+    <div class="card">
+      <h3>WiFi Status</h3>
+      <div id="wifi-status-info" style="font-size:0.9em;color:var(--text-dim)">Loading...</div>
+    </div>
+    <div class="card">
+      <h3>Available Networks</h3>
+      <div id="wifi-scan-list" style="margin-bottom:12px"></div>
+      <button class="btn btn-secondary" onclick="wifiScan()">Rescan</button>
+    </div>
+    <div class="card">
+      <h3>Connect to Network</h3>
+      <div class="form-group"><label>SSID</label><input type="text" id="wifi-ssid" placeholder="Network name"></div>
+      <div class="form-group"><label>Password</label><div style="position:relative"><input type="password" id="wifi-psk" placeholder="Network password" style="padding-right:40px"><button type="button" onclick="toggleWifiPwVis()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:0.8em" id="wifi-pw-toggle">Show</button></div></div>
+      <div id="wifi-connect-status" style="margin-bottom:8px;font-size:0.85em"></div>
+      <div class="btn-group"><button class="btn btn-primary" id="wifi-connect-btn" onclick="wifiConnect()">Connect</button></div>
     </div>
   </div>
 
@@ -266,23 +374,43 @@ nav .tab.active { color: var(--primary); background: var(--card); }
   </div>
 </div>
 
+<!-- Login overlay -->
+<div id="login-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:500;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="max-width:320px;width:90%;text-align:center;">
+    <div style="font-size:1.4em;font-weight:700;color:var(--primary);margin-bottom:24px;">RebelEspresso</div>
+    <div class="card" style="text-align:left;">
+      <h3>Enter Password</h3>
+      <div class="form-group">
+        <input type="password" id="login-pw" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="login-error" style="color:var(--error);font-size:0.85em;margin-bottom:8px;min-height:1.2em;"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Unlock</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 // Navigation
-document.querySelectorAll('nav .tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('nav .tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById(tab.dataset.page).classList.add('active');
-    if (tab.dataset.page === 'status') startPolling();
-    else stopPolling();
-    if (tab.dataset.page === 'config') loadConfig();
-    if (tab.dataset.page === 'system') loadSystemInfo();
-    if (tab.dataset.page === 'auth') loadAuthStatus();
-  });
+function navigateTo(page) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('[data-page="' + page + '"]').forEach(t => t.classList.add('active'));
+  document.getElementById(page).classList.add('active');
+  if (page === 'status') startPolling();
+  else stopPolling();
+  if (page === 'wifi') { loadWifiStatus(); wifiScan(); }
+  if (page === 'config') loadConfig();
+  if (page === 'system') loadSystemInfo();
+  if (page === 'auth') loadAuthStatus();
+  closeMenu();
+}
+document.querySelectorAll('.tab[data-page]').forEach(tab => {
+  tab.addEventListener('click', () => navigateTo(tab.dataset.page));
 });
+function toggleMenu() { document.getElementById('nav-overlay').classList.toggle('open'); }
+function closeMenu() { document.getElementById('nav-overlay').classList.remove('open'); }
 
 // Toast
 function toast(msg, type = '') {
@@ -293,8 +421,16 @@ function toast(msg, type = '') {
 }
 
 // API helpers
+let _authToken = '';
 async function api(path, opts = {}) {
+  if (!opts.headers) opts.headers = {};
+  if (_authToken) opts.headers['Authorization'] = 'Bearer ' + _authToken;
   const resp = await fetch('/api/' + path, opts);
+  if (resp.status === 401) {
+    _authToken = '';
+    showLoginGate();
+    throw new Error('Session expired');
+  }
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(text || resp.statusText);
@@ -302,23 +438,115 @@ async function api(path, opts = {}) {
   return resp.json();
 }
 
+// Login gate — shown when auth is enabled and no valid token
+function showLoginGate() {
+  document.getElementById('login-overlay').style.display = 'flex';
+}
+function hideLoginGate() {
+  document.getElementById('login-overlay').style.display = 'none';
+}
+async function doLogin() {
+  const pw = document.getElementById('login-pw').value;
+  const err = document.getElementById('login-error');
+  if (!pw) { err.textContent = 'Enter a password'; return; }
+  err.textContent = '';
+  try {
+    const resp = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    const d = await resp.json();
+    if (d.success && d.token) {
+      _authToken = d.token;
+      hideLoginGate();
+      document.getElementById('login-pw').value = '';
+      startPolling();
+    } else {
+      err.textContent = d.message || 'Invalid password';
+    }
+  } catch (e) { err.textContent = 'Connection error'; }
+}
+// Check auth on page load
+async function checkAuth() {
+  try {
+    const resp = await fetch('/api/auth');
+    const d = await resp.json();
+    if (d.enabled) showLoginGate();
+  } catch (e) { /* if we can't reach the device, just show the app */ }
+}
+checkAuth();
+
 // STATUS
 let statusInterval;
+let _currentBrewSetpoint = 0;
 async function refreshStatus() {
   try {
     const d = await api('status');
-    document.getElementById('s-brew').textContent = d.temperatures?.brew_head?.toFixed(1) || '--';
+    // Temperatures
+    const brewTemp = d.temperatures?.brew_head;
+    const boilerTemp = d.temperatures?.boiler;
+    document.getElementById('s-brew').textContent = brewTemp != null ? brewTemp.toFixed(1) + '\u00B0' : '--';
+    document.getElementById('s-boiler').textContent = boilerTemp != null ? boilerTemp.toFixed(1) + '\u00B0' : '--';
     document.getElementById('s-brew-sp').textContent = d.temperatures?.brew_head_setpoint?.toFixed(1) || '--';
-    document.getElementById('s-boiler').textContent = d.temperatures?.boiler?.toFixed(1) || '--';
     document.getElementById('s-setpoint').textContent = d.temperatures?.boiler_setpoint?.toFixed(1) || '--';
-    document.getElementById('s-duty').textContent = (d.temperatures?.boiler_duty || '0') + '%';
-    document.getElementById('s-power').textContent = d.power_active ? 'ON' : 'STANDBY';
+
+    // Brew setpoint display (for control)
+    const sp = d.temperatures?.brew_head_setpoint;
+    if (sp != null) {
+      _currentBrewSetpoint = sp;
+      document.getElementById('brew-sp-display').textContent = sp.toFixed(1);
+    }
+
+    // Power button state
+    const active = d.power_active;
+    const btn = document.getElementById('power-btn');
+    const label = document.getElementById('power-label');
+    if (active) {
+      btn.className = 'power-btn on';
+      label.textContent = 'Machine On';
+      label.style.color = 'var(--success)';
+    } else {
+      btn.className = 'power-btn off';
+      label.textContent = 'Standby';
+      label.style.color = 'var(--text-dim)';
+    }
+
+    // Stats
+    document.getElementById('s-duty').innerHTML = (d.temperatures?.boiler_duty || '0') + '<span class="unit">%</span>';
     document.getElementById('s-level').textContent = d.boiler_level || '--';
     document.getElementById('s-wifi').textContent = (d.wifi?.rssi || '--') + ' dBm';
     const up = Math.floor(d.uptime_sec || 0);
     const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
     document.getElementById('s-uptime').textContent = h + 'h ' + m + 'm';
   } catch (e) { /* silent on status poll failure */ }
+}
+
+async function togglePower() {
+  const btn = document.getElementById('power-btn');
+  const isOn = btn.classList.contains('on');
+  try {
+    await api('control/power', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({active: !isOn})
+    });
+    refreshStatus();
+  } catch (e) { toast('Power command failed', 'error'); }
+}
+
+async function adjustBrewTemp(delta) {
+  const newSp = Math.round((_currentBrewSetpoint + delta) * 10) / 10;
+  if (newSp < 88 || newSp > 96) return;
+  try {
+    const d = await api('control/brew-temp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({setpoint: newSp})
+    });
+    _currentBrewSetpoint = d.setpoint;
+    document.getElementById('brew-sp-display').textContent = d.setpoint.toFixed(1);
+  } catch (e) { toast('Failed to set temperature', 'error'); }
 }
 // Only poll when status page is active and tab is visible
 function startPolling() { if (!statusInterval) statusInterval = setInterval(refreshStatus, 2000); refreshStatus(); }
@@ -435,35 +663,118 @@ async function uploadOTA() {
   const file = document.getElementById('ota-file').files[0];
   if (!file) { toast('Select a firmware file first', 'error'); return; }
   if (!file.name.endsWith('.bin')) { toast('File must be a .bin firmware', 'error'); return; }
+  if (!confirm('Upload ' + file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)?\n\nThe device will reboot after flashing.')) return;
 
   const progress = document.getElementById('ota-progress');
   const bar = document.getElementById('ota-bar');
   const status = document.getElementById('ota-status');
+  const btn = document.querySelector('[onclick="uploadOTA()"]');
+  btn.disabled = true;
   progress.style.display = 'block';
   bar.style.width = '0%';
-  status.textContent = 'Uploading...';
+  status.textContent = 'Uploading firmware...';
+  status.style.color = 'var(--text)';
 
-  try {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/system/ota');
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) bar.style.width = Math.round(e.loaded / e.total * 100) + '%';
-    };
-    xhr.onload = () => {
-      if (xhr.status === 200) {
-        status.textContent = 'OTA complete! Rebooting...';
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/system/ota');
+  xhr.timeout = 120000;
+  xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const pct = Math.round(e.loaded / e.total * 100);
+      bar.style.width = pct + '%';
+      status.textContent = 'Uploading firmware... ' + pct + '%';
+    }
+  };
+
+  xhr.onload = () => {
+    if (xhr.status === 200) {
+      bar.style.width = '100%';
+      status.innerHTML = '<span class="indicator ok"></span>Firmware written successfully. Device is rebooting...<br><span style="color:var(--text-dim)">Please wait ~15 seconds. This page will reload automatically.</span>';
+      status.style.color = 'var(--success)';
+      toast('Firmware flashed, rebooting...', 'success');
+      // Wait for reboot and try to reconnect
+      _waitForReboot();
+    } else {
+      progress.style.display = 'none';
+      let errMsg = xhr.responseText || ('HTTP ' + xhr.status);
+      status.innerHTML = '<span class="indicator error"></span>OTA failed: ' + errMsg;
+      status.style.color = 'var(--error)';
+      toast('OTA failed', 'error');
+      btn.disabled = false;
+    }
+  };
+
+  xhr.onerror = () => {
+    // Connection reset can mean the device rebooted mid-response (success case)
+    // or a genuine network error. Check if upload completed (100%).
+    if (bar.style.width === '100%') {
+      status.innerHTML = '<span class="indicator ok"></span>Upload complete. Device may be rebooting...<br><span style="color:var(--text-dim)">Please wait ~15 seconds. This page will reload automatically.</span>';
+      status.style.color = 'var(--success)';
+      _waitForReboot();
+    } else {
+      progress.style.display = 'none';
+      status.innerHTML = '<span class="indicator error"></span>Upload failed (connection lost)';
+      status.style.color = 'var(--error)';
+      toast('Connection lost during upload', 'error');
+      btn.disabled = false;
+    }
+  };
+
+  xhr.ontimeout = () => {
+    progress.style.display = 'none';
+    status.innerHTML = '<span class="indicator error"></span>Upload timed out (120s)';
+    status.style.color = 'var(--error)';
+    toast('Upload timed out', 'error');
+    btn.disabled = false;
+  };
+
+  xhr.send(file);
+}
+
+function _waitForReboot() {
+  // Poll the device until it responds (reboot takes ~10-15s)
+  let attempts = 0;
+  const maxAttempts = 30; // 30 x 2s = 60s max wait
+  const status = document.getElementById('ota-status');
+  const progress = document.getElementById('ota-progress');
+  const bar = document.getElementById('ota-bar');
+  const btn = document.querySelector('[onclick="uploadOTA()"]');
+
+  const interval = setInterval(async () => {
+    attempts++;
+    // Animate progress bar during wait
+    bar.style.width = Math.min(100, 50 + attempts * 2) + '%';
+
+    try {
+      const resp = await fetch('/api/system/info', {signal: AbortSignal.timeout(3000)});
+      if (resp.ok) {
+        clearInterval(interval);
+        progress.style.display = 'none';
+        status.innerHTML = '<span class="indicator ok"></span>Device is back online! Reloading...';
         status.style.color = 'var(--success)';
-        toast('Firmware updated, rebooting...', 'success');
-      } else {
-        status.textContent = 'Error: ' + xhr.responseText;
-        status.style.color = 'var(--error)';
-        toast('OTA failed', 'error');
+        toast('Device back online', 'success');
+        setTimeout(() => window.location.reload(), 1500);
       }
-    };
-    xhr.onerror = () => { status.textContent = 'Upload failed'; toast('Network error', 'error'); };
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-    xhr.send(file);
-  } catch (e) { status.textContent = 'Error: ' + e.message; toast('OTA error', 'error'); }
+    } catch (e) {
+      // Still rebooting, update status
+      if (attempts <= 7) {
+        status.innerHTML = '<span class="indicator warn"></span>Device is rebooting... (' + (attempts * 2) + 's)';
+      } else {
+        status.innerHTML = '<span class="indicator warn"></span>Waiting for device... (' + (attempts * 2) + 's)';
+      }
+      status.style.color = 'var(--warn)';
+    }
+
+    if (attempts >= maxAttempts) {
+      clearInterval(interval);
+      progress.style.display = 'none';
+      status.innerHTML = '<span class="indicator error"></span>Device did not respond after 60s. Try reloading the page manually.';
+      status.style.color = 'var(--error)';
+      btn.disabled = false;
+    }
+  }, 2000);
 }
 
 async function reboot() {
@@ -505,7 +816,8 @@ async function setPassword() {
   const pw = document.getElementById('auth-password').value;
   if (pw.length < 4) { toast('Password must be at least 4 characters', 'error'); return; }
   try {
-    await api('auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: pw}) });
+    const d = await api('auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: pw}) });
+    if (d.token) _authToken = d.token;
     toast('Password set, auth enabled', 'success');
     document.getElementById('auth-password').value = '';
     loadAuthStatus();
@@ -516,6 +828,7 @@ async function disableAuth() {
   if (!confirm('Disable password protection?')) return;
   try {
     await api('auth', { method: 'DELETE' });
+    _authToken = '';
     toast('Auth disabled', 'success');
     loadAuthStatus();
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
@@ -527,6 +840,14 @@ function togglePwVis() {
   if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
   else { inp.type = 'password'; btn.textContent = 'Show'; }
 }
+// WIFI
+function toggleWifiPwVis(){const i=document.getElementById('wifi-psk'),b=document.getElementById('wifi-pw-toggle');if(i.type==='password'){i.type='text';b.textContent='Hide'}else{i.type='password';b.textContent='Show'}}
+function signalBars(r){if(r>-50)return 4;if(r>-60)return 3;if(r>-70)return 2;return 1}
+function renderSignal(r){const b=signalBars(r);let h='<div class="wifi-signal">';for(let i=1;i<=4;i++)h+='<span class="bar'+i+(i<=b?' active':'')+'"></span>';return h+'</div>'}
+async function wifiScan(){const l=document.getElementById('wifi-scan-list');l.innerHTML='<div style="color:var(--text-dim);font-size:0.85em">Scanning...</div>';try{const d=await api('wifi/scan');if(!d.networks||d.networks.length===0){l.innerHTML='<div style="color:var(--text-dim);font-size:0.85em">No networks found</div>';return}let h='';d.networks.forEach(n=>{h+='<div class="wifi-net" onclick="selectNetwork(\''+n.ssid.replace(/'/g,"\\'")+'\')">';h+='<span class="wifi-net-ssid">'+n.ssid+'</span>';h+='<span class="wifi-net-auth">'+n.auth+'</span>';h+=renderSignal(n.rssi);h+='<span class="wifi-net-meta">'+n.rssi+' dBm</span></div>'});l.innerHTML=h}catch(e){l.innerHTML='<div style="color:var(--error);font-size:0.85em">Scan failed: '+e.message+'</div>'}}
+function selectNetwork(s){document.getElementById('wifi-ssid').value=s;document.getElementById('wifi-psk').focus();document.querySelectorAll('.wifi-net').forEach(e=>e.classList.remove('selected'));document.querySelectorAll('.wifi-net').forEach(e=>{if(e.querySelector('.wifi-net-ssid').textContent===s)e.classList.add('selected')})}
+async function wifiConnect(){const ssid=document.getElementById('wifi-ssid').value.trim(),psk=document.getElementById('wifi-psk').value;if(!ssid){toast('Enter an SSID','error');return}const btn=document.getElementById('wifi-connect-btn'),st=document.getElementById('wifi-connect-status');btn.disabled=true;btn.textContent='Connecting...';st.textContent='Attempting connection to '+ssid+'...';st.style.color='var(--text-dim)';try{const d=await api('wifi/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssid,psk})});if(d.success){st.innerHTML='<span class="indicator ok"></span>Connected! IP: <strong>'+d.ip+'</strong><br><span style="color:var(--text-dim);font-size:0.85em">Access at http://'+d.ip+':8080</span>';st.style.color='var(--success)';toast('WiFi connected','success');setTimeout(loadWifiStatus,1000)}else{st.innerHTML='<span class="indicator error"></span>Failed: '+(d.error||'unknown');st.style.color='var(--error)';toast('Connection failed','error')}}catch(e){st.innerHTML='<span class="indicator error"></span>Error: '+e.message;st.style.color='var(--error)';toast('Error','error')}btn.disabled=false;btn.textContent='Connect'}
+async function loadWifiStatus(){try{const d=await api('wifi/status'),el=document.getElementById('wifi-status-info');let h='';if(d.sta&&d.sta.connected){h+='<span class="indicator ok"></span>Connected to <strong>'+d.sta.ssid+'</strong> ('+d.sta.rssi+' dBm) — IP: '+d.sta.ip}else{h+='<span class="indicator warn"></span>Not connected'}if(d.ap&&d.ap.active){h+='<br><span class="indicator ok"></span>AP: <strong>'+d.ap.ssid+'</strong> ('+d.ap.clients+' clients)'}h+='<br><span style="color:var(--text-dim);font-size:0.8em">Mode: '+d.mode+'</span>';el.innerHTML=h}catch(e){document.getElementById('wifi-status-info').textContent='Error loading status'}}
 </script>
 </body>
 </html>

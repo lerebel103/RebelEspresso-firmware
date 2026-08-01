@@ -44,7 +44,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          find components/rebel-espresso/src components/connectivity/src main \
+          find components/rebel-espresso/src components/esp-connectivity/src main \
             \( -name '*.cpp' -o -name '*.c' -o -name '*.h' \) | xargs clang-format --dry-run --Werror
 
       - name: Run clang-tidy

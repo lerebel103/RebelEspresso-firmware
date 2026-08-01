@@ -1,0 +1,45 @@
+menu "esp-connectivity"
+
+    config WIFI_AP_SSID_PREFIX
+        string "Soft-AP SSID prefix"
+        default "RebelEspresso"
+        help
+            Prefix for the Soft-AP SSID. The last 6 hex digits of the MAC are appended.
+
+    config WIFI_STA_CONNECT_TIMEOUT_MS
+        int "STA connection timeout on boot (ms)"
+        range 5000 60000
+        default 15000
+        help
+            Time to wait for STA connection on boot before activating Soft-AP.
+
+    config WIFI_STA_RECONNECT_TIMEOUT_MS
+        int "STA reconnect timeout during operation (ms)"
+        range 10000 120000
+        default 30000
+        help
+            Time to wait for STA reconnection after a disconnect before activating Soft-AP.
+
+    config WIFI_AP_CHANNEL
+        int "Soft-AP WiFi channel"
+        range 1 13
+        default 1
+        help
+            WiFi channel for the Soft-AP.
+
+    config WIFI_AP_MAX_CONNECTIONS
+        int "Soft-AP max connections"
+        range 1 10
+        default 4
+        help
+            Maximum number of simultaneous client connections to the Soft-AP.
+
+    config WIFI_AP_SHUTDOWN_DELAY_MS
+        int "Delay before AP shutdown after successful STA connect (ms)"
+        range 500 10000
+        default 2000
+        help
+            Delay after sending HTTP response before shutting down the AP.
+            Allows the client to receive the response before losing AP connectivity.
+
+endmenu

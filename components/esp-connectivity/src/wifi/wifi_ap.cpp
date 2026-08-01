@@ -79,11 +79,9 @@ void wifi_ap_start(EventGroupHandle_t networkEventGroup) {
 
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
 
-  // If WiFi wasn't started yet, start it
+  // If WiFi wasn't started yet, start it. If already started, that's fine.
   esp_err_t err = esp_wifi_start();
-  if (err == ESP_ERR_WIFI_CONN) {
-    // Already started, that's fine
-  } else if (err != ESP_OK) {
+  if (err != ESP_OK && err != ESP_ERR_WIFI_STATE && err != ESP_ERR_WIFI_CONN) {
     ESP_ERROR_CHECK(err);
   }
 

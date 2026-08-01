@@ -10,7 +10,7 @@
 # ESP-IDF's own dependencies are NOT listed here — they're managed by the
 # base Docker image (espressif/idf:v6.0.2).
 
-bitstring==4.0.2
-boto3==1.26.136
-botocore==1.29.136
-requests==2.30.0
+bitstring==4.4.0
+boto3==1.43.58
+botocore==1.43.58
+requests==2.34.2

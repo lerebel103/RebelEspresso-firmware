@@ -1,0 +1,11 @@
+# Name,   Type,  SubType,  Offset,   Size,     Flags
+otadata,  data,    ota,     0xe000,   0x2000,
+factory,  app,  factory, 0x10000, 2000K,
+app0,     app,   ota_0,    , 2000K,
+app1,     app,   ota_1,    , 2000K,
+nvs,      data,  nvs,      , 512K,
+nvs_factory,      data,  nvs,  , 512K,
+nvs_key,  data,  nvs_keys, , 0x1000,
+coredump, data,  coredump, , 64K
+storage,  data,  spiffs, , 2000K,
+data,     data,  fat, , 7100K,

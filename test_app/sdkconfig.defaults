@@ -1,0 +1,27 @@
+# Test app sdkconfig — optimized for running in QEMU
+#
+# QEMU emulates 4MB flash by default. We use a simple partition table
+# with NVS support to test persistence operations.
+
+CONFIG_IDF_TARGET="esp32"
+
+# Use 4MB flash (QEMU default)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Standard partition table with NVS (sufficient for tests)
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
+
+# Reduce boot time noise
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# FreeRTOS
+CONFIG_FREERTOS_HZ=100
+
+# Disable hardware we don't need in QEMU
+CONFIG_BT_ENABLED=n
+CONFIG_ESP_WIFI_ENABLED=n
+
+# Unity test framework config
+CONFIG_UNITY_ENABLE_FLOAT=y
+CONFIG_UNITY_ENABLE_DOUBLE=y

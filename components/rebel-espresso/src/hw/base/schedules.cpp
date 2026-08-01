@@ -8,7 +8,7 @@
 #include "pid.h"
 #include "brew_temp.h"
 #include "power.h"
-#include "shadow/shadow_handler.h"
+#include "shadow_helper.h"
 #include "shadow_helper.h"
 
 #define TAG "schedules"
@@ -18,7 +18,6 @@
 const uint8_t SCHEDULES_ENABLED_DEFAULT = 1;
 const double SCHEDULES_DELTA_DEFAULT = 0.8;
 const double SCHEDULES_HYSTERESIS_DEFAULT = 2.0;
-
 
 static device_shadow_handle_t shadow_handle{};
 static bool _cfg_update_required = true;
@@ -31,7 +30,6 @@ static schedules_status_t s_stats;
 static void _load_stats() {
   nvs_handle my_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_SCHEDULES_STATS_STORE, NVS_READWRITE, &my_handle));
-
 
   nvs_close(my_handle);
 
@@ -53,7 +51,7 @@ static void _load_nvram() {
   ESP_ERROR_CHECK(nvs_open(NVS_SCHEDULES_CFG_STORE, NVS_READWRITE, &my_handle));
 
   size_t len = 2048;
-  char *buffer = (char *) calloc(1, len);
+  char *buffer = (char *)calloc(1, len);
   esp_err_t err = nvs_get_str(my_handle, NVS_KEY_SCHEDULES, buffer, &len);
   if (err == ESP_ERR_NVS_NOT_FOUND) {
     // Set default then
@@ -108,11 +106,11 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
   uint64_t now = 0;
   if (event_data != nullptr) {
-    now = *(uint64_t *) event_data;
+    now = *(uint64_t *)event_data;
   }
 
   // See if we need to serialise stats, but pace it so we don't kill the flash
-  if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t) 5e6)) {
+  if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t)5e6)) {
     _save_stats(now);
   }
 
@@ -151,13 +149,12 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
   }
 }
 
-static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+static void _shadow_deleted_handler(void *, void *) {
   // re-create the shadow then
   _cfg_update_required = true;
 }
 
-static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
-  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, schedules_update_cfg);
+static void update_config_resp(void *, void *) {
   _cfg_update_required = true;
 }
 
@@ -178,23 +175,21 @@ void schedules_init() {
   _load_nvram();
   _load_stats();
 
-  device_shadow_cfg_t shadow_cfg = {
-      .name = "schedules",
-      .get=null_shadow_handler,
-      .updated = update_config_resp,
-      .deleted = _shadow_deleted_handler};
+  device_shadow_cfg_t shadow_cfg = {.name = "schedules",
+                                    .get = null_shadow_handler,
+                                    .updated = update_config_resp,
+                                    .deleted = _shadow_deleted_handler};
   ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 
   // Get our power events in place so we can run the process loop as needed
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
-                                             _tick_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
 }
 
 void schedules_delete() {
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, TICK, _tick_events));
 }
 
-const schedules_cfg_t &schedules_get_cfg() {
+const schedules_cfg_t& schedules_get_cfg() {
   return s_cfg;
 }
 
@@ -229,7 +224,6 @@ void schedules_update_cfg(const cJSON *json) {
   schedules_set_cfg(new_config);
 }
 
-
 void schedules_reset_cfg() {
   nvs_handle my_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_SCHEDULES_CFG_STORE, NVS_READWRITE, &my_handle));
@@ -239,7 +233,7 @@ void schedules_reset_cfg() {
   _load_nvram();
 }
 
-const schedules_status_t &schedules_get_status() {
+const schedules_status_t& schedules_get_status() {
   return s_stats;
 }
 
@@ -251,4 +245,3 @@ void schedules_reset_stats() {
 
   _load_stats();
 }
-

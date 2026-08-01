@@ -9,7 +9,7 @@
 #include "rtds.h"
 #include "pid.h"
 #include "app_metrics.h"
-#include "shadow/shadow_handler.h"
+#include "shadow_helper.h"
 #include "shadow_helper.h"
 
 #define TAG "BrewTemp"
@@ -39,13 +39,12 @@ static void _load_stats() {
   ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_STATS_STORE, NVS_READWRITE, &my_handle));
 
   uint32_t defaultVal = 0;
-  nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_OVER_TEMP, (uint32_t *) &s_stats.brew_temp_over_limit_count,
-                      (void *) &defaultVal);
-  nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count,
-                      (void *) &defaultVal);
+  nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_OVER_TEMP, (uint32_t *)&s_stats.brew_temp_over_limit_count,
+                      (void *)&defaultVal);
+  nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *)&s_stats.brew_temp_read_error_count,
+                      (void *)&defaultVal);
   nvram_store_get_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR,
-                      (uint32_t *) &s_stats.brew_temp_out_of_range_count,
-                      (void *) &defaultVal);
+                      (uint32_t *)&s_stats.brew_temp_out_of_range_count, (void *)&defaultVal);
 
   nvs_close(my_handle);
 
@@ -57,10 +56,10 @@ static void _save_stats(uint64_t time) {
   nvs_handle my_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_STATS_STORE, NVS_READWRITE, &my_handle));
 
-  nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_OVER_TEMP, (uint32_t *) &s_stats.brew_temp_over_limit_count);
-  nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *) &s_stats.brew_temp_read_error_count);
+  nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_OVER_TEMP, (uint32_t *)&s_stats.brew_temp_over_limit_count);
+  nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_ERROR, (uint32_t *)&s_stats.brew_temp_read_error_count);
   nvram_store_set_u32(my_handle, KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR,
-                      (uint32_t *) &s_stats.brew_temp_out_of_range_count);
+                      (uint32_t *)&s_stats.brew_temp_out_of_range_count);
 
   nvs_close(my_handle);
   s_last_stats_save = time;
@@ -73,12 +72,11 @@ static void _load_nvram() {
 
   pid_load_nvram(my_handle, s_cfg.pid);
 
-  nvram_store_get_u8(my_handle, KEY_BREW_TEMP_ENABLED, (uint8_t *) &s_cfg.enabled,
-                     (void *) &BREW_TEMP_ENABLED_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *) &s_cfg.max_damping_perc,
-                      (void *) &BREW_TEMP_PERC_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_BREW_SETPOINT_HOLD_SEC, (uint64_t *) &s_cfg.boiler_setpoint_hold_sec,
-                      (void *) &BREW_SETPOINT_HOLD_SEC_DEFAULT);
+  nvram_store_get_u8(my_handle, KEY_BREW_TEMP_ENABLED, (uint8_t *)&s_cfg.enabled, (void *)&BREW_TEMP_ENABLED_DEFAULT);
+  nvram_store_get_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *)&s_cfg.max_damping_perc,
+                      (void *)&BREW_TEMP_PERC_DEFAULT);
+  nvram_store_get_u64(my_handle, KEY_BREW_SETPOINT_HOLD_SEC, (uint64_t *)&s_cfg.boiler_setpoint_hold_sec,
+                      (void *)&BREW_SETPOINT_HOLD_SEC_DEFAULT);
   nvs_close(my_handle);
 }
 
@@ -87,9 +85,9 @@ static void _save_nvram() {
   ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_CFG_STORE, NVS_READWRITE, &my_handle));
 
   pid_save_nvram(my_handle, s_cfg.pid);
-  nvram_store_set_u8(my_handle, KEY_BREW_TEMP_ENABLED, (uint8_t *) &s_cfg.enabled);
-  nvram_store_set_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *) &s_cfg.max_damping_perc);
-  nvram_store_set_u64(my_handle, KEY_BREW_SETPOINT_HOLD_SEC, (uint64_t *) &s_cfg.boiler_setpoint_hold_sec);
+  nvram_store_set_u8(my_handle, KEY_BREW_TEMP_ENABLED, (uint8_t *)&s_cfg.enabled);
+  nvram_store_set_u64(my_handle, KEY_BREW_TEMP_PERC, (uint64_t *)&s_cfg.max_damping_perc);
+  nvram_store_set_u64(my_handle, KEY_BREW_SETPOINT_HOLD_SEC, (uint64_t *)&s_cfg.boiler_setpoint_hold_sec);
 
   nvs_close(my_handle);
 }
@@ -112,7 +110,7 @@ void brew_temp_set_setpoint(double setpoint) {
   _cfg_update_required = true;
 }
 
-void brew_temp_process(uint64_t time_us, const measure_t &brew_head_data) {
+void brew_temp_process(uint64_t time_us, const measure_t& brew_head_data) {
   if (!s_cfg.enabled) {
     s_trim.active = false;
     return;
@@ -163,9 +161,8 @@ void brew_temp_process(uint64_t time_us, const measure_t &brew_head_data) {
     // I = P / 10 = 0.0016
     // D = 60 = 60
 
-    ESP_LOGI(TAG, "Brew temp: %f, Trim: %f, P=%f, I=%f, D=%f",
-             brew_head_data.value, s_trim.value,
-             s_pid.proportional, s_pid.integral, s_pid.derivative);
+    ESP_LOGI(TAG, "Brew temp: %f, Trim: %f, P=%f, I=%f, D=%f", brew_head_data.value, s_trim.value, s_pid.proportional,
+             s_pid.integral, s_pid.derivative);
   }
 }
 
@@ -183,7 +180,7 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
     ESP_LOGI(TAG, "Brew started, resetting damper period");
     uint64_t now = 0;
     if (event_data != nullptr) {
-      now = *(uint64_t *) event_data;
+      now = *(uint64_t *)event_data;
     }
 
     s_last_brew_time = now;
@@ -200,22 +197,21 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
   uint64_t now = 0;
   if (event_data != nullptr) {
-    now = *(uint64_t *) event_data;
+    now = *(uint64_t *)event_data;
   }
 
   // See if we need to serialise stats, but pace it so we don't kill the flash
-  if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t) 5e6)) {
+  if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t)5e6)) {
     _save_stats(now);
   }
 }
 
-static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+static void _shadow_deleted_handler(void *, void *) {
   // re-create the shadow then
   _cfg_update_required = true;
 }
 
-static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
-  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, brew_temp_update_cfg);
+static void update_config_resp(void *, void *) {
   _cfg_update_required = true;
 }
 
@@ -238,22 +234,16 @@ void brew_temp_init() {
   pid_init(s_pid);
 
   // Get our power events in place so we can run the process loop as needed
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STOPPED,
-                                             _brew_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STARTED,
-                                             _brew_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
-                                             _tick_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STOPPED, _brew_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STARTED, _brew_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
 
-  device_shadow_cfg_t shadow_cfg = {
-      .name = "brew_temp",
-      .get=null_shadow_handler,
-      .updated = update_config_resp,
-      .deleted = _shadow_deleted_handler};
+  device_shadow_cfg_t shadow_cfg = {.name = "brew_temp",
+                                    .get = null_shadow_handler,
+                                    .updated = update_config_resp,
+                                    .deleted = _shadow_deleted_handler};
   ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 }
 
@@ -271,7 +261,7 @@ extern "C" void brew_temp_set_offset(brew_temp_trim_t offset) {
   s_trim = offset;
 }
 
-const brew_temp_cfg_t &brew_temp_get_cfg() {
+const brew_temp_cfg_t& brew_temp_get_cfg() {
   return s_cfg;
 }
 
@@ -299,7 +289,6 @@ void brew_temp_update_cfg(const cJSON *json) {
   brew_temp_set_cfg(new_config);
 }
 
-
 void brew_temp_reset_cfg() {
   nvs_handle my_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_BREW_TEMP_CFG_STORE, NVS_READWRITE, &my_handle));
@@ -309,7 +298,7 @@ void brew_temp_reset_cfg() {
   _load_nvram();
 }
 
-const brew_temp_status_t &brew_temp_get_status() {
+const brew_temp_status_t& brew_temp_get_status() {
   return s_stats;
 }
 
@@ -321,4 +310,3 @@ void brew_temp_reset_stats() {
 
   _load_stats();
 }
-

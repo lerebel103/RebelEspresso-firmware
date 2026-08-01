@@ -10,9 +10,8 @@ extern "C" {
 struct cJSON;
 
 struct controller_cfg_t {
-    bool enabled = false;
+  bool enabled = false;
 };
-
 
 void controller_init();
 

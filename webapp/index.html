@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RebelEspresso</title>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --card: #0f3460;
+  --primary: #e94560;
+  --text: #eaeaea;
+  --text-dim: #a0a0a0;
+  --success: #4caf50;
+  --warn: #ff9800;
+  --error: #f44336;
+  --border: #2a2a4a;
+  --input-bg: #1a1a3e;
+  --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+.container { max-width: 720px; margin: 0 auto; padding: 16px; }
+
+/* Navigation */
+nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+nav .container { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
+nav .logo { font-weight: 700; font-size: 1.1em; color: var(--primary); }
+nav .tabs { display: flex; gap: 4px; margin-left: auto; }
+nav .tab {
+  background: none; border: none; color: var(--text-dim); padding: 8px 12px;
+  border-radius: var(--radius); cursor: pointer; font-size: 0.85em;
+  transition: all 0.2s;
+}
+nav .tab:hover { color: var(--text); background: var(--card); }
+nav .tab.active { color: var(--primary); background: var(--card); }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px; margin-bottom: 12px;
+}
+.card h3 { font-size: 0.9em; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Status grid */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.stat { text-align: center; }
+.stat .value { font-size: 1.6em; font-weight: 700; }
+.stat .label { font-size: 0.75em; color: var(--text-dim); margin-top: 2px; }
+.stat .unit { font-size: 0.5em; color: var(--text-dim); }
+
+/* Temperature table */
+.temp-table { width: 100%; border-collapse: collapse; }
+.temp-table tr { border-bottom: 1px solid var(--border); }
+.temp-table tr:last-child { border-bottom: none; }
+.temp-table td { padding: 12px 4px; vertical-align: baseline; }
+.temp-label { font-size: 0.85em; color: var(--text-dim); width: 60px; font-weight: 600; }
+.temp-current { font-size: 2.2em; font-weight: 700; text-align: right; }
+.temp-unit { font-size: 0.9em; color: var(--text-dim); padding-left: 2px; vertical-align: super; }
+.temp-sep { color: var(--border); padding: 0 8px; font-size: 1.2em; }
+.temp-setpoint { font-size: 1.3em; font-weight: 600; color: var(--text-dim); text-align: right; }
+.temp-unit-sm { font-size: 0.7em; color: var(--border); padding-left: 2px; vertical-align: super; }
+
+/* Forms */
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 0.8em; color: var(--text-dim); margin-bottom: 4px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 8px 12px; background: var(--input-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 0.9em;
+}
+.form-group input:focus { outline: none; border-color: var(--primary); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* Buttons */
+.btn {
+  padding: 8px 16px; border: none; border-radius: var(--radius);
+  cursor: pointer; font-size: 0.85em; font-weight: 600;
+  transition: all 0.2s;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--text-dim); }
+.btn-danger { background: var(--error); color: white; }
+.btn-danger:hover { opacity: 0.9; }
+.btn-group { display: flex; gap: 8px; margin-top: 12px; }
+
+/* Status indicators */
+.indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.indicator.ok { background: var(--success); }
+.indicator.warn { background: var(--warn); }
+.indicator.error { background: var(--error); }
+
+/* Page sections */
+.page { display: none; }
+.page.active { display: block; }
+
+/* Config sub-tabs */
+.cfg-tab {
+  flex: 1; border: none; background: var(--surface); color: var(--text-dim);
+  padding: 12px 8px; font-size: 0.85em; font-weight: 600; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.2s;
+}
+.cfg-tab:hover { color: var(--text); background: var(--card); }
+.cfg-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--card); }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--card); border: 1px solid var(--border); padding: 12px 20px;
+  border-radius: var(--radius); font-size: 0.85em; z-index: 1000;
+  opacity: 0; transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
+.toast.success { border-color: var(--success); }
+.toast.error { border-color: var(--error); }
+
+/* Progress */
+.progress { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 8px 0; }
+.progress-bar { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+
+/* Responsive */
+@media (max-width: 480px) {
+  nav .tabs { gap: 2px; }
+  nav .tab { padding: 6px 8px; font-size: 0.8em; }
+  .stat .value { font-size: 1.2em; }
+  .temp-current { font-size: 1.8em; }
+  .temp-setpoint { font-size: 1.1em; }
+  .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <span class="logo">RebelEspresso</span>
+    <div class="tabs">
+      <button class="tab active" data-page="status">Status</button>
+      <button class="tab" data-page="config">Config</button>
+      <button class="tab" data-page="system">System</button>
+      <button class="tab" data-page="auth">Auth</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <!-- STATUS PAGE -->
+  <div id="status" class="page active">
+    <div class="card">
+      <h3>Temperatures</h3>
+      <table class="temp-table">
+        <tr>
+          <td class="temp-label">Brew</td>
+          <td class="temp-current" id="s-brew">--</td>
+          <td class="temp-unit">&deg;C</td>
+          <td class="temp-sep">/</td>
+          <td class="temp-setpoint" id="s-brew-sp">--</td>
+          <td class="temp-unit-sm">&deg;C</td>
+        </tr>
+        <tr>
+          <td class="temp-label">Boiler</td>
+          <td class="temp-current" id="s-boiler">--</td>
+          <td class="temp-unit">&deg;C</td>
+          <td class="temp-sep">/</td>
+          <td class="temp-setpoint" id="s-setpoint">--</td>
+          <td class="temp-unit-sm">&deg;C</td>
+        </tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Machine State</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="value" id="s-power">--</div><div class="label">Power</div></div>
+        <div class="stat"><div class="value" id="s-duty">--<span class="unit">%</span></div><div class="label">Duty</div></div>
+        <div class="stat"><div class="value" id="s-level">--</div><div class="label">Level</div></div>
+        <div class="stat"><div class="value" id="s-wifi">--</div><div class="label">WiFi</div></div>
+        <div class="stat"><div class="value" id="s-uptime">--</div><div class="label">Uptime</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIG PAGE -->
+  <div id="config" class="page">
+    <div class="card" style="padding-bottom:0">
+      <div style="margin:-16px -16px 0; border-bottom:1px solid var(--border); display:flex;">
+        <button class="cfg-tab active" data-cfg="boiler_temp">Boiler</button>
+        <button class="cfg-tab" data-cfg="brew_temp">Brew</button>
+        <button class="cfg-tab" data-cfg="boiler_refill">Refill</button>
+        <button class="cfg-tab" data-cfg="schedules">Schedules</button>
+      </div>
+    </div>
+    <div class="card" id="cfg-card">
+      <h3 id="cfg-title">Loading...</h3>
+      <div id="cfg-fields"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveConfig()">Save</button>
+        <button class="btn btn-secondary" onclick="resetConfig()">Reset to Defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SYSTEM PAGE -->
+  <div id="system" class="page">
+    <div class="card">
+      <h3>Device Info</h3>
+      <div id="sys-info">Loading...</div>
+    </div>
+    <div class="card">
+      <h3>Firmware Update (OTA)</h3>
+      <div class="form-group">
+        <input type="file" id="ota-file" accept=".bin">
+      </div>
+      <div class="progress" id="ota-progress" style="display:none"><div class="progress-bar" id="ota-bar"></div></div>
+      <div id="ota-status"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="uploadOTA()">Upload Firmware</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Configuration Backup</h3>
+      <div class="btn-group">
+        <a class="btn btn-secondary" href="/api/system/config-export" download="config.json">Export Config</a>
+        <label class="btn btn-secondary" style="cursor:pointer">Import Config<input type="file" id="cfg-import-file" accept=".json" style="display:none" onchange="importConfig()"></label>
+      </div>
+      <div id="import-status" style="margin-top:8px;font-size:0.85em;color:var(--text-dim)"></div>
+    </div>
+    <div class="card">
+      <h3>Actions</h3>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="reboot()">Reboot</button>
+        <button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTH PAGE -->
+  <div id="auth" class="page">
+    <div class="card">
+      <h3>Authentication</h3>
+      <p id="auth-status" style="margin-bottom:12px;color:var(--text-dim)">Loading...</p>
+      <div class="form-group">
+        <label>Password</label>
+        <div style="position:relative">
+          <input type="password" id="auth-password" placeholder="Enter new password" style="padding-right:40px">
+          <button type="button" onclick="togglePwVis()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:0.8em;" id="pw-toggle">Show</button>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="setPassword()">Set Password</button>
+        <button class="btn btn-secondary" onclick="disableAuth()">Disable Auth</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Navigation
+document.querySelectorAll('nav .tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('nav .tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.page).classList.add('active');
+    if (tab.dataset.page === 'status') startPolling();
+    else stopPolling();
+    if (tab.dataset.page === 'config') loadConfig();
+    if (tab.dataset.page === 'system') loadSystemInfo();
+    if (tab.dataset.page === 'auth') loadAuthStatus();
+  });
+});
+
+// Toast
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// API helpers
+async function api(path, opts = {}) {
+  const resp = await fetch('/api/' + path, opts);
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text || resp.statusText);
+  }
+  return resp.json();
+}
+
+// STATUS
+let statusInterval;
+async function refreshStatus() {
+  try {
+    const d = await api('status');
+    document.getElementById('s-brew').textContent = d.temperatures?.brew_head?.toFixed(1) || '--';
+    document.getElementById('s-brew-sp').textContent = d.temperatures?.brew_head_setpoint?.toFixed(1) || '--';
+    document.getElementById('s-boiler').textContent = d.temperatures?.boiler?.toFixed(1) || '--';
+    document.getElementById('s-setpoint').textContent = d.temperatures?.boiler_setpoint?.toFixed(1) || '--';
+    document.getElementById('s-duty').textContent = (d.temperatures?.boiler_duty || '0') + '%';
+    document.getElementById('s-power').textContent = d.power_active ? 'ON' : 'STANDBY';
+    document.getElementById('s-level').textContent = d.boiler_level || '--';
+    document.getElementById('s-wifi').textContent = (d.wifi?.rssi || '--') + ' dBm';
+    const up = Math.floor(d.uptime_sec || 0);
+    const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
+    document.getElementById('s-uptime').textContent = h + 'h ' + m + 'm';
+  } catch (e) { /* silent on status poll failure */ }
+}
+// Only poll when status page is active and tab is visible
+function startPolling() { if (!statusInterval) statusInterval = setInterval(refreshStatus, 2000); refreshStatus(); }
+function stopPolling() { if (statusInterval) { clearInterval(statusInterval); statusInterval = null; } }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopPolling();
+  else if (document.querySelector('[data-page="status"].active')) startPolling();
+});
+startPolling();
+
+// CONFIG
+let currentConfigSection = 'boiler_temp';
+
+// Config tab switching
+document.querySelectorAll('.cfg-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.cfg-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentConfigSection = tab.dataset.cfg;
+    loadConfig();
+  });
+});
+
+async function loadConfig() {
+  const section = currentConfigSection;
+  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules'};
+  document.getElementById('cfg-title').textContent = titles[section] || section;
+  try {
+    const data = await api('config/' + section);
+    const fields = document.getElementById('cfg-fields');
+    fields.innerHTML = '';
+    const keys = Object.keys(data).sort();
+    for (let i = 0; i < keys.length; i += 2) {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+      for (let j = i; j < Math.min(i + 2, keys.length); j++) {
+        const k = keys[j];
+        const v = data[k];
+        const grp = document.createElement('div');
+        grp.className = 'form-group';
+        const lbl = document.createElement('label');
+        lbl.textContent = k;
+        const inp = document.createElement('input');
+        inp.dataset.key = k;
+        if (typeof v === 'boolean') { inp.type = 'checkbox'; inp.checked = v; }
+        else if (typeof v === 'number') { inp.type = 'number'; inp.step = 'any'; inp.value = v; }
+        else { inp.type = 'text'; inp.value = v; }
+        grp.appendChild(lbl);
+        grp.appendChild(inp);
+        row.appendChild(grp);
+      }
+      fields.appendChild(row);
+    }
+  } catch (e) { toast('Failed to load config: ' + e.message, 'error'); }
+}
+
+async function saveConfig() {
+  const section = currentConfigSection;
+  const inputs = document.querySelectorAll('#cfg-fields input');
+  const body = {};
+  inputs.forEach(inp => {
+    const k = inp.dataset.key;
+    if (inp.type === 'checkbox') body[k] = inp.checked;
+    else if (inp.type === 'number') body[k] = parseFloat(inp.value);
+    else body[k] = inp.value;
+  });
+  try {
+    await api('config/' + section, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('Config saved', 'success');
+  } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+}
+
+async function resetConfig() {
+  const section = currentConfigSection;
+  if (!confirm('Reset ' + section + ' to factory defaults?')) return;
+  try {
+    await api('config/' + section + '/reset', { method: 'POST' });
+    toast('Reset to defaults', 'success');
+    loadConfig();
+  } catch (e) { toast('Reset failed: ' + e.message, 'error'); }
+}
+
+// SYSTEM
+async function loadSystemInfo() {
+  try {
+    const d = await api('system/info');
+    const el = document.getElementById('sys-info');
+    el.innerHTML = '';
+    const tbl = document.createElement('table');
+    tbl.style.cssText = 'width:100%;font-size:0.85em;';
+    const rows = [
+      ['Firmware', d.firmware_version], ['Project', d.project_name],
+      ['IDF', d.idf_version], ['Build', d.build_date + ' ' + d.build_time],
+      ['Hardware', 'r' + d.hardware_rev], ['Thing ID', d.thing_id],
+      ['Boots', d.boot_count], ['Crashes', d.crash_count],
+      ['Free Heap', (d.free_heap/1024).toFixed(0) + ' KB'],
+      ['Min Heap', (d.min_free_heap/1024).toFixed(0) + ' KB'],
+    ];
+    rows.forEach(([label, val]) => {
+      const tr = document.createElement('tr');
+      const td1 = document.createElement('td');
+      td1.style.color = 'var(--text-dim)';
+      td1.textContent = label;
+      const td2 = document.createElement('td');
+      td2.textContent = val;
+      tr.appendChild(td1); tr.appendChild(td2);
+      tbl.appendChild(tr);
+    });
+    el.appendChild(tbl);
+  } catch (e) { document.getElementById('sys-info').textContent = 'Error loading info'; }
+}
+
+async function uploadOTA() {
+  const file = document.getElementById('ota-file').files[0];
+  if (!file) { toast('Select a firmware file first', 'error'); return; }
+  if (!file.name.endsWith('.bin')) { toast('File must be a .bin firmware', 'error'); return; }
+
+  const progress = document.getElementById('ota-progress');
+  const bar = document.getElementById('ota-bar');
+  const status = document.getElementById('ota-status');
+  progress.style.display = 'block';
+  bar.style.width = '0%';
+  status.textContent = 'Uploading...';
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/system/ota');
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) bar.style.width = Math.round(e.loaded / e.total * 100) + '%';
+    };
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        status.textContent = 'OTA complete! Rebooting...';
+        status.style.color = 'var(--success)';
+        toast('Firmware updated, rebooting...', 'success');
+      } else {
+        status.textContent = 'Error: ' + xhr.responseText;
+        status.style.color = 'var(--error)';
+        toast('OTA failed', 'error');
+      }
+    };
+    xhr.onerror = () => { status.textContent = 'Upload failed'; toast('Network error', 'error'); };
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.send(file);
+  } catch (e) { status.textContent = 'Error: ' + e.message; toast('OTA error', 'error'); }
+}
+
+async function reboot() {
+  if (!confirm('Reboot the device?')) return;
+  try { await api('system/reboot', { method: 'POST' }); toast('Rebooting...', 'success'); } catch(e) {}
+}
+
+async function importConfig() {
+  const file = document.getElementById('cfg-import-file').files[0];
+  if (!file) return;
+  const status = document.getElementById('import-status');
+  status.textContent = 'Importing...';
+  try {
+    const text = await file.text();
+    if (text.length > 4096) { status.textContent = 'File too large (max 4KB)'; toast('File too large', 'error'); return; }
+    const resp = await api('system/config-import', { method: 'POST', headers: {'Content-Type':'application/json'}, body: text });
+    status.textContent = 'Imported ' + resp.sections_applied + ' section(s)';
+    toast('Config imported', 'success');
+    loadConfig();
+  } catch (e) { status.textContent = 'Import failed: ' + e.message; toast('Import failed', 'error'); }
+  document.getElementById('cfg-import-file').value = '';
+}
+
+async function factoryReset() {
+  if (!confirm('This will erase all settings. Continue?')) return;
+  if (!confirm('Are you sure? This cannot be undone.')) return;
+  try { await api('system/factory-reset', { method: 'POST' }); toast('Factory reset...', 'success'); } catch(e) {}
+}
+
+// AUTH
+async function loadAuthStatus() {
+  try {
+    const d = await api('auth');
+    document.getElementById('auth-status').textContent = d.enabled ? 'Authentication is ENABLED' : 'Authentication is DISABLED (open access)';
+  } catch (e) { document.getElementById('auth-status').textContent = 'Error loading auth status'; }
+}
+
+async function setPassword() {
+  const pw = document.getElementById('auth-password').value;
+  if (pw.length < 4) { toast('Password must be at least 4 characters', 'error'); return; }
+  try {
+    await api('auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: pw}) });
+    toast('Password set, auth enabled', 'success');
+    document.getElementById('auth-password').value = '';
+    loadAuthStatus();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function disableAuth() {
+  if (!confirm('Disable password protection?')) return;
+  try {
+    await api('auth', { method: 'DELETE' });
+    toast('Auth disabled', 'success');
+    loadAuthStatus();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function togglePwVis() {
+  const inp = document.getElementById('auth-password');
+  const btn = document.getElementById('pw-toggle');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+  else { inp.type = 'password'; btn.textContent = 'Show'; }
+}
+</script>
+</body>
+</html>

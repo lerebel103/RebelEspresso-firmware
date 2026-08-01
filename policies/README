@@ -1,2 +1,0 @@
-This directory contains a list of additional policies that will be applied to the principal of the device.
-We can therefore use this mechanism to add or remove privileges to this devices.

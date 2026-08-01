@@ -16,11 +16,10 @@
 #include "sys/nvram_store.h"
 
 #define TAG "brew"
-#define BREW_REFILL_NVS_STATUS_STORE     "st.brew"
-#define KEY_brew_count                   "brew_cnt"
-#define KEY_descale_count                "descale_cnt"
-#define KEY_descale_last                 "descale_last"
-
+#define BREW_REFILL_NVS_STATUS_STORE "st.brew"
+#define KEY_brew_count "brew_cnt"
+#define KEY_descale_count "descale_cnt"
+#define KEY_descale_last "descale_last"
 
 static bool s_pump_sw_on = false;
 static bool s_boiler_refilling = false;
@@ -29,8 +28,6 @@ static brew_status_t s_status = {1500, 0, 0};
 static uint64_t s_brew_start_time = 0;
 
 static TaskHandle_t brew_task_handle = nullptr;
-
-
 
 static void _pump_on() {
   out_signals_set_level(OUT_SIGNALS_RELAY1, 1);
@@ -54,7 +51,7 @@ static void _load_nvram() {
 
   nvs_get_u32(my_handle, KEY_brew_count, &s_status.brew_count);
   nvs_get_u32(my_handle, KEY_descale_count, &s_status.descale_count);
-  nvs_get_i64(my_handle, KEY_descale_last, (int64_t*)&s_status.last_descale_time);
+  nvs_get_i64(my_handle, KEY_descale_last, (int64_t *)&s_status.last_descale_time);
 
   nvs_close(my_handle);
 }
@@ -70,11 +67,8 @@ static void _save_nvram() {
   nvs_close(my_handle);
 }
 
-
-static void _refill_events(
-    [[maybe_unused]] void *handler_args,
-    [[maybe_unused]] esp_event_base_t base, int32_t id,
-    [[maybe_unused]] void *event_data) {
+static void _refill_events([[maybe_unused]] void *handler_args, [[maybe_unused]] esp_event_base_t base, int32_t id,
+                           [[maybe_unused]] void *event_data) {
   if (id == BOILER_REFILL_STARTED) {
     s_boiler_refilling = true;
     ESP_LOGI(TAG, "Refill started, turning pump on");
@@ -101,12 +95,11 @@ static void _brew_switch_off() {
 
     // Only send end event if switch was previously on
     auto now_us = esp_timer_get_time();
-    ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, BREW_STOPPED, (void *) &now_us, 0,
-                                   portMAX_DELAY));
+    ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, BREW_STOPPED, (void *)&now_us, 0, portMAX_DELAY));
 
     // Record as brew event if we have brewed something for some time
     if (!(xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) &&
-       (now_us - s_brew_start_time) > (uint64_t)(10*1e6)) {
+        (now_us - s_brew_start_time) > (uint64_t)(10 * 1e6)) {
       s_status.brew_count++;
       _save_nvram();
     }
@@ -129,8 +122,7 @@ static void _brew_switch_on() {
     // notify brew started
     auto now_us = esp_timer_get_time();
     s_brew_start_time = now_us;
-    ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, BREW_STARTED, (void *) &now_us, 0,
-                                   portMAX_DELAY));
+    ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, BREW_STARTED, (void *)&now_us, 0, portMAX_DELAY));
   }
 }
 
@@ -140,7 +132,6 @@ static void IRAM_ATTR _handler(void *) {
   xTaskNotifyFromISR(brew_task_handle, 0, eNoAction, &xHigherPriorityTaskWoken);
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
-
 
 /* Task that monitors the brew switch state and takes appropriate actions outside an ISR context */
 [[noreturn]] void monitor_brew(void *) {
@@ -181,11 +172,8 @@ static void IRAM_ATTR _handler(void *) {
   } while (true);
 }
 
-static void _power_events(
-    [[maybe_unused]] void *handler_args,
-    [[maybe_unused]] esp_event_base_t base,
-    int32_t id,
-    [[maybe_unused]] void *event_data) {
+static void _power_events([[maybe_unused]] void *handler_args, [[maybe_unused]] esp_event_base_t base, int32_t id,
+                          [[maybe_unused]] void *event_data) {
   if (id == POWER_STANDBY) {
     s_power_on = false;
 
@@ -237,22 +225,15 @@ void brew_init() {
   io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
   gpio_config(&io_conf);
 
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_STARTED, _refill_events, nullptr));
 
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_STARTED,
-                                             _refill_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_STOPPED, _refill_events, nullptr));
 
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_STOPPED,
-                                             _refill_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_ERROR, _refill_events, nullptr));
 
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BOILER_REFILL_ERROR,
-                                             _refill_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
 
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
-                                             _power_events, nullptr));
-
-  err:
-    // Nothing to do
+err:
+  // Nothing to do
 }
-

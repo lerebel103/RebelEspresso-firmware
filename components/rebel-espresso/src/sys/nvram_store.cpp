@@ -3,7 +3,6 @@
 #include <nvs_flash.h>
 #include <malloc.h>
 
-
 #include "nvram_store.h"
 
 const static char *TAG = "store";
@@ -44,7 +43,7 @@ esp_err_t nvram_store_get_u32(nvs_handle my_handle, const char *key, uint32_t *v
   esp_err_t err = nvs_get_u32(my_handle, key, value);
   if (err == ESP_ERR_NVS_NOT_FOUND) {
     // Then set it
-    *value = *(uint32_t *) default_value;
+    *value = *(uint32_t *)default_value;
     ESP_LOGI(TAG, "Key %s not found, setting to default %" PRIu32, key, *value);
     err = nvs_set_u32(my_handle, key, *value);
   }
@@ -62,7 +61,7 @@ esp_err_t nvram_store_get_u64(nvs_handle my_handle, const char *key, uint64_t *v
   esp_err_t err = nvs_get_u64(my_handle, key, value);
   if (err == ESP_ERR_NVS_NOT_FOUND) {
     // Then set it
-    *value = *(uint64_t *) default_value;
+    *value = *(uint64_t *)default_value;
     ESP_LOGI(TAG, "Key %s not found, setting to default %llu", key, *value);
     err = nvs_set_u64(my_handle, key, *value);
   }
@@ -80,7 +79,7 @@ esp_err_t nvram_store_get_u16(nvs_handle my_handle, const char *key, uint16_t *v
   esp_err_t err = nvs_get_u16(my_handle, key, value);
   if (err == ESP_ERR_NVS_NOT_FOUND) {
     // Then set it
-    *value = *(uint16_t *) default_value;
+    *value = *(uint16_t *)default_value;
     ESP_LOGI(TAG, "Key %s not found, setting to default %u", key, *value);
     err = nvs_set_u16(my_handle, key, *value);
   }
@@ -98,7 +97,7 @@ esp_err_t nvram_store_get_u8(nvs_handle my_handle, const char *key, uint8_t *val
   esp_err_t err = nvs_get_u8(my_handle, key, value);
   if (err == ESP_ERR_NVS_NOT_FOUND) {
     // Then set it
-    *value = *(uint8_t *) default_value;
+    *value = *(uint8_t *)default_value;
     ESP_LOGI(TAG, "Key %s not found, setting to default %u", key, *value);
     err = nvs_set_u8(my_handle, key, *value);
   }
@@ -111,4 +110,3 @@ esp_err_t nvram_store_set_u8(nvs_handle my_handle, const char *key, uint8_t *val
   nvs_commit(my_handle);
   return err;
 }
-

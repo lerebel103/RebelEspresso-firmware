@@ -24,20 +24,19 @@
 
 #define TAG "process"
 
-#define TIMER_INTERVAL0_SEC   ( 1.0 )
+#define TIMER_INTERVAL0_SEC (1.0)
 
 static gptimer_handle_t s_timer;
 static TaskHandle_t _process_task_handle = nullptr;
 static bool _go = false;
 static SemaphoreHandle_t s_semaphore = NULL;
 
-
 /**
  * Timer interrupt handler that drives our process loop
  * @param para
  */
-static bool IRAM_ATTR
-_process_loop_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx) {
+static bool IRAM_ATTR _process_loop_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata,
+                                        void *user_ctx) {
   static BaseType_t xHigherPriorityTaskWoken;
 
   xHigherPriorityTaskWoken = pdFALSE;
@@ -64,10 +63,11 @@ static void _process_task(void *) {
       rtds_update(hw_specs_handle_new_temp);
 
       // Send down tick event (async)
-      ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, TICK, (void *) &now_us, sizeof(uint64_t), portMAX_DELAY));
+      ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, TICK, (void *)&now_us, sizeof(uint64_t), portMAX_DELAY));
 
       auto elapsed_ms = (esp_timer_get_time() - now_us) / 1000;
-      ESP_LOGI(TAG, "Free Heap: %lu, Min Heap: %lu, ctr loop: %lld ms", esp_get_free_heap_size(), esp_get_minimum_free_heap_size(), elapsed_ms);
+      ESP_LOGI(TAG, "Free Heap: %lu, Min Heap: %lu, ctr loop: %lld ms", esp_get_free_heap_size(),
+               esp_get_minimum_free_heap_size(), elapsed_ms);
 
       // Done, reset ISR to go again and maintain watchdog timer
       esp_task_wdt_reset();
@@ -80,7 +80,6 @@ static void _process_task(void *) {
   vTaskDelete(nullptr);
 }
 
-
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   // Drive auxiliary output high/low
   if (id == POWER_STANDBY) {
@@ -90,26 +89,24 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
   }
 }
 
-
 void process_loop_init() {
   s_semaphore = xSemaphoreCreateBinary();
 
-  gptimer_config_t timer_config = {
-      .clk_src = GPTIMER_CLK_SRC_DEFAULT,
-      .direction = GPTIMER_COUNT_UP,
-      .resolution_hz = 1 * 1000 * 1000, // 1MHz, 1 tick = 1us
-      .intr_priority = 3,
-      .flags = {0, 0, 0 }
-  };
+  gptimer_config_t timer_config = {.clk_src = GPTIMER_CLK_SRC_DEFAULT,
+                                   .direction = GPTIMER_COUNT_UP,
+                                   .resolution_hz = 1 * 1000 * 1000, // 1MHz, 1 tick = 1us
+                                   .intr_priority = 3,
+                                   .flags = {.intr_shared = 0, .allow_pd = false}};
 
   ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &s_timer));
 
   gptimer_alarm_config_t alarm_config = {
       .alarm_count = static_cast<int>((TIMER_INTERVAL0_SEC * 1000 * 1000)), // alarm target = 1s @resolution 1MHz
       .reload_count = 0,
-      .flags = {
-          .auto_reload_on_alarm = true,
-      },
+      .flags =
+          {
+              .auto_reload_on_alarm = true,
+          },
   };
   ESP_ERROR_CHECK(gptimer_set_alarm_action(s_timer, &alarm_config));
 
@@ -122,21 +119,13 @@ void process_loop_init() {
 
   // Cool now create a task that will run our process loop.
   _go = true;
-  esp_task_wdt_config_t cfg = {
-      .timeout_ms = 2000,
-      .idle_core_mask = 0,
-      .trigger_panic = true
-  };
+  esp_task_wdt_config_t cfg = {.timeout_ms = 2000, .idle_core_mask = 0, .trigger_panic = true};
 
   ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&cfg));
   xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 7, &_process_task_handle);
   ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
 
   // Get our power events in place so we can run the process loop as needed
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
-                                             _power_events, nullptr));
-
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
 }
-

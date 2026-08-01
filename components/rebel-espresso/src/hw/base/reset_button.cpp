@@ -8,7 +8,7 @@
 
 static bool _trigger_reset = false;
 
-static void IRAM_ATTR _handler(void*) {
+static void IRAM_ATTR _handler(void *) {
   _trigger_reset = true;
 }
 
@@ -29,15 +29,11 @@ void reset_button_init(gpio_num_t gpio) {
   gpio_config_t io_conf;
   io_conf.intr_type = GPIO_INTR_NEGEDGE;
   io_conf.mode = GPIO_MODE_INPUT;
-  io_conf.pin_bit_mask = (
-      (1ULL << gpio)
-  );
+  io_conf.pin_bit_mask = ((1ULL << gpio));
 
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
   gpio_config(&io_conf);
 
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
-                                             _tick_events, nullptr));
-
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
 }

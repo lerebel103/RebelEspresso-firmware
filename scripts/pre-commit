@@ -1,0 +1,49 @@
+#!/bin/bash
+###############################################################################
+# pre-commit hook — checks formatting of staged C/C++ files.
+#
+# Fast (~1 second), no build required. Only checks files being committed.
+# Install with: make setup-hooks
+###############################################################################
+
+# Get list of staged C/C++ files
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(c|cpp|h|hpp)$' || true)
+
+if [ -z "$STAGED" ]; then
+    exit 0
+fi
+
+# Filter to only our project source directories (not submodules or managed components)
+FILES=$(echo "$STAGED" | grep -E '^(main/|components/rebel-espresso/src/|components/connectivity/src/|components/tft-driver/|test_app/main/)' || true)
+
+if [ -z "$FILES" ]; then
+    exit 0
+fi
+
+echo "Checking format of $(echo "$FILES" | wc -l | tr -d ' ') file(s)..."
+
+# Check if clang-format is available
+if ! command -v clang-format &>/dev/null; then
+    echo "  clang-format not found on host — skipping format check."
+    echo "  Install with: brew install clang-format"
+    exit 0
+fi
+
+FAILED=0
+for f in $FILES; do
+    if [ ! -f "$f" ]; then
+        continue
+    fi
+    if ! clang-format --dry-run --Werror "$f" 2>/dev/null; then
+        echo "  Format issue: $f"
+        FAILED=1
+    fi
+done
+
+if [ $FAILED -ne 0 ]; then
+    echo ""
+    echo "Formatting issues found. Run 'make format' to fix, then re-stage."
+    exit 1
+fi
+
+echo "Format check passed."

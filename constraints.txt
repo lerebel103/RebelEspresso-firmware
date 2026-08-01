@@ -1,0 +1,16 @@
+# Pinned versions for reproducible CI builds.
+#
+# Regenerate with:
+#   docker compose run --rm idf pip freeze > constraints.txt
+#
+# Use with:
+#   pip install -c constraints.txt -r requirements.txt
+#
+# These are the resolved versions as of the last known-good build.
+# ESP-IDF's own dependencies are NOT listed here — they're managed by the
+# base Docker image (espressif/idf:v6.0.2).
+
+bitstring==4.0.2
+boto3==1.26.136
+botocore==1.29.136
+requests==2.30.0

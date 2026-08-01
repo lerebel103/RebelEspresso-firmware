@@ -52,7 +52,7 @@ Built-in HTTP interface at `http://<device-ip>:8080` (starts after WiFi connects
 - **WiFi** — scan networks, enter credentials, connect (primary setup mechanism)
 - **Config** — PID parameters, schedules, refill thresholds
 - **System** — device info, OTA firmware upload, config export/import, reboot
-- **Auth** — optional password protection (HTTP Basic, bypassed during AP setup)
+- **Auth** — optional password protection (token-based, no browser popup, bypassed during AP setup)
 
 ## WiFi Provisioning
 

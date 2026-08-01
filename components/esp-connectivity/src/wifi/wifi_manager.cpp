@@ -150,12 +150,16 @@ static void _event_handler(void *arg, esp_event_base_t event_base, int32_t event
     esp_netif_set_hostname(event->esp_netif, hostname);
     ESP_LOGI(TAG, "Hostname set to %s", hostname);
 
-    // If AP was running, schedule shutdown
+    // If AP was running, schedule shutdown in a separate task (don't block event loop)
     if (wifi_ap_is_active()) {
       ESP_LOGI(TAG, "STA connected while AP active — scheduling AP shutdown");
-      // Delay AP shutdown to allow HTTP response to reach client
-      vTaskDelay(pdMS_TO_TICKS(CONFIG_WIFI_AP_SHUTDOWN_DELAY_MS));
-      wifi_ap_stop(xNetworkEventGroup);
+      xTaskCreate(
+          [](void *arg) {
+            vTaskDelay(pdMS_TO_TICKS(CONFIG_WIFI_AP_SHUTDOWN_DELAY_MS));
+            wifi_ap_stop((EventGroupHandle_t)arg);
+            vTaskDelete(NULL);
+          },
+          "ap_stop", 2048, (void *)xNetworkEventGroup, 3, NULL);
     }
 
     s_mode = WIFI_MGR_MODE_STA;
@@ -269,18 +273,22 @@ bool wifi_manager_connect(const char *ssid, const char *password, uint32_t timeo
   // Stop AP fallback timer if running
   _stop_ap_fallback_timer();
 
-  // Clear connection event bits
-  xEventGroupClearBits(s_connect_event_group, CONNECT_SUCCESS_BIT | CONNECT_FAIL_BIT);
-
-  // Disconnect from current network if connected
-  s_is_connecting = true;
+  // Suppress reconnect handler during intentional disconnect
+  s_suppress_reconnect = true;
   esp_wifi_disconnect();
+  vTaskDelay(pdMS_TO_TICKS(100)); // Let disconnect event drain
+  s_suppress_reconnect = false;
+
+  // Now clear event bits (after disconnect event has been ignored)
+  xEventGroupClearBits(s_connect_event_group, CONNECT_SUCCESS_BIT | CONNECT_FAIL_BIT);
+  s_is_connecting = true;
 
   // Ensure we're in a mode that supports STA
   wifi_mode_t current_mode;
   esp_wifi_get_mode(&current_mode);
   if (current_mode == WIFI_MODE_AP) {
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+    s_mode = WIFI_MGR_MODE_AP_STA;
   } else if (current_mode != WIFI_MODE_APSTA) {
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   }

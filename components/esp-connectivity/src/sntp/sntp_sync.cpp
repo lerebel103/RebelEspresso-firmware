@@ -70,7 +70,12 @@ static void initialize_sntp(const char *primary_server) {
 }
 
 void sntp_set_system_tz(const char *tz) {
-  strcpy(g_system_tz, tz);
+  if (tz == nullptr || strlen(tz) >= MAX_TZ_LEN) {
+    ESP_LOGW(TAG, "Invalid timezone string (null or too long)");
+    return;
+  }
+  strncpy(g_system_tz, tz, MAX_TZ_LEN - 1);
+  g_system_tz[MAX_TZ_LEN - 1] = '\0';
   apply_tz(tz);
 }
 

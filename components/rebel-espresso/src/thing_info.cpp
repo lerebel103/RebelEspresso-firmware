@@ -107,14 +107,14 @@ static int _commit_eeprom(int argc, char **argv) {
 
   uint16_t header = MAGIC_HEADER;
   size_t len = sizeof(header);
-  err = eeprom_write_stream(addr, (const uint8_t *) (&header), len);
+  err = eeprom_write_stream(addr, (const uint8_t *)(&header), len);
   if (err != ESP_OK) {
     return err;
   }
   addr += len;
 
   len = sizeof(g_thing_info_ext);
-  auto *data = (const uint8_t *) (&g_thing_info_ext);
+  auto *data = (const uint8_t *)(&g_thing_info_ext);
   err = eeprom_write_stream(addr, data, len);
 
   printf("Done\n");
@@ -133,83 +133,68 @@ static void _prompt_eeprom_keys() {
   esp_console_dev_uart_config_t uart_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
   repl_config.prompt = "eeprom>";
 
-  const esp_console_cmd_t set_serial_cmd = {
-      .command = "set-serial",
-      .help = "Sets new serial",
-      .hint = nullptr,
-      .func = &_set_serial,
-      .argtable = nullptr,
-      .func_w_context = nullptr,
-      .context = nullptr
-  };
+  const esp_console_cmd_t set_serial_cmd = {.command = "set-serial",
+                                            .help = "Sets new serial",
+                                            .hint = nullptr,
+                                            .func = &_set_serial,
+                                            .argtable = nullptr,
+                                            .func_w_context = nullptr,
+                                            .context = nullptr};
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_serial_cmd));
 
-  const esp_console_cmd_t set_version_cmd = {
-      .command = "set-hardware-revision-minor",
-      .help = "Sets new serial",
-      .hint = nullptr,
-      .func = &_set_hardware_revision_minor,
-      .argtable = nullptr,
-      .func_w_context = nullptr,
-      .context = nullptr
-  };
+  const esp_console_cmd_t set_version_cmd = {.command = "set-hardware-revision-minor",
+                                             .help = "Sets new serial",
+                                             .hint = nullptr,
+                                             .func = &_set_hardware_revision_minor,
+                                             .argtable = nullptr,
+                                             .func_w_context = nullptr,
+                                             .context = nullptr};
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_version_cmd));
 
-  const esp_console_cmd_t set_manufacturer = {
-      .command = "set-manufacturer",
-      .help = "Sets new serial",
-      .hint = nullptr,
-      .func = &_set_manufacturer,
-      .argtable = nullptr,
-      .func_w_context = nullptr,
-      .context = nullptr
-  };
+  const esp_console_cmd_t set_manufacturer = {.command = "set-manufacturer",
+                                              .help = "Sets new serial",
+                                              .hint = nullptr,
+                                              .func = &_set_manufacturer,
+                                              .argtable = nullptr,
+                                              .func_w_context = nullptr,
+                                              .context = nullptr};
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_manufacturer));
 
-  const esp_console_cmd_t set_epoch = {
-      .command = "set-epoch",
-      .help = "Sets new serial",
-      .hint = nullptr,
-      .func = &_set_epoch,
-      .argtable = nullptr,
-      .func_w_context = nullptr,
-      .context = nullptr
-  };
+  const esp_console_cmd_t set_epoch = {.command = "set-epoch",
+                                       .help = "Sets new serial",
+                                       .hint = nullptr,
+                                       .func = &_set_epoch,
+                                       .argtable = nullptr,
+                                       .func_w_context = nullptr,
+                                       .context = nullptr};
   ESP_ERROR_CHECK(esp_console_cmd_register(&set_epoch));
 
-  const esp_console_cmd_t read_cmd = {
-      .command = "show",
-      .help = "Reads entire contents of EEPROM",
-      .hint = nullptr,
-      .func = &_show,
-      .argtable = nullptr,
-      .func_w_context = nullptr,
-      .context = nullptr
-  };
+  const esp_console_cmd_t read_cmd = {.command = "show",
+                                      .help = "Reads entire contents of EEPROM",
+                                      .hint = nullptr,
+                                      .func = &_show,
+                                      .argtable = nullptr,
+                                      .func_w_context = nullptr,
+                                      .context = nullptr};
   ESP_ERROR_CHECK(esp_console_cmd_register(&read_cmd));
 
-  const esp_console_cmd_t commit_cmd = {
-      .command = "commit",
-      .help = "Commits entire contents of EEPROM",
-      .hint = nullptr,
-      .func = &_commit_eeprom,
-      .argtable = nullptr,
-      .func_w_context = nullptr,
-      .context = nullptr
-  };
+  const esp_console_cmd_t commit_cmd = {.command = "commit",
+                                        .help = "Commits entire contents of EEPROM",
+                                        .hint = nullptr,
+                                        .func = &_commit_eeprom,
+                                        .argtable = nullptr,
+                                        .func_w_context = nullptr,
+                                        .context = nullptr};
   ESP_ERROR_CHECK(esp_console_cmd_register(&commit_cmd));
 
-  const esp_console_cmd_t quit_cmd = {
-      .command = "quit",
-      .help = "Quits eeprom mode",
-      .hint = nullptr,
-      .func = &_quit,
-      .argtable = nullptr,
-      .func_w_context = nullptr,
-      .context = nullptr
-  };
+  const esp_console_cmd_t quit_cmd = {.command = "quit",
+                                      .help = "Quits eeprom mode",
+                                      .hint = nullptr,
+                                      .func = &_quit,
+                                      .argtable = nullptr,
+                                      .func_w_context = nullptr,
+                                      .context = nullptr};
   ESP_ERROR_CHECK(esp_console_cmd_register(&quit_cmd));
-
 
   ESP_ERROR_CHECK(esp_console_new_repl_uart(&uart_config, &repl_config, &repl));
 
@@ -233,7 +218,7 @@ static bool _load_eeprom() {
   size_t len = sizeof(magic);
   uint16_t addr = 0;
   ESP_ERROR_CHECK(eeprom_init());
-  ESP_ERROR_CHECK(eeprom_read_stream(addr, (uint8_t *) &magic, len));
+  ESP_ERROR_CHECK(eeprom_read_stream(addr, (uint8_t *)&magic, len));
   if (magic != MAGIC_HEADER) {
     ESP_LOGE(TAG, "EEPROM not initialised.");
     return false;
@@ -242,7 +227,7 @@ static bool _load_eeprom() {
 
   // Read all keys
   len = sizeof(g_thing_info_ext);
-  auto *data = (uint8_t *) (&g_thing_info_ext);
+  auto *data = (uint8_t *)(&g_thing_info_ext);
   ESP_ERROR_CHECK(eeprom_read_stream(addr, data, len));
   _show(0, nullptr);
 
@@ -258,22 +243,21 @@ static void set_default_thing_id() {
 
   // Convert MAC address as a unique ID. It must start with a letter and contain no special characters
   // so it can work with GCP
-  snprintf(s_thing_id, sizeof(s_thing_id), "m%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
-           l_Mac[0], l_Mac[1], l_Mac[2], l_Mac[3], l_Mac[4], l_Mac[5]);
+  snprintf(s_thing_id, sizeof(s_thing_id), "m%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX", l_Mac[0], l_Mac[1], l_Mac[2],
+           l_Mac[3], l_Mac[4], l_Mac[5]);
   strlwr(s_thing_id);
 
   // Preload device info from this firmware as best as possible
   strcpy(g_thing_info_ext.thing_type, THING_TYPE);
-  sscanf(HARDWARE_REVISION_MAJOR, "%" SCNu8 ".%" SCNu8,
-         &g_thing_info_ext.hardware_version_major,
+  sscanf(HARDWARE_REVISION_MAJOR, "%" SCNu8 ".%" SCNu8, &g_thing_info_ext.hardware_version_major,
          &g_thing_info_ext.hardware_version_minor);
 }
 
 const char *thing_info_id() {
 #ifdef I2C_EEPROM_ADDRESS
   static char buf[THING_ID_MAX];
-  sprintf(buf, "re-%d.%d-%07llu",
-          g_thing_info_ext.hardware_version_major, g_thing_info_ext.hardware_version_minor, g_thing_info_ext.serial);
+  sprintf(buf, "re-%d.%d-%07llu", g_thing_info_ext.hardware_version_major, g_thing_info_ext.hardware_version_minor,
+          g_thing_info_ext.serial);
   return buf;
 #else
   return s_thing_id;
@@ -294,7 +278,6 @@ const thing_info_ext_t *thing_info_ext() {
   return &g_thing_info_ext;
 }
 
-
 void thing_info_init() {
   set_default_thing_id();
 
@@ -308,4 +291,3 @@ void thing_info_init() {
   }
 #endif
 }
-

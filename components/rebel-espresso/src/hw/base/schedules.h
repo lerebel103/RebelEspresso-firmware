@@ -5,10 +5,9 @@
 #include <esp_event_base.h>
 #include "pid.h"
 
-#define SCHEDULES_CFG_JSON_KEY            ""
-#define NVS_SCHEDULES_CFG_STORE           "cfg.sched"
-#define NVS_SCHEDULES_STATS_STORE         "sts.sched"
-
+#define SCHEDULES_CFG_JSON_KEY ""
+#define NVS_SCHEDULES_CFG_STORE "cfg.sched"
+#define NVS_SCHEDULES_STATS_STORE "sts.sched"
 
 // Defined here so unit tests can find these
 extern "C" const double SCHEDULES_DELTA_DEFAULT;
@@ -25,12 +24,10 @@ struct daily_schedule_t {
   int stop_minute;
 };
 
-
 /**
  * Wrapper around a bunch of daily schedules
  */
 struct schedules_cfg_t {
-
   bool enabled;
 
   daily_schedule_t times[MAX_DAYS][DAILY_SCHEDULES_MAX];
@@ -58,10 +55,7 @@ struct schedules_cfg_t {
     int num = MIN(cJSON_GetArraySize(elm), DAILY_SCHEDULES_MAX);
     for (int j = 0; j < num; j++) {
       cJSON *item = cJSON_GetArrayItem(elm, j);
-      if (cJSON_HasObjectItem(item, "en") &&
-          cJSON_HasObjectItem(item, "start") &&
-          cJSON_HasObjectItem(item, "stop")) {
-
+      if (cJSON_HasObjectItem(item, "en") && cJSON_HasObjectItem(item, "start") && cJSON_HasObjectItem(item, "stop")) {
         times[i][j].active = cJSON_IsTrue(cJSON_GetObjectItem(item, "en"));
         parse_time(cJSON_GetObjectItem(item, "start"), &times[i][j].start_hour, &times[i][j].start_minute);
         parse_time(cJSON_GetObjectItem(item, "stop"), &times[i][j].stop_hour, &times[i][j].stop_minute);
@@ -101,7 +95,7 @@ struct schedules_cfg_t {
    * Report current configuration
    */
   void to_json(cJSON *config, const char *base_key) {
-    char *buf = (char *) malloc(64);
+    char *buf = (char *)malloc(64);
 
     sprintf(buf, "%s" SCHEDULES_CFG_JSON_KEY "en", base_key);
     cJSON_AddBoolToObject(config, buf, enabled);
@@ -124,16 +118,13 @@ struct schedules_cfg_t {
 
     free(buf);
   }
-
 };
 
-struct schedules_status_t {
-
-};
+struct schedules_status_t {};
 
 void schedules_init();
 
-void schedules_handle_cfg(char* buffer, size_t len);
+void schedules_handle_cfg(char *buffer, size_t len);
 
 void schedules_delete();
 
@@ -141,7 +132,7 @@ void schedules_delete();
  * Get the underlying configuration set.
  * @return Object representing the config of all brew parameters.
  */
-const schedules_cfg_t &schedules_get_cfg();
+const schedules_cfg_t& schedules_get_cfg();
 
 /**
  * Updates underlying config, partial keys are accepted.
@@ -157,6 +148,6 @@ void schedules_set_cfg(schedules_cfg_t cfg);
 
 void schedules_reset_cfg();
 
-const schedules_status_t &schedules_get_status();
+const schedules_status_t& schedules_get_status();
 
 void schedules_reset_stats();

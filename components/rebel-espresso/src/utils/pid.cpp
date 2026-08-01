@@ -1,5 +1,6 @@
 #include "pid.h"
 #include <cmath>
+#include <cstring>
 #include <esp_log.h>
 
 #define KEY_PID_P "pid.P"
@@ -22,54 +23,49 @@ const double PID_OVER_SETPOINT_PERC_DEFAULT = 8;
 
 #define INTEGRAL_MAX 25
 
-void pid_load_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
-
-  nvram_store_get_u64(my_handle, KEY_PID_P, (uint64_t *)&cfg.P,
-                      (void *)&PID_P_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_PID_I, (uint64_t *)&cfg.I,
-                      (void *)&PID_I_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_PID_D, (uint64_t *)&cfg.D,
-                      (void *)&PID_D_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_PID_I_RESET_TEMP,
-                      (uint64_t *)&cfg.I_reset_temp,
-                      (void *)&PID_I_RESET_TEMP_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_PID_SETPOINT0,
-                      (uint64_t *)&cfg.setpoints[0],
-                      (void *)&PID_SETPOINT0_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_PID_SETPOINT1,
-                      (uint64_t *)&cfg.setpoints[1],
-                      (void *)&PID_SETPOINT1_DEFAULT);
-  nvram_store_get_u64(my_handle, KEY_PID_OVER_SETPOINT_PERC,
-                      (uint64_t *)&cfg.over_setpoint_perc,
-                      (void *)&PID_OVER_SETPOINT_PERC_DEFAULT);
+static inline void _get_double(nvs_handle h, const char *key, double& val, const double& def) {
+  uint64_t bits;
+  uint64_t def_bits;
+  memcpy(&def_bits, &def, sizeof(uint64_t));
+  nvram_store_get_u64(h, key, &bits, (void *)&def_bits);
+  memcpy(&val, &bits, sizeof(double));
 }
 
-void pid_save_nvram(nvs_handle my_handle, pid_cfg_t &cfg) {
-
-  nvram_store_set_u64(my_handle, KEY_PID_P, (uint64_t *)&cfg.P);
-  nvram_store_set_u64(my_handle, KEY_PID_I, (uint64_t *)&cfg.I);
-  nvram_store_set_u64(my_handle, KEY_PID_D, (uint64_t *)&cfg.D);
-  nvram_store_set_u64(my_handle, KEY_PID_I_RESET_TEMP,
-                      (uint64_t *)&cfg.I_reset_temp);
-  nvram_store_set_u64(my_handle, KEY_PID_SETPOINT0,
-                      (uint64_t *)&cfg.setpoints[0]);
-  nvram_store_set_u64(my_handle, KEY_PID_SETPOINT1,
-                      (uint64_t *)&cfg.setpoints[1]);
-  nvram_store_set_u64(my_handle, KEY_PID_OVER_SETPOINT_PERC,
-                      (uint64_t *)&cfg.over_setpoint_perc);
+static inline void _set_double(nvs_handle h, const char *key, double& val) {
+  uint64_t bits;
+  memcpy(&bits, &val, sizeof(uint64_t));
+  nvram_store_set_u64(h, key, &bits);
 }
 
-void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t &cfg) {
+void pid_load_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
+  _get_double(my_handle, KEY_PID_P, cfg.P, PID_P_DEFAULT);
+  _get_double(my_handle, KEY_PID_I, cfg.I, PID_I_DEFAULT);
+  _get_double(my_handle, KEY_PID_D, cfg.D, PID_D_DEFAULT);
+  _get_double(my_handle, KEY_PID_I_RESET_TEMP, cfg.I_reset_temp, PID_I_RESET_TEMP_DEFAULT);
+  _get_double(my_handle, KEY_PID_SETPOINT0, cfg.setpoints[0], PID_SETPOINT0_DEFAULT);
+  _get_double(my_handle, KEY_PID_SETPOINT1, cfg.setpoints[1], PID_SETPOINT1_DEFAULT);
+  _get_double(my_handle, KEY_PID_OVER_SETPOINT_PERC, cfg.over_setpoint_perc, PID_OVER_SETPOINT_PERC_DEFAULT);
+}
+
+void pid_save_nvram(nvs_handle my_handle, pid_cfg_t& cfg) {
+  _set_double(my_handle, KEY_PID_P, cfg.P);
+  _set_double(my_handle, KEY_PID_I, cfg.I);
+  _set_double(my_handle, KEY_PID_D, cfg.D);
+  _set_double(my_handle, KEY_PID_I_RESET_TEMP, cfg.I_reset_temp);
+  _set_double(my_handle, KEY_PID_SETPOINT0, cfg.setpoints[0]);
+  _set_double(my_handle, KEY_PID_SETPOINT1, cfg.setpoints[1]);
+  _set_double(my_handle, KEY_PID_OVER_SETPOINT_PERC, cfg.over_setpoint_perc);
+}
+
+void pid_save_setpoint(nvs_handle my_handle, pid_cfg_t& cfg) {
   if (cfg.active_setpoint == 0) {
-    nvram_store_set_u64(my_handle, KEY_PID_SETPOINT0,
-                        (uint64_t *)&cfg.setpoints[cfg.active_setpoint]);
+    _set_double(my_handle, KEY_PID_SETPOINT0, cfg.setpoints[cfg.active_setpoint]);
   } else {
-    nvram_store_set_u64(my_handle, KEY_PID_SETPOINT1,
-                        (uint64_t *)&cfg.setpoints[cfg.active_setpoint]);
+    _set_double(my_handle, KEY_PID_SETPOINT1, cfg.setpoints[cfg.active_setpoint]);
   }
 }
 
-void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
+void pid_update(pid_cfg_t& dest, const pid_cfg_t& src) {
   // validate all fields
   if (src.P >= 0 && src.P < 60) {
     dest.P = src.P;
@@ -94,7 +90,7 @@ void pid_update(pid_cfg_t &dest, const pid_cfg_t &src) {
   }
 }
 
-void pid_reset(pid_struct_t &pid) {
+void pid_reset(pid_struct_t& pid) {
   ESP_LOGD(TAG, "Resetting...");
 
   pid.error = 0;
@@ -108,13 +104,11 @@ void pid_reset(pid_struct_t &pid) {
   ESP_LOGD(TAG, "Reset done.");
 }
 
-void pid_init(pid_struct_t &pid) {
+void pid_init(pid_struct_t& pid) {
   pid_reset(pid);
 }
 
-pid_result_t pid_process(pid_struct_t &pid, pid_cfg_t &cfg, uint64_t time_us,
-                         const measure_t &data) {
-
+pid_result_t pid_process(pid_struct_t& pid, pid_cfg_t& cfg, uint64_t time_us, const measure_t& data) {
   pid_result_t result = {.duty = 0, .is_over_threshold = false};
   double deltaT = (double)(time_us - pid.last_time_us) / 1e6;
 
@@ -145,12 +139,10 @@ pid_result_t pid_process(pid_struct_t &pid, pid_cfg_t &cfg, uint64_t time_us,
     // Calculate duty now
     result.duty = pid.proportional + pid.integral + pid.derivative;
 
-    ESP_LOGI(TAG, "Calculated duty: %f, P=%f, I=%f, D=%f", result.duty,
-             pid.proportional, pid.integral, pid.derivative);
+    ESP_LOGI(TAG, "Calculated duty: %f, P=%f, I=%f, D=%f", result.duty, pid.proportional, pid.integral, pid.derivative);
 
     // Safety. If we are over set temperature by threshold, cut off
-    if (cfg.over_setpoint_perc != 0 &&
-        -error > cfg.over_setpoint_perc * setpoint / 100) {
+    if (cfg.over_setpoint_perc != 0 && -error > cfg.over_setpoint_perc * setpoint / 100) {
       result.is_over_threshold = true;
     }
   }

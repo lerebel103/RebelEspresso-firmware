@@ -8,19 +8,18 @@ extern "C" {
 }
 
 #include <esp_event.h>
-#include "aws_connector.h"
+#include "connectivity.h"
 #include "hw_specs.h"
 #include "thing_info.h"
 #include "controller.h"
 #include "app_metrics.h"
 
-#define TAG  "main"
+#define TAG "main"
 
 // Event group pointer, so we get system events to sync up
 EventGroupHandle_t status_event_group;
 
 extern "C" void app_main() {
-  esp_log_level_set("coreMQTT", ESP_LOG_ERROR);
   esp_log_level_set("gpio", ESP_LOG_ERROR);
 
   ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -29,7 +28,7 @@ extern "C" void app_main() {
   // Init hardware as early as possible
   hw_specs_init();
   thing_info_init();
-  aws_connector_init(status_event_group);
+  connectivity_init(status_event_group);
   app_metrics_init();
   controller_init();
 
@@ -37,6 +36,3 @@ extern "C" void app_main() {
   controller_enter_loop();
   esp_event_loop_delete_default();
 }
-
-
-

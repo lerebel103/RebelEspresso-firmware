@@ -11,106 +11,101 @@
 
 #define BOILER_SSR_PIN PIN_OUT_SSR1
 
-#define BOILER_CFG_JSON_KEY                 ""
-#define NVS_BOILER_CFG_STORE                "cfg.boiler_temp"
-#define NVS_BOILER_STATS_STORE              "sts.boiler_temp"
+#define BOILER_CFG_JSON_KEY ""
+#define NVS_BOILER_CFG_STORE "cfg.boiler_temp"
+#define NVS_BOILER_STATS_STORE "sts.boiler_temp"
 
-#define KEY_BOILER_MAINS_HZ                     "pid.mains_hz"
-#define KEY_BOILER_TEMP_ERROR_RESTART_SEC       "pid.t_err_rest"
-#define KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD   "pid.full_err_t"
+#define KEY_BOILER_MAINS_HZ "pid.mains_hz"
+#define KEY_BOILER_TEMP_ERROR_RESTART_SEC "pid.t_err_rest"
+#define KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD "pid.full_err_t"
 
-#define KEY_BOILER_STATS_OVER_TEMP          "t_over_limit"
-#define KEY_BOILER_STATS_TEMP_ERROR         "t_read_error"
-#define KEY_BOILER_STATS_TEMP_RANGE_ERROR   "t_range_error"
-
-
+#define KEY_BOILER_STATS_OVER_TEMP "t_over_limit"
+#define KEY_BOILER_STATS_TEMP_ERROR "t_read_error"
+#define KEY_BOILER_STATS_TEMP_RANGE_ERROR "t_range_error"
 
 // Defined here so unit tests can find these
 extern "C" const uint8_t BOILER_MAINS_HZ_DEFAULT;
 extern "C" const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT;
 
-
 /**
  * Wrapper around boiler configuration
  */
 struct boiler_temp_cfg_t {
-    /**
-     * Main PID settings
-     */
-    pid_cfg_t pid;
+  /**
+   * Main PID settings
+   */
+  pid_cfg_t pid;
 
-    /**
-     * When non-zero, restart the MCU if we get successive errors for this long.
-     */
-    uint16_t temp_error_restart_time_sec;
+  /**
+   * When non-zero, restart the MCU if we get successive errors for this long.
+   */
+  uint16_t temp_error_restart_time_sec;
 
-    /**
-     * What is the mains frequency, used to formulate variable time base pulses
-     */
-    uint8_t mains_hz;
+  /**
+   * What is the mains frequency, used to formulate variable time base pulses
+   */
+  uint8_t mains_hz;
 
-    /**
-     * When (setpoint - current temperature) < full_duty_pid_error_threshold 100% duty is applied.
-     */
-    uint8_t full_duty_pid_error_threshold;
+  /**
+   * When (setpoint - current temperature) < full_duty_pid_error_threshold 100% duty is applied.
+   */
+  uint8_t full_duty_pid_error_threshold;
 
-    /**
-     * Apply new configuration
-     */
-    void from_json(const cJSON *config) {
-        pid.from_json(BOILER_CFG_JSON_KEY, config);
+  /**
+   * Apply new configuration
+   */
+  void from_json(const cJSON *config) {
+    pid.from_json(BOILER_CFG_JSON_KEY, config);
 
-        cJSON *item = config->child;
-        while (item) {
-            if (strend(item->string, BOILER_CFG_JSON_KEY "mains_hz")) {
-                mains_hz = item->valuedouble;
-            } else if (strend(item->string, BOILER_CFG_JSON_KEY "temp_error_restart_time_sec")) {
-                temp_error_restart_time_sec = item->valueint;
-            } else if (strend(item->string, BOILER_CFG_JSON_KEY "full_duty_pid_error_threshold")) {
-                full_duty_pid_error_threshold = item->valueint;
-            }
+    cJSON *item = config->child;
+    while (item) {
+      if (strend(item->string, BOILER_CFG_JSON_KEY "mains_hz")) {
+        mains_hz = item->valuedouble;
+      } else if (strend(item->string, BOILER_CFG_JSON_KEY "temp_error_restart_time_sec")) {
+        temp_error_restart_time_sec = item->valueint;
+      } else if (strend(item->string, BOILER_CFG_JSON_KEY "full_duty_pid_error_threshold")) {
+        full_duty_pid_error_threshold = item->valueint;
+      }
 
-            item = item->next;
-        }
+      item = item->next;
     }
+  }
 
-    /**
-     * Report current configuration
-     */
-    void to_json(cJSON *config, const char *base_key) {
-        char *buf = (char *) malloc(64);
+  /**
+   * Report current configuration
+   */
+  void to_json(cJSON *config, const char *base_key) {
+    char *buf = (char *)malloc(64);
 
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY, base_key);
-        pid.to_json(config, buf);
+    sprintf(buf, "%s" BOILER_CFG_JSON_KEY, base_key);
+    pid.to_json(config, buf);
 
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "mains_hz", base_key);
-        cJSON_AddNumberToObject(config, buf, mains_hz);
+    sprintf(buf, "%s" BOILER_CFG_JSON_KEY "mains_hz", base_key);
+    cJSON_AddNumberToObject(config, buf, mains_hz);
 
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_error_restart_time_sec", base_key);
-        cJSON_AddNumberToObject(config, buf, temp_error_restart_time_sec);
+    sprintf(buf, "%s" BOILER_CFG_JSON_KEY "temp_error_restart_time_sec", base_key);
+    cJSON_AddNumberToObject(config, buf, temp_error_restart_time_sec);
 
-        sprintf(buf, "%s" BOILER_CFG_JSON_KEY "full_duty_pid_error_threshold", base_key);
-        cJSON_AddNumberToObject(config, buf, full_duty_pid_error_threshold);
+    sprintf(buf, "%s" BOILER_CFG_JSON_KEY "full_duty_pid_error_threshold", base_key);
+    cJSON_AddNumberToObject(config, buf, full_duty_pid_error_threshold);
 
-        free(buf);
-    }
-
+    free(buf);
+  }
 };
 
 struct boiler_temp_status_t {
-    uint32_t temp_read_error_count;
-    uint32_t temp_over_limit_count;
-    uint32_t temp_out_of_range_count;
+  uint32_t temp_read_error_count;
+  uint32_t temp_over_limit_count;
+  uint32_t temp_out_of_range_count;
 };
 
-void boiler_temp_handle_cfg(char* buffer, size_t len);
-
+void boiler_temp_handle_cfg(char *buffer, size_t len);
 
 void boiler_temp_init();
 
 void boiler_temp_delete();
 
-void boiler_temp_process(uint64_t time_us, const measure_t &data);
+void boiler_temp_process(uint64_t time_us, const measure_t& data);
 
 /**
  * Get current duty value applied to the SSR
@@ -122,7 +117,6 @@ int boiler_temp_get_duty();
  * This is the effective setpoint, after trim has been applied to keep the brew head temp to target.
  */
 double boiler_temp_get_current_setpoint();
-
 
 void boiler_set_active_setpoint(int idx);
 
@@ -137,7 +131,7 @@ double boiler_setpoint_inc(double inc);
  * Get the underlying configuration set.
  * @return Object representing the config of all boiler parameters.
  */
-const struct boiler_temp_cfg_t &boiler_temp_get_cfg();
+const struct boiler_temp_cfg_t& boiler_temp_get_cfg();
 
 /**
  * Updates underlying config, partial keys are accepted.
@@ -153,8 +147,6 @@ void boiler_temp_set_cfg(boiler_temp_cfg_t cfg);
 
 void boiler_temp_reset_cfg();
 
-const boiler_temp_status_t &boiler_temp_get_status();
+const boiler_temp_status_t& boiler_temp_get_status();
 
 void boiler_temp_reset_stats();
-
-

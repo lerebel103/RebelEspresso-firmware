@@ -1,0 +1,23 @@
+###############################################################################
+# Docker Compose — reproducible build environment.
+#
+# This container handles compilation only. Flashing and monitoring run on the
+# host via esptool because Docker Desktop (macOS) cannot pass through USB
+# serial devices.
+#
+# Usage:
+#   docker compose run --rm idf idf.py build    # build firmware
+#   docker compose run --rm idf bash            # interactive shell
+###############################################################################
+services:
+  idf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/workspace
+    environment:
+      - IDF_TARGET=esp32
+      - BUILD_STAGE=${BUILD_STAGE:-dev}
+      - GIT_DISCOVERY_ACROSS_FILESYSTEM=1
+    working_dir: /workspace

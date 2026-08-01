@@ -27,7 +27,6 @@
 #include "display.h"
 #include "reset_button.h"
 
-
 #define KEY_ENABLED "ctrl_enabled"
 
 static const char *TAG = "controller";
@@ -39,10 +38,9 @@ static controller_cfg_t g_controller_cfg;
 /* Event source task related definitions */
 ESP_EVENT_DEFINE_BASE(MACHINE_EVENTS);
 
-#define ESP_INTR_FLAG_DEFAULT \
-    (ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 |ESP_INTR_FLAG_LEVEL3)
+#define ESP_INTR_FLAG_DEFAULT (ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_LEVEL3)
 
-static spi_host_device_t s_spi = HSPI_HOST;
+static spi_host_device_t s_spi = SPI2_HOST;
 
 void _init_spi() {
   // SPI initialisation
@@ -65,15 +63,14 @@ void _init_spi() {
   }
 }
 
-
 void controller_init() {
-  //install gpio isr service
-  gpio_install_isr_service( ESP_INTR_FLAG_DEFAULT);
+  // install gpio isr service
+  gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 
   // Are we enabled?
   nvs_handle_t nvs_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE_SYS, NVS_READWRITE, &nvs_handle));
-  nvs_get_u8(nvs_handle, KEY_ENABLED, (uint8_t *) &g_controller_cfg.enabled);
+  nvs_get_u8(nvs_handle, KEY_ENABLED, (uint8_t *)&g_controller_cfg.enabled);
   nvs_close(nvs_handle);
 
   // Hardware-specific implementation
@@ -91,12 +88,10 @@ void controller_init() {
   power_init();
   schedules_init();
   iot_init();
-  reset_button_init((gpio_num_t) CONFIG_RESET_GPIO);
+  reset_button_init((gpio_num_t)CONFIG_RESET_GPIO);
 }
 
 void controller_enter_loop() {
   // Nothing critical here, just start the iot and network stuff here
   iot_process_events();
 }
-
-

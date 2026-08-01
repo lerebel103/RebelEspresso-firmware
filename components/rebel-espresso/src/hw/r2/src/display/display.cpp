@@ -33,7 +33,6 @@ extern "C" {
 
 #define TEMP_ERROR_STR "---"
 
-
 static time_t s_brew_start_time = -1;
 static TFT_t dev;
 static uint16_t model;
@@ -49,33 +48,33 @@ static FontxFile fx32M[2];
 static FontxFile fx64M[2];
 static int last_state = 0;
 
-
 static void SPIFFS_Directory(const char *path) {
   DIR *dir = opendir(path);
   assert(dir != NULL);
   while (true) {
     struct dirent *pe = readdir(dir);
-    if (!pe) break;
+    if (!pe)
+      break;
     ESP_LOGI(__FUNCTION__, "d_name=%s d_ino=%d d_type=%x", pe->d_name, pe->d_ino, pe->d_type);
   }
   closedir(dir);
 }
 
-int _draw_temperature(const measure_t &result, FontxFile *fx1, FontxFile *fx2, int x, int y, uint16_t color) {
-  double temp_val = ((int) (result.value * 100 + .5) / 100.0);
+int _draw_temperature(const measure_t& result, FontxFile *fx1, FontxFile *fx2, int x, int y, uint16_t color) {
+  double temp_val = ((int)(result.value * 100 + .5) / 100.0);
   const static int len = 16;
   char tempBuf[len];
 
   // Integral part of temperature, in larger font
   if (result.fault == RTD_NoError) {
-    sprintf(tempBuf, "%3d", (int) temp_val);
+    sprintf(tempBuf, "%3d", (int)temp_val);
   } else {
     sprintf(tempBuf, "%s", TEMP_ERROR_STR);
   }
   int char_width = 32;
 
   // Draw integral part
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)tempBuf, color);
   int width = strlen(tempBuf) * char_width;
 
   // Draw floating point now, as '.x'
@@ -85,7 +84,7 @@ int _draw_temperature(const measure_t &result, FontxFile *fx1, FontxFile *fx2, i
   } else {
     sprintf(tempBuf, ".-");
   }
-  lcdDrawString(&dev, fx2, x + width, y - 3, (uint8_t *) tempBuf, color);
+  lcdDrawString(&dev, fx2, x + width, y - 3, (uint8_t *)tempBuf, color);
   return x + width + char_width + 5;
 }
 
@@ -93,26 +92,26 @@ void _draw_setpoint(double setpoint, FontxFile *fx1, int x, int y, uint16_t colo
   const static int len = 16;
   char tempBuf[len];
   sprintf(tempBuf, "/%.1f", setpoint);
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)tempBuf, color);
 }
 
 void _draw_duty(int duty, FontxFile *fx1, int x, int y, uint16_t color) {
   const static int len = 16;
   char tempBuf[len];
   sprintf(tempBuf, "%3d%%", duty);
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) tempBuf, color);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)tempBuf, color);
 }
 
 void _display_info(FontxFile *fx1) {
   uint8_t x = 12;
   uint8_t y = 40;
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) "RebelEspresso", GREEN);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)"RebelEspresso", GREEN);
 
   y += 32;
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) ("v" FIRMWARE_VERSION), WHITE);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)("v" FIRMWARE_VERSION), WHITE);
 
   y += 32;
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) thing_info_id(), WHITE);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)thing_info_id(), WHITE);
 }
 
 static void _qrcode_print(int x_off, int y_off, const uint8_t *qrcode, int size) {
@@ -146,7 +145,6 @@ static void _qrcode_print(int x_off, int y_off, const uint8_t *qrcode, int size)
 
   s_qr_displayed = true;
 }
-
 
 void _ensure_power_state_ok() {
   // look at last event received
@@ -214,7 +212,7 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
   // Draw mqtt connection
   int x2 = CONFIG_WIDTH - 32;
   int y2 = 10;
-  if (xEventGroupGetBits(status_event_group) & CORE_MQTT_CLIENT_CONNECTED_BIT) {
+  if (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) {
     lcdDrawTriangle(&dev, x2 - 14, y2, 14, 14, 0, WHITE);
     lcdDrawTriangle(&dev, x2, y2, 14, 14, 180, WHITE);
   } else {
@@ -232,8 +230,8 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
   int voffset = 18;
   y += vert_space + 3 - voffset;
   rtds_get(&result, RTD_BREW_HEAD_IDX);
-  //result.value = 88.3;
-  //result.fault = RTD_NoError;
+  // result.value = 88.3;
+  // result.fault = RTD_NoError;
   double brew_temp = result.value;
   double brew_setpoint = brew_temp_get_setpoint();
 
@@ -248,7 +246,7 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
   }
   int last_pos = _draw_temperature(result, fx32M, fx16M, x, y, brew_color);
   _draw_setpoint(brew_setpoint, fx16M, last_pos, y - 3, SETPOINT_COLOR);
-  lcdDrawString(&dev, fx0, last_pos + 20, y - 38, (uint8_t *) "Brew", GRAY);
+  lcdDrawString(&dev, fx0, last_pos + 20, y - 38, (uint8_t *)"Brew", GRAY);
   lcdDrawFillRect(&dev, 0, y + 2 + voffset, CONFIG_WIDTH - 1, y + 2 + voffset, GRAY);
 
   y += vert_space;
@@ -258,7 +256,7 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
       lcdDrawFillRect(&dev, 0, y - vert_space + 24, CONFIG_WIDTH - 1, y + 16, BLACK);
     }
     boiler_error_message = true;
-    lcdDrawString(&dev, fx16M, x + 20, y - 16, (uint8_t *) "Refill Error", RED);
+    lcdDrawString(&dev, fx16M, x + 20, y - 16, (uint8_t *)"Refill Error", RED);
   } else {
     if (boiler_error_message) {
       lcdDrawFillRect(&dev, 0, y - vert_space + 24, CONFIG_WIDTH - 1, y + 16, BLACK);
@@ -269,20 +267,20 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
     double actual_setpoint = boiler_temp_get_current_setpoint();
     last_pos = _draw_temperature(result, fx32M, fx16M, x, y, WHITE);
     _draw_setpoint(actual_setpoint, fx16M, last_pos, y - 3, SETPOINT_COLOR);
-    lcdDrawString(&dev, fx0, last_pos + 20, y - 38, (uint8_t *) "Boiler", GRAY);
+    lcdDrawString(&dev, fx0, last_pos + 20, y - 38, (uint8_t *)"Boiler", GRAY);
     lcdDrawFillRect(&dev, 0, y + 1 + voffset, CONFIG_WIDTH - 1, y + 1 + voffset, GRAY);
   }
 
-/*    x = 5;
-    y += 10 + 24;
-    // Duty
+  /*    x = 5;
+      y += 10 + 24;
+      // Duty
 
-    y += 24 + 5;
-    // Water level voltage
-    double level_voltage = boiler_refill_level_mv() / 1e3;
-    sprintf(tempBuf, "Level: %.1fV", level_voltage);
-    lcdDrawString(&dev, fx0, x, y, (uint8_t *) tempBuf, WHITE);
-*/
+      y += 24 + 5;
+      // Water level voltage
+      double level_voltage = boiler_refill_level_mv() / 1e3;
+      sprintf(tempBuf, "Level: %.1fV", level_voltage);
+      lcdDrawString(&dev, fx0, x, y, (uint8_t *) tempBuf, WHITE);
+  */
   /*// Draw border around duty / water level voltage
   y = y - 22;
   lcdDrawFillRect(&dev, CONFIG_WIDTH - 9 * 4 + 2, y + 1 - 18, CONFIG_WIDTH - 9 * 4 + 2, y + 1, GRAY);
@@ -298,8 +296,8 @@ static void _draw_provisioning(FontxFile *fx16M) {
   int x = 52;
   int y = 25;
 
-  lcdDrawString(&dev, fx16M, x, y, (uint8_t *) "Scan to set", WHITE);
-  lcdDrawString(&dev, fx16M, x + 36, y + 28, (uint8_t *) "WiFi", WHITE);
+  lcdDrawString(&dev, fx16M, x, y, (uint8_t *)"Scan to set", WHITE);
+  lcdDrawString(&dev, fx16M, x + 36, y + 28, (uint8_t *)"WiFi", WHITE);
 
   int xPos = x;
   int yPos = 65;
@@ -310,19 +308,19 @@ static void _draw_descale_mode(FontxFile *fx) {
   int x = 36;
   int y = 108 + 24;
 
-  lcdDrawString(&dev, fx, x, y, (uint8_t *) "Descaling Mode", WHITE);
+  lcdDrawString(&dev, fx, x, y, (uint8_t *)"Descaling Mode", WHITE);
 }
 
 static void _draw_refill_water_tank(FontxFile *fx) {
   int x = 32;
   int y = 108 + 24;
 
-  lcdDrawString(&dev, fx, x, y, (uint8_t *) "Refill Tank", RED);
+  lcdDrawString(&dev, fx, x, y, (uint8_t *)"Refill Tank", RED);
 }
 
 static void _draw_brew_counter(FontxFile *fx1, FontxFile *fx2) {
   char buf[80];
-  int seconds = (int) (pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time);
+  int seconds = (int)(pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time);
   sprintf(buf, "%ds", seconds);
 
   int num_chars = 2;
@@ -344,22 +342,22 @@ static void _draw_brew_counter(FontxFile *fx1, FontxFile *fx2) {
   } else {
     color = GREEN;
   }
-  lcdDrawString(&dev, fx2, x, y, (uint8_t *) buf, color);
+  lcdDrawString(&dev, fx2, x, y, (uint8_t *)buf, color);
 
   // Brew counter
   auto status = brew_get_status();
   x = 5;
   y += 52;
   sprintf(buf, "Brew count: %lu", status.brew_count);
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) buf, WHITE);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)buf, WHITE);
   y += 25;
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) "Descale:", WHITE);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)"Descale:", WHITE);
   y += 25;
   sprintf(buf, " -Count: %lu", status.descale_count);
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) buf, WHITE);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)buf, WHITE);
   strftime(buf, sizeof(buf), " -Last: %d/%m/%y", localtime(&status.last_descale_time));
   y += 26;
-  lcdDrawString(&dev, fx1, x, y, (uint8_t *) buf, WHITE);
+  lcdDrawString(&dev, fx1, x, y, (uint8_t *)buf, WHITE);
 }
 
 static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -375,10 +373,9 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     _ensure_power_state_ok();
     _display_info(fx24G);
     s_on = prior_state;
-  }  else {
-    EventBits_t uxBits = xEventGroupWaitBits(
-        status_event_group, WIFI_CONNECTED_BIT | CORE_MQTT_CLIENT_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT,
-        false, true, 0);
+  } else {
+    EventBits_t uxBits = xEventGroupWaitBits(status_event_group,
+                                             WIFI_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT, false, true, 0);
     _ensure_power_state_ok();
 
     int state;
@@ -446,15 +443,10 @@ static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, 
 }
 
 void display_init() {
-
   ESP_LOGI(TAG, "Initializing SPIFFS");
 
   esp_vfs_spiffs_conf_t conf = {
-      .base_path = "/spiffs",
-      .partition_label = NULL,
-      .max_files = 5,
-      .format_if_mount_failed = true
-  };
+      .base_path = "/spiffs", .partition_label = NULL, .max_files = 5, .format_if_mount_failed = true};
 
   // Use settings defined above toinitialize and mount SPIFFS filesystem.
   // Note: esp_vfs_spiffs_register is anall-in-one convenience function.
@@ -481,24 +473,13 @@ void display_init() {
 
   SPIFFS_Directory("/spiffs/");
 
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STARTED,
-                                             _brew_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STOPPED,
-                                             _brew_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
-                                             _tick, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STARTED, _brew_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STOPPED, _brew_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick, nullptr));
 
-
-  spi_master_init(&dev,
-                  PIN_MOSI,
-                  PIN_SCK,
-                  PIN_OUT_DISPLAY_CS,
-                  PIN_OUT_DISPLAY_DC,
-                  PIN_OUT_DISPLAY_RESET,
+  spi_master_init(&dev, PIN_MOSI, PIN_SCK, PIN_OUT_DISPLAY_CS, PIN_OUT_DISPLAY_DC, PIN_OUT_DISPLAY_RESET,
                   PIN_OUT_DISPLAY_LED);
 
   InitFontx(fx16G, "/spiffs/ILGH16XB.FNT", ""); // 8x16Dot Gothic

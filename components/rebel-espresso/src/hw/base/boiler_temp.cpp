@@ -9,7 +9,6 @@
 #include "rtds.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
-#include "shadow/shadow_handler.h"
 #include "shadow_helper.h"
 
 #define TAG "Boiler"
@@ -17,7 +16,6 @@
 const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
 const uint16_t BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT = 10;
-
 
 static device_shadow_handle_t shadow_handle{};
 static bool _cfg_update_required = true;
@@ -31,18 +29,17 @@ static double s_boiler_error_sec = 0;
 static pid_struct_t s_pid;
 double s_trimmed_setpoint = 0;
 
-
 static void _load_stats() {
   nvs_handle my_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_BOILER_STATS_STORE, NVS_READWRITE, &my_handle));
 
   uint32_t defaultVal = 0;
-  nvram_store_get_u32(my_handle, KEY_BOILER_STATS_OVER_TEMP, (uint32_t *) &s_stats.temp_over_limit_count,
-                      (void *) &defaultVal);
-  nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count,
-                      (void *) &defaultVal);
-  nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.temp_out_of_range_count,
-                      (void *) &defaultVal);
+  nvram_store_get_u32(my_handle, KEY_BOILER_STATS_OVER_TEMP, (uint32_t *)&s_stats.temp_over_limit_count,
+                      (void *)&defaultVal);
+  nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *)&s_stats.temp_read_error_count,
+                      (void *)&defaultVal);
+  nvram_store_get_u32(my_handle, KEY_BOILER_STATS_TEMP_RANGE_ERROR, (uint32_t *)&s_stats.temp_out_of_range_count,
+                      (void *)&defaultVal);
 
   nvs_close(my_handle);
 
@@ -54,9 +51,9 @@ static void _save_stats(uint64_t time) {
   nvs_handle my_handle;
   ESP_ERROR_CHECK(nvs_open(NVS_BOILER_STATS_STORE, NVS_READWRITE, &my_handle));
 
-  nvram_store_set_u32(my_handle, KEY_BOILER_STATS_OVER_TEMP, (uint32_t *) &s_stats.temp_over_limit_count);
-  nvram_store_set_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *) &s_stats.temp_read_error_count);
-  nvram_store_set_u32(my_handle, KEY_BOILER_STATS_TEMP_RANGE_ERROR, (uint32_t *) &s_stats.temp_out_of_range_count);
+  nvram_store_set_u32(my_handle, KEY_BOILER_STATS_OVER_TEMP, (uint32_t *)&s_stats.temp_over_limit_count);
+  nvram_store_set_u32(my_handle, KEY_BOILER_STATS_TEMP_ERROR, (uint32_t *)&s_stats.temp_read_error_count);
+  nvram_store_set_u32(my_handle, KEY_BOILER_STATS_TEMP_RANGE_ERROR, (uint32_t *)&s_stats.temp_out_of_range_count);
 
   nvs_close(my_handle);
   s_last_stats_save = time;
@@ -68,12 +65,11 @@ static void _load_nvram() {
   ESP_ERROR_CHECK(nvs_open(NVS_BOILER_CFG_STORE, NVS_READWRITE, &my_handle));
 
   pid_load_nvram(my_handle, s_cfg.pid);
-  nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz,
-                     (void *) &BOILER_MAINS_HZ_DEFAULT);
+  nvram_store_get_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *)&s_cfg.mains_hz, (void *)&BOILER_MAINS_HZ_DEFAULT);
   nvram_store_get_u16(my_handle, KEY_BOILER_TEMP_ERROR_RESTART_SEC, &s_cfg.temp_error_restart_time_sec,
-                      (void *) &BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT);
+                      (void *)&BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT);
   nvram_store_get_u8(my_handle, KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD, &s_cfg.full_duty_pid_error_threshold,
-                     (void *) &BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT);
+                     (void *)&BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT);
 
   nvs_close(my_handle);
 }
@@ -83,7 +79,7 @@ static void _save_nvram() {
   ESP_ERROR_CHECK(nvs_open(NVS_BOILER_CFG_STORE, NVS_READWRITE, &my_handle));
 
   pid_save_nvram(my_handle, s_cfg.pid);
-  nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *) &s_cfg.mains_hz);
+  nvram_store_set_u8(my_handle, KEY_BOILER_MAINS_HZ, (uint8_t *)&s_cfg.mains_hz);
   nvram_store_set_u16(my_handle, KEY_BOILER_TEMP_ERROR_RESTART_SEC, &s_cfg.temp_error_restart_time_sec);
   nvram_store_set_u8(my_handle, KEY_BOILER_FULL_DUTY_ERROR_THRESHOLD, &s_cfg.full_duty_pid_error_threshold);
 
@@ -123,16 +119,18 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
   uint64_t now = 0;
   if (event_data != nullptr) {
-    now = *(uint64_t *) event_data;
+    now = *(uint64_t *)event_data;
   }
 
   // See if we need to serialise stats, but pace it, so we don't kill the flash
-  if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t) 5e6)) {
+  if (s_stats_changed && (s_last_stats_save == 0 || (now - s_last_stats_save) >= (uint64_t)5e6)) {
     _save_stats(now);
   }
 }
 
-bool is_primary_setpoint() { return s_cfg.pid.active_setpoint == 0; }
+bool is_primary_setpoint() {
+  return s_cfg.pid.active_setpoint == 0;
+}
 
 double boiler_temp_get_current_setpoint() {
   if (is_primary_setpoint()) {
@@ -142,7 +140,7 @@ double boiler_temp_get_current_setpoint() {
   }
 }
 
-void boiler_temp_process(uint64_t time_us, const measure_t &data) {
+void boiler_temp_process(uint64_t time_us, const measure_t& data) {
   if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
     ESP_LOGD(TAG, "In standby, not running.");
     ssr_ctrl_set_duty(_ssr_handle, 0);
@@ -155,7 +153,7 @@ void boiler_temp_process(uint64_t time_us, const measure_t &data) {
     ESP_LOGW(TAG, "Boiler level low, not running");
     ssr_ctrl_set_duty(_ssr_handle, 0);
     return;
-  } else if (data.fault != (uint8_t) RTD_NoError) {
+  } else if (data.fault != (uint8_t)RTD_NoError) {
     ESP_LOGE(TAG, "Boiler sensor error: %d", data.fault);
     s_stats.temp_read_error_count++;
     s_stats_changed = true;
@@ -207,7 +205,6 @@ void boiler_temp_process(uint64_t time_us, const measure_t &data) {
     setpoint = s_trimmed_setpoint;
   }
 
-
   // Make a copy of config to dampen setpoint
   auto pid_cfg = s_cfg.pid;
   pid_cfg.setpoints[pid_cfg.active_setpoint] = setpoint;
@@ -236,18 +233,17 @@ void boiler_temp_process(uint64_t time_us, const measure_t &data) {
     duty = 100;
   }
 
-  boiler_temp_set_duty((int) (round(duty)));
-  ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f",
-           data.value, result.duty, duty, setpoint);
+  boiler_temp_set_duty((int)(round(duty)));
+  ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f", data.value, result.duty, duty, setpoint);
 }
 
-static void _shadow_deleted_handler(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
+static void _shadow_deleted_handler(void *, void *) {
   // re-create the shadow then
   _cfg_update_required = true;
 }
 
-static void update_config_resp(MQTTContext_t *, MQTTPublishInfo_t *pxPublishInfo) {
-  shadow_helper_apply_desired(shadow_handle, pxPublishInfo, boiler_temp_update_cfg);
+static void update_config_resp(void *, void *) {
+  // Shadow updates removed — config is now managed locally only
   _cfg_update_required = true;
 }
 
@@ -276,18 +272,14 @@ void boiler_temp_init() {
   s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 
   // Get our power events in place, so we can run the process loop as needed
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
-                                             _tick_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
 
-  device_shadow_cfg_t shadow_cfg = {
-      .name = "boiler_temp",
-      .get=null_shadow_handler,
-      .updated = update_config_resp,
-      .deleted = _shadow_deleted_handler};
+  device_shadow_cfg_t shadow_cfg = {.name = "boiler_temp",
+                                    .get = null_shadow_handler,
+                                    .updated = update_config_resp,
+                                    .deleted = _shadow_deleted_handler};
   ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 }
 
@@ -299,7 +291,7 @@ void boiler_temp_delete() {
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, TICK, _tick_events));
 }
 
-const struct boiler_temp_cfg_t &boiler_temp_get_cfg() {
+const struct boiler_temp_cfg_t& boiler_temp_get_cfg() {
   return s_cfg;
 }
 
@@ -334,7 +326,7 @@ void boiler_temp_reset_cfg() {
   _load_nvram();
 }
 
-const boiler_temp_status_t &boiler_temp_get_status() {
+const boiler_temp_status_t& boiler_temp_get_status() {
   return s_stats;
 }
 
@@ -383,5 +375,3 @@ void boiler_set_active_setpoint(int idx) {
     s_cfg.pid.active_setpoint = idx;
   }
 }
-
-

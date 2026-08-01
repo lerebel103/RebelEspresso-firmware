@@ -17,25 +17,23 @@
 #include "brew_temp.h"
 #include "boiler_temp.h"
 
-
 static hap_serv_t *service;
 
-static hap_char_t* hc_brew_temp = nullptr;
-static hap_char_t* hc_boiler_temp = nullptr;
+static hap_char_t *hc_brew_temp = nullptr;
+static hap_char_t *hc_boiler_temp = nullptr;
 static hap_char_t *hc_internal_temp = nullptr;
-static hap_char_t* hc_cur_duty = nullptr;
+static hap_char_t *hc_cur_duty = nullptr;
 
 #define TAG "hk"
 
 #define BREW_NAME "Brew"
 
-#define SWITCH_TASK_PRIORITY  4
+#define SWITCH_TASK_PRIORITY 4
 #define HK_MAIN_STACK_SIZE (3 * 1024)
-#define HK_TASK_NAME      "homekit"
+#define HK_TASK_NAME "homekit"
 
 #define BREW_TEMP_MIN 88
 #define BREW_TEMP_MAX 94
-
 
 /* Mandatory identify routine for the accessory.
  * In a real accessory, something like LED blink should be implemented
@@ -46,12 +44,9 @@ static int device_identify(hap_acc_t *ha) {
   return HAP_SUCCESS;
 }
 
-
-
 /* Callback for handling writes on the RebelEspresso Switch Service
  */
-static int _char_write(hap_write_data_t *write_data, int count,
-                           void *serv_priv, void *write_priv) {
+static int _char_write(hap_write_data_t *write_data, int count, void *serv_priv, void *write_priv) {
   int i, ret = HAP_SUCCESS;
   hap_write_data_t *write;
   for (i = 0; i < count; i++) {
@@ -95,22 +90,21 @@ static int _char_write(hap_write_data_t *write_data, int count,
 }
 
 static float _round_temp(measure_t result) {
-  float temp = (float) (result.fault == (uint8_t) RTD_NoError ? result.value : 24);
+  float temp = (float)(result.fault == (uint8_t)RTD_NoError ? result.value : 24);
   return int(temp * 10) / 10.0f;
 }
 
-static int _char_read(hap_char_t *hc, hap_status_t *status_code,
-                          void *serv_priv, void *read_priv) {
+static int _char_read(hap_char_t *hc, hap_status_t *status_code, void *serv_priv, void *read_priv) {
   int ret = HAP_SUCCESS;
   hap_val_t new_val;
-  struct measure_t result{};
+  struct measure_t result {};
 
   if (hc == NULL) {
     ret = HAP_FAIL;
     goto error;
   }
 
-  if ( hc == hc_boiler_temp) {
+  if (hc == hc_boiler_temp) {
     rtds_get(&result, RTD_BREW_BOILER_IDX);
     new_val.f = _round_temp(result);
     hap_char_update_val(hc, &new_val);
@@ -131,7 +125,7 @@ static int _char_read(hap_char_t *hc, hap_status_t *status_code,
     hap_char_update_val(hc, &new_val);
     *status_code = HAP_STATUS_SUCCESS;
   } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_NAME)) {
-    new_val.s = (char *) BREW_NAME;
+    new_val.s = (char *)BREW_NAME;
     hap_char_update_val(hc, &new_val);
     *status_code = HAP_STATUS_SUCCESS;
   } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_CURRENT_HEATING_COOLING_STATE) ||
@@ -140,7 +134,7 @@ static int _char_read(hap_char_t *hc, hap_status_t *status_code,
     hap_char_update_val(hc, &new_val);
     *status_code = HAP_STATUS_SUCCESS;
   } else if (!strcmp(hap_char_get_type_uuid(hc), HAP_CHAR_UUID_TARGET_TEMPERATURE)) {
-    new_val.f = (float) brew_temp_get_setpoint();
+    new_val.f = (float)brew_temp_get_setpoint();
     if (new_val.f < BREW_TEMP_MIN) {
       new_val.f = BREW_TEMP_MIN;
     }
@@ -164,7 +158,7 @@ static int _char_read(hap_char_t *hc, hap_status_t *status_code,
 
   return ret;
 
-  error:
+error:
   *status_code = HAP_STATUS_RES_ABSENT;
   return ret;
 }
@@ -190,7 +184,6 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
   }
 }
 
-
 static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   if (id != TICK) {
     return;
@@ -201,7 +194,7 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
   static uint64_t last_power = 0;
 
   if (event_data != nullptr) {
-    now = *(uint64_t *) event_data;
+    now = *(uint64_t *)event_data;
   }
 
   // Then send
@@ -214,7 +207,6 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
     _char_read(hc_boiler_temp, &status_code, nullptr, nullptr);
     _char_read(hc_internal_temp, &status_code, nullptr, nullptr);
     _char_read(hc_cur_duty, &status_code, nullptr, nullptr);
-
 
     last_metrics = now;
   }
@@ -230,12 +222,12 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
 
 /*The main thread for handling the RebelEspresso Switch Accessory */
 static void espresso_thread_entry(void *arg) {
-  struct measure_t result{};
+  struct measure_t result {};
   float brew_temp, boiler_temp, setpoint;
 
   hap_char_t *hc = nullptr;
   int ret = HAP_SUCCESS;
-  int  cur_duty;
+  int cur_duty;
   float internal_temp;
   hap_acc_t *accessory;
   uint8_t product_data[] = {'E', 'S', 'P', '3', '2', 'H', 'A', 'P'};
@@ -247,13 +239,13 @@ static void espresso_thread_entry(void *arg) {
    * the mandatory services internally
    */
   hap_acc_cfg_t cfg = {
-      .name = (char *) "RebelEspresso",
-      .model = (char *) THING_TYPE,
-      .manufacturer = (char *) "LeRebel",
-      .serial_num = (char *) (thing_info_id()),
-      .fw_rev = (char *) FIRMWARE_VERSION,
-      .hw_rev = (char *) HARDWARE_REVISION_MAJOR,
-      .pv = (char *) "1.1.0",
+      .name = (char *)"RebelEspresso",
+      .model = (char *)THING_TYPE,
+      .manufacturer = (char *)"LeRebel",
+      .serial_num = (char *)(thing_info_id()),
+      .fw_rev = (char *)FIRMWARE_VERSION,
+      .hw_rev = (char *)HARDWARE_REVISION_MAJOR,
+      .pv = (char *)"1.1.0",
       .cid = HAP_CID_OTHER,
       .identify_routine = device_identify,
   };
@@ -269,7 +261,7 @@ static void espresso_thread_entry(void *arg) {
   hap_acc_add_product_data(accessory, product_data, sizeof(product_data));
 
   rtds_get(&result, RTD_BREW_HEAD_IDX);
-  brew_temp = (result.fault == (uint8_t) RTD_NoError ? result.value : 21);
+  brew_temp = (result.fault == (uint8_t)RTD_NoError ? result.value : 21);
 
   /* Create the RebelEspresso Switch Service. Include the "name" since this is a user visible service  */
   setpoint = brew_temp_get_setpoint();
@@ -280,19 +272,14 @@ static void espresso_thread_entry(void *arg) {
     setpoint = BREW_TEMP_MAX;
   }
 
-  service = hap_serv_thermostat_create(
-      power_is_active(),
-      power_is_active(),
-      (float) brew_temp,
-      (float) setpoint,
-      rtds_get_unit() == UNIT_CELCIUS ? 0 : 1
-  );
+  service = hap_serv_thermostat_create(power_is_active(), power_is_active(), (float)brew_temp, (float)setpoint,
+                                       rtds_get_unit() == UNIT_CELCIUS ? 0 : 1);
   if (!service) {
     ESP_LOGE(TAG, "Failed to create RebelEspresso Service");
     goto switch_err;
   }
 
-  ret = hap_serv_add_char(service, hap_char_name_create((char *) "Brew"));
+  ret = hap_serv_add_char(service, hap_char_name_create((char *)"Brew"));
   if (ret != HAP_SUCCESS) {
     ESP_LOGE(TAG, "Failed to add optional characteristics to Switch");
     goto switch_err;
@@ -315,7 +302,7 @@ static void espresso_thread_entry(void *arg) {
   rtds_get(&result, RTD_BREW_BOILER_IDX);
   boiler_temp = result.fault == RTD_NoError ? (float)result.value : 0;
   hc = hap_serv_temperature_sensor_create(boiler_temp);
-  hap_serv_add_char(hc, hap_char_name_create((char *) "Boiler"));
+  hap_serv_add_char(hc, hap_char_name_create((char *)"Boiler"));
   hc_boiler_temp = hap_serv_get_char_by_uuid(hc, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
   hap_char_float_set_constraints(hc_boiler_temp, 0.0, 150.0, 0.1);
   hap_acc_add_serv(accessory, hc);
@@ -323,21 +310,20 @@ static void espresso_thread_entry(void *arg) {
   rtds_get(&result, RTD_INTERNAL_IDX);
   internal_temp = result.fault == RTD_NoError ? (float)result.value : 0;
   hc = hap_serv_temperature_sensor_create(internal_temp);
-  hap_serv_add_char(hc, hap_char_name_create((char *) "Internal"));
+  hap_serv_add_char(hc, hap_char_name_create((char *)"Internal"));
   hc_internal_temp = hap_serv_get_char_by_uuid(hc, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
   hap_acc_add_serv(accessory, hc);
 
   cur_duty = boiler_temp_get_duty();
-  hc = hap_serv_temperature_sensor_create( cur_duty);
-  hap_serv_add_char(hc, hap_char_name_create((char *) "Boiler Duty"));
+  hc = hap_serv_temperature_sensor_create(cur_duty);
+  hap_serv_add_char(hc, hap_char_name_create((char *)"Boiler Duty"));
   hc_cur_duty = hap_serv_get_char_by_uuid(hc, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
-  //hap_char_int_set_constraints(hc_cur_duty, 0, 100, 0.1);
+  // hap_char_int_set_constraints(hc_cur_duty, 0, 100, 0.1);
   hap_acc_add_serv(accessory, hc);
-
 
   /* Add the Accessory to the HomeKit Database */
   hap_add_accessory(accessory);
-  
+
   /* Enable Hardware MFi authentication (applicable only for MFi variant of SDK) */
   hap_enable_mfi_auth(HAP_MFI_AUTH_HW);
 
@@ -347,11 +333,10 @@ static void espresso_thread_entry(void *arg) {
   /* The task ends here. The read/write callbacks will be invoked by the HAP Framework */
   vTaskDelete(NULL);
 
-  switch_err:
+switch_err:
   hap_acc_delete(accessory);
   vTaskDelete(NULL);
 }
-
 
 void homekit_terminate() {
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_STANDBY, _power_events));
@@ -362,17 +347,10 @@ void homekit_terminate() {
 }
 
 void homekit_init() {
-
-
   // Register power events so we can send to home kit
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE,
-                                             _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK,
-                                             _tick_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
 
-  xTaskCreate(espresso_thread_entry, HK_TASK_NAME, HK_MAIN_STACK_SIZE,
-              NULL, SWITCH_TASK_PRIORITY, NULL);
-
+  xTaskCreate(espresso_thread_entry, HK_TASK_NAME, HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
 }

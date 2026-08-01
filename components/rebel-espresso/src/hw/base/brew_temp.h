@@ -4,17 +4,17 @@
 #include <esp_event_base.h>
 #include "pid.h"
 
-#define BREW_TEMP_CFG_JSON_KEY            ""
-#define NVS_BREW_TEMP_CFG_STORE           "cfg.brew_temp"
-#define NVS_BREW_TEMP_STATS_STORE         "sts.brew_temp"
+#define BREW_TEMP_CFG_JSON_KEY ""
+#define NVS_BREW_TEMP_CFG_STORE "cfg.brew_temp"
+#define NVS_BREW_TEMP_STATS_STORE "sts.brew_temp"
 
-#define KEY_BREW_TEMP_ENABLED             "enabled"
-#define KEY_BREW_TEMP_PERC                "damping_perc"
-#define KEY_BREW_SETPOINT_HOLD_SEC           "setp_hold_sec"
+#define KEY_BREW_TEMP_ENABLED "enabled"
+#define KEY_BREW_TEMP_PERC "damping_perc"
+#define KEY_BREW_SETPOINT_HOLD_SEC "setp_hold_sec"
 
-#define KEY_BREW_TEMP_STATS_OVER_TEMP           "t_over_limit"
-#define KEY_BREW_TEMP_STATS_TEMP_ERROR          "t_read_error"
-#define KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR    "t_range_error"
+#define KEY_BREW_TEMP_STATS_OVER_TEMP "t_over_limit"
+#define KEY_BREW_TEMP_STATS_TEMP_ERROR "t_read_error"
+#define KEY_BREW_TEMP_STATS_TEMP_RANGE_ERROR "t_range_error"
 
 // Defined here so unit tests can find these
 extern "C" const double BREW_TEMP_PERC_DEFAULT;
@@ -65,7 +65,7 @@ struct brew_temp_cfg_t {
    * Report current configuration
    */
   void to_json(cJSON *config, const char *base_key) {
-    char *buf = (char *) malloc(64);
+    char *buf = (char *)malloc(64);
 
     sprintf(buf, "%s" BREW_TEMP_CFG_JSON_KEY, base_key);
     pid.to_json(config, buf);
@@ -81,11 +81,9 @@ struct brew_temp_cfg_t {
 
     free(buf);
   }
-
 };
 
 struct brew_temp_status_t {
-
   uint32_t brew_temp_read_error_count;
   uint32_t brew_temp_over_limit_count;
   uint32_t brew_temp_out_of_range_count;
@@ -94,7 +92,7 @@ struct brew_temp_status_t {
    * Report current configuration
    */
   void to_json(cJSON *config, const char *base_key) {
-    char *buf = (char *) malloc(64);
+    char *buf = (char *)malloc(64);
 
     sprintf(buf, "%s" BREW_TEMP_CFG_JSON_KEY "brew_temp.read_error_count", base_key);
     cJSON_AddNumberToObject(config, buf, brew_temp_read_error_count);
@@ -120,7 +118,7 @@ void brew_temp_delete();
 
 void brew_temp_handle_cfg(char *buffer, size_t len);
 
-void brew_temp_process(uint64_t time_us, const measure_t &brew_head_data);
+void brew_temp_process(uint64_t time_us, const measure_t& brew_head_data);
 
 double brew_temp_get_setpoint();
 
@@ -132,7 +130,7 @@ brew_temp_trim_t brew_temp_get_trim();
  * Get the underlying configuration set.
  * @return Object representing the config of all brew parameters.
  */
-const brew_temp_cfg_t &brew_temp_get_cfg();
+const brew_temp_cfg_t& brew_temp_get_cfg();
 
 /**
  * Updates underlying config, partial keys are accepted.
@@ -148,6 +146,6 @@ void brew_temp_set_cfg(brew_temp_cfg_t cfg);
 
 void brew_temp_reset_cfg();
 
-const brew_temp_status_t &brew_temp_get_status();
+const brew_temp_status_t& brew_temp_get_status();
 
 void brew_temp_reset_stats();

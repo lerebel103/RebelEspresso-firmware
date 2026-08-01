@@ -7,7 +7,7 @@ extern "C" {
 #include <stdint-gcc.h>
 #include "measure.h"
 #include <cJSON.h>
-#include <driver/i2c_types.h>
+#include <driver/i2c_master.h>
 
 void hw_specs_init();
 

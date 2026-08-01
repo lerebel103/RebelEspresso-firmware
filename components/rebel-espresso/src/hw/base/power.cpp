@@ -18,7 +18,6 @@ static void _standby() {
   }
 }
 
-
 static void _active() {
   if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
     xEventGroupSetBits(status_event_group, POWER_ON_BIT);
@@ -73,8 +72,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
   }
 }
 
-extern "C"
-void power_standby() {
+extern "C" void power_standby() {
   s_active_toggled = false;
 
   if (!_enable_soft_standy) {
@@ -86,14 +84,12 @@ void power_standby() {
   }
 }
 
-extern "C"
-void power_active() {
+extern "C" void power_active() {
   s_active_toggled = true;
   _active();
 }
 
-extern "C"
-bool power_is_active() {
+extern "C" bool power_is_active() {
   bool is_on = xEventGroupGetBits(status_event_group) & POWER_ON_BIT;
   return is_on;
 }
@@ -112,7 +108,6 @@ void power_init() {
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
   gpio_config(&io_conf);
-
 
   // We want tick events
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick, nullptr));

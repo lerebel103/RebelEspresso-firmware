@@ -4,4 +4,4 @@
 
 void setpoint_selector_init();
 
-void setpoint_selector_update(uint64_t  time_us);
+void setpoint_selector_update(uint64_t time_us);

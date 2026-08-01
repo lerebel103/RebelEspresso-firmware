@@ -39,7 +39,7 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           rm -f dependencies.lock
-          ./webapp/build.sh
+          gzip -9 -n -k -f webapp/index.html
           idf.py -DBUILD_STAGE=$BUILD_STAGE -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE build
 
       - name: Check formatting
@@ -95,7 +95,7 @@ jobs:
           submodules: recursive
 
       - name: Build web UI
-        run: ./webapp/build.sh
+        run: gzip -9 -n -k -f webapp/index.html
 
       - name: Build firmware
         run: |

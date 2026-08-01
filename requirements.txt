@@ -7,11 +7,11 @@
 # Only list packages your project scripts directly import.
 
 # Device provisioning / NVS generation
-bitstring>=4.0,<5
+bitstring>=4.4.0,<5
 
 # AWS IoT device onboarding
-boto3>=1.26,<2
-cryptography>=43,<45
+boto3>=1.43.58,<2
+cryptography>=49.0.0,<50
 
 # OTA certificate fetch script
-requests>=2.28,<3
+requests>=2.34.2,<3

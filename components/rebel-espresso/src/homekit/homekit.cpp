@@ -339,7 +339,8 @@ switch_err:
 }
 
 void homekit_notify_setpoint_changed(float setpoint) {
-  if (service == nullptr) return;
+  if (service == nullptr)
+    return;
   hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_TARGET_TEMPERATURE);
   if (hc != nullptr) {
     hap_val_t val;
@@ -350,7 +351,8 @@ void homekit_notify_setpoint_changed(float setpoint) {
 }
 
 void homekit_notify_power_changed(bool active) {
-  if (service == nullptr) return;
+  if (service == nullptr)
+    return;
   hap_val_t val;
   val.u = active ? 1 : 0;
   hap_char_t *hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_TARGET_HEATING_COOLING_STATE);

@@ -58,6 +58,5 @@ void web_static_register(httpd_handle_t server) {
       .user_ctx = nullptr,
   };
   httpd_register_uri_handler(server, &static_uri);
-  ESP_LOGI(TAG, "Embedded SPA handler registered (%d bytes gzipped)",
-           (int)(webapp_gz_end - webapp_gz_start));
+  ESP_LOGI(TAG, "Embedded SPA handler registered (%d bytes gzipped)", (int)(webapp_gz_end - webapp_gz_start));
 }

@@ -22,6 +22,15 @@ Rules for any AI agent working on this codebase.
 - Run `make test` when changes affect testable logic (PID, NVS, JSON, events).
 - Run `make lint` when modifying C/C++ source files.
 
+## Pre-Commit Gate (mandatory before every commit and push)
+
+Before EVERY `git commit`, run all three in order:
+1. `make format` — auto-format all source files
+2. `make build` — verify firmware compiles and check binary size
+3. `make test` — verify all unit tests pass
+
+If any step fails, fix the issue before committing. Never push code that hasn't passed all three steps. This is non-negotiable — CI will reject the PR otherwise.
+
 ## Code Style
 
 - Follow the project's `.clang-format` and `.clang-tidy` configuration.

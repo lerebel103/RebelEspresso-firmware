@@ -66,6 +66,9 @@ add_definitions(
     -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
 )
 
+# Expose as CMake variable for sub-components (e.g. tft-driver SPIFFS font image)
+set(HARDWARE_REVISION_MAJOR "2")
+
 ###############################################################################
 # Build Configuration
 ###############################################################################

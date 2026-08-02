@@ -24,7 +24,6 @@
  */
 
 #include <cstdint>
-#include <cstdbool>
 #include "measure.h"
 #include "boiler_refill_states.h"
 

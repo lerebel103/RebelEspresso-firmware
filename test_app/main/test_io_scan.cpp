@@ -87,6 +87,10 @@ static override_result_t apply_safety_overrides(const process_image_t *img) {
     if (img->descale_mode) {
       out.ssr_duty = 0;
     }
+    // Sensor fault on boiler RTD
+    if (img->temperatures[1].fault != 0) {
+      out.ssr_duty = 0;
+    }
   }
   return out;
 }
@@ -157,6 +161,24 @@ TEST_CASE("IO: Descale mode forces SSR to zero", "[io_scan]") {
   TEST_ASSERT_EQUAL(0, result.ssr_duty);
 }
 
+TEST_CASE("IO: Sensor fault on boiler RTD forces SSR to zero", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->ssr_boiler_duty = 70;
+  // Clear the default fault so only the boiler sensor has a fault
+  for (int i = 0; i < PROCESS_IMAGE_MAX_SENSORS; i++) {
+    img->temperatures[i].fault = 0;
+  }
+  // Set boiler RTD (index 1) to faulted
+  img->temperatures[1].fault = 5; // RTD_RefHigh
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+}
+
 TEST_CASE("IO: All conditions OK allows full duty through", "[io_scan]") {
   process_image_init();
   auto *img = process_image_get();
@@ -165,6 +187,7 @@ TEST_CASE("IO: All conditions OK allows full duty through", "[io_scan]") {
   img->water_level_ok = true;
   img->descale_mode = false;
   img->refill_state = REFILL_STATE_IDLE;
+  img->temperatures[1].fault = 0; // Boiler RTD healthy
   img->ssr_boiler_duty = 85;
   img->pump_on = true;
   img->aux_on = true;
@@ -314,6 +337,7 @@ TEST_CASE("IO: Remote power_active allows outputs when GPIO says OFF", "[io_scan
   // Remote active command (GPIO switch is OFF but remote says ON)
   img->power_on = true;
   img->water_level_ok = true;
+  img->temperatures[1].fault = 0; // Boiler RTD healthy
   img->ssr_boiler_duty = 50;
   img->pump_on = true;
   img->aux_on = true;

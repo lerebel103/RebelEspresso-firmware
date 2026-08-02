@@ -213,6 +213,10 @@ static void apply_outputs(process_image_t *img) {
     if (img->descale_mode) {
       ssr_duty = 0;
     }
+    // Sensor fault on boiler RTD — cannot safely control heater
+    if (img->temperatures[RTD_BREW_BOILER_IDX].fault != 0) {
+      ssr_duty = 0;
+    }
   }
 
   // ─── WRITE OUTPUTS TO HARDWARE (every cycle, unconditionally) ────────
@@ -241,16 +245,34 @@ static void io_scan_task(void *) {
     // 2. Drive refill state machine
     scan_refill(img);
 
-    // 3. Apply safety overrides and write all outputs
+    // 3. Sync process image state to legacy event group bits
+    //    (consumed by boiler_temp_process, brew_temp_process, display, homekit)
+    if (img->power_on) {
+      xEventGroupSetBits(status_event_group, POWER_ON_BIT);
+    } else {
+      xEventGroupClearBits(status_event_group, POWER_ON_BIT);
+    }
+    if (img->water_level_ok) {
+      xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    } else {
+      xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    }
+    if (img->descale_mode) {
+      xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
+    } else {
+      xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    }
+
+    // 4. Apply safety overrides and write all outputs
     apply_outputs(img);
 
-    // 4. Record scan timestamp
+    // 5. Record scan timestamp
     img->last_scan_time_us = esp_timer_get_time();
 
-    // 5. Reset watchdog
+    // 6. Reset watchdog
     esp_task_wdt_reset();
 
-    // 6. Sleep until next cycle
+    // 7. Sleep until next cycle
     vTaskDelay(pdMS_TO_TICKS(IO_SCAN_INTERVAL_MS));
   }
 

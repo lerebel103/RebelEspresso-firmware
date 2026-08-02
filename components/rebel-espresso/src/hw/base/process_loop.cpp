@@ -11,6 +11,8 @@
 #include <driver/gptimer.h>
 #include <esp_timer.h>
 #include "events.h"
+#include "process_image.h"
+#include "hw_specs.h"
 
 #define TAG "process"
 
@@ -48,8 +50,19 @@ static void _process_task(void *) {
   do {
     if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
       auto now_us = esp_timer_get_time();
+      auto *img = process_image_get();
 
-      // Send down tick event (async) — PID and other handlers react to this
+      // Read latest temperatures from process image and dispatch to PID controllers
+      for (uint8_t i = 0; i < PROCESS_IMAGE_MAX_SENSORS; i++) {
+        measure_t data = img->temperatures[i];
+        if (data.fault != 0 && data.value == 0 && now_us < 2000000) {
+          // Skip initial faulted readings before sensor task has run
+          continue;
+        }
+        hw_specs_handle_new_temp(now_us, data, i);
+      }
+
+      // Send down tick event (async) for Layer 4 consumers
       ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, TICK, (void *)&now_us, sizeof(uint64_t), portMAX_DELAY));
 
       auto elapsed_ms = (esp_timer_get_time() - now_us) / 1000;

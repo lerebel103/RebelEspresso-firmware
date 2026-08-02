@@ -28,9 +28,6 @@ static void _rtd_cb(uint64_t time_us, const struct measure_t data, uint8_t idx) 
   if (idx < PROCESS_IMAGE_MAX_SENSORS) {
     img->temperatures[idx] = data;
   }
-
-  // Dispatch to existing control logic (boiler_temp_process, brew_temp_process)
-  hw_specs_handle_new_temp(time_us, data, idx);
 }
 
 /**

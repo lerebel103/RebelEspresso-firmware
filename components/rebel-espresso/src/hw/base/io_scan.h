@@ -8,9 +8,10 @@
  *   - Read all switch GPIO inputs with software debounce
  *   - Apply safety overrides to desired outputs
  *   - Write all physical outputs unconditionally every cycle
- *   - Drive boiler refill state machine (future)
+ *   - Drive boiler refill state machine
  *   - Track brew state transitions
- *   - Enrolled in task WDT (200ms timeout)
+ *   - Sync process image state to legacy event group bits
+ *   - Enrolled in task WDT (shared 2s timeout)
  *
  * The I/O scan is the last gate before hardware. Safety overrides here
  * cannot be bypassed by any other layer.

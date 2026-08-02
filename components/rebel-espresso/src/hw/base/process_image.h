@@ -15,9 +15,12 @@
  *
  * Thread safety:
  *   The I/O scan task runs at the highest priority and cannot be preempted by
- *   lower layers. All fields are naturally aligned (word-size on ESP32) making
- *   individual field reads/writes atomic. For multi-field consistency (e.g.
- *   temperature + fault), consumers should tolerate a one-cycle-old pairing.
+ *   lower layers. 32-bit aligned fields (bool, int, float, pointers) are
+ *   naturally atomic on ESP32. 64-bit fields (double, uint64_t) and compound
+ *   fields (measure_t) may exhibit torn reads if accessed concurrently.
+ *   Consumers should tolerate a one-cycle-old value for these fields.
+ *   Critical decisions (sensor fault gating) use only the fault byte (8-bit,
+ *   atomic) rather than the full measure_t.
  */
 
 #include <cstdint>

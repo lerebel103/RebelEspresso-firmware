@@ -236,6 +236,28 @@ static void apply_outputs(process_image_t *img) {
 static void io_scan_task(void *) {
   ESP_LOGI(TAG, "I/O scan task started (interval=%dms)", IO_SCAN_INTERVAL_MS);
 
+  // Seed debounce with current GPIO state so we don't need two full cycles
+  // to detect the initial power state at boot.
+  bool power_initial = gpio_get_level(PIN_IN_SYS_EN) == 0;
+  s_power_db = {power_initial, power_initial, DEBOUNCE_COUNT};
+  s_brew_db = {(bool)(gpio_get_level(PIN_IN_BREW_EN) == 0), (bool)(gpio_get_level(PIN_IN_BREW_EN) == 0),
+               DEBOUNCE_COUNT};
+  s_steam_db = {(bool)(gpio_get_level(PIN_IN_STEAM_EN) == 0), (bool)(gpio_get_level(PIN_IN_STEAM_EN) == 0),
+                DEBOUNCE_COUNT};
+
+  // Apply initial power state to process image immediately
+  auto *img = process_image_get();
+  img->power_on = power_initial;
+  s_prev_power_on = power_initial;
+  if (power_initial) {
+    img->aux_on = true;
+    boiler_refill_states_power_on();
+    ESP_LOGI(TAG, "Boot: power switch ON");
+    esp_event_post(MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, 0);
+  } else {
+    ESP_LOGI(TAG, "Boot: power switch OFF (standby)");
+  }
+
   while (s_running) {
     auto *img = process_image_get();
 

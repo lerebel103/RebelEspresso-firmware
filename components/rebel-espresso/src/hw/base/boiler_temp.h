@@ -111,6 +111,12 @@ void boiler_temp_delete();
  */
 void boiler_temp_set_duty(int duty);
 
+/**
+ * Apply final duty to SSR hardware. Called exclusively by the I/O scan task
+ * after safety overrides have been applied. Not for use by the control loop.
+ */
+void boiler_temp_apply_hw_duty(int duty);
+
 void boiler_temp_process(uint64_t time_us, const measure_t& data);
 
 /**

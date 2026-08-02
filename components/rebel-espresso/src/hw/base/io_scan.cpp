@@ -221,8 +221,8 @@ static void apply_outputs(process_image_t *img) {
 
   // ─── WRITE OUTPUTS TO HARDWARE (every cycle, unconditionally) ────────
 
-  // SSR duty
-  boiler_temp_set_duty(ssr_duty);
+  // SSR duty (applied via boiler_temp hardware interface, after safety overrides)
+  boiler_temp_apply_hw_duty(ssr_duty);
 
   // I2C relays (pump, refill solenoid, 3-way valve, aux)
   out_signals_set_level(OUT_SIGNALS_RELAY1, pump ? 1 : 0);

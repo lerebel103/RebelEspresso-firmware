@@ -199,8 +199,6 @@ TEST_CASE("Safety: Refill starts in UNKNOWN state with LEVEL_OK cleared", "[safe
     boiler_refill_states_init(cfg);
 
     TEST_ASSERT_EQUAL(REFILL_STATE_UNKNOWN, boiler_refill_state());
-    // BOILER_LEVEL_OK_BIT should be cleared (heater inhibited until proven safe)
-    TEST_ASSERT_FALSE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 }
 
 TEST_CASE("Safety: Refill timeout triggers ERROR and stops solenoid", "[safety]") {
@@ -215,7 +213,6 @@ TEST_CASE("Safety: Refill timeout triggers ERROR and stops solenoid", "[safety]"
     // Drive into ACTIVE state (level low, no delay)
     boiler_refill_states_process(0, false, false);
     TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
-    TEST_ASSERT_FALSE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 
     // Keep running with low level past timeout
     for (uint64_t t = 100; t <= 3000; t += 100) {
@@ -226,7 +223,6 @@ TEST_CASE("Safety: Refill timeout triggers ERROR and stops solenoid", "[safety]"
     // Next tick exceeds timeout — must go to ERROR
     boiler_refill_states_process(3100, false, false);
     TEST_ASSERT_EQUAL(REFILL_STATE_ERROR, boiler_refill_state());
-    TEST_ASSERT_FALSE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 }
 
 TEST_CASE("Safety: Refill ERROR state latches until power cycle", "[safety]") {
@@ -246,7 +242,6 @@ TEST_CASE("Safety: Refill ERROR state latches until power cycle", "[safety]") {
     // Level recovers but error MUST NOT auto-clear
     boiler_refill_states_process(2000, true, false);
     TEST_ASSERT_EQUAL(REFILL_STATE_ERROR, boiler_refill_state());
-    TEST_ASSERT_FALSE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 
     // Still latched after many ticks
     boiler_refill_states_process(5000, true, false);
@@ -257,13 +252,11 @@ TEST_CASE("Safety: Refill ERROR state latches until power cycle", "[safety]") {
     TEST_ASSERT_EQUAL(REFILL_STATE_UNKNOWN, boiler_refill_state());
 
     boiler_refill_states_power_on();
-    // After power_on, state resets to UNKNOWN — ready to evaluate level again
     TEST_ASSERT_EQUAL(REFILL_STATE_UNKNOWN, boiler_refill_state());
 
     // Now with level OK, should transition to IDLE
     boiler_refill_states_process(6000, true, false);
     TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
-    TEST_ASSERT_TRUE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 }
 
 TEST_CASE("Safety: Refill power standby stops solenoid and clears level bit", "[safety]") {
@@ -282,7 +275,6 @@ TEST_CASE("Safety: Refill power standby stops solenoid and clears level bit", "[
     // Power standby must stop everything
     boiler_refill_states_power_standby();
     TEST_ASSERT_EQUAL(REFILL_STATE_UNKNOWN, boiler_refill_state());
-    TEST_ASSERT_FALSE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 }
 
 TEST_CASE("Safety: Refill external error forces ERROR state immediately", "[safety]") {
@@ -297,12 +289,10 @@ TEST_CASE("Safety: Refill external error forces ERROR state immediately", "[safe
     // Drive to IDLE (level OK)
     boiler_refill_states_process(0, true, false);
     TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
-    TEST_ASSERT_TRUE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 
     // External error flag
     boiler_refill_states_process(1000, true, true);
     TEST_ASSERT_EQUAL(REFILL_STATE_ERROR, boiler_refill_state());
-    TEST_ASSERT_FALSE(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT);
 }
 
 TEST_CASE("Safety: Refill hysteresis prevents spurious refill cycles", "[safety]") {

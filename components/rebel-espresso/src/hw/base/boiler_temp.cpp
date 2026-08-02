@@ -93,25 +93,30 @@ static void _save_nvram() {
  * @param duty integral [0-100]
  */
 void boiler_temp_set_duty(int duty) {
-  ESP_ERROR_CHECK(ssr_ctrl_set_duty(_ssr_handle, duty));
-  // Also write to process image for the I/O scan to apply (with safety overrides)
+  // Write desired duty to process image. The I/O scan task applies it to
+  // hardware with safety overrides — we do NOT drive the SSR directly here.
   process_image_get()->ssr_boiler_duty = duty;
 }
 
+void boiler_temp_apply_hw_duty(int duty) {
+  // Called exclusively by the I/O scan to write final (safety-overridden) duty to SSR hardware.
+  ESP_ERROR_CHECK(ssr_ctrl_set_duty(_ssr_handle, duty));
+}
+
 int boiler_temp_get_duty() {
-  int duty = 0;
-  ESP_ERROR_CHECK(ssr_ctrl_get_duty(_ssr_handle, duty));
-  return duty;
+  return process_image_get()->ssr_boiler_duty;
 }
 
 static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
   if (id == POWER_STANDBY) {
-    ESP_LOGI(TAG, "Powering down Boiler SSR");
-    ssr_ctrl_power_off(_ssr_handle);
-  } else if (id == POWER_ACTIVE) {
-    ESP_LOGI(TAG, "Resuming Boiler SSR");
+    ESP_LOGI(TAG, "Powering down Boiler — resetting PID and zeroing desired duty");
     pid_reset(s_pid);
-    ssr_ctrl_power_on(_ssr_handle);
+    process_image_get()->ssr_boiler_duty = 0;
+    s_boiler_error_sec = 0;
+  } else if (id == POWER_ACTIVE) {
+    ESP_LOGI(TAG, "Resuming Boiler PID");
+    pid_reset(s_pid);
+    s_boiler_error_sec = 0;
   }
 }
 
@@ -146,21 +151,21 @@ double boiler_temp_get_current_setpoint() {
 void boiler_temp_process(uint64_t time_us, const measure_t& data) {
   if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
     ESP_LOGD(TAG, "In standby, not running.");
-    ssr_ctrl_set_duty(_ssr_handle, 0);
+    boiler_temp_set_duty(0);
     return;
   } else if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
     ESP_LOGI(TAG, "Descaling, not running");
-    ssr_ctrl_set_duty(_ssr_handle, 0);
+    boiler_temp_set_duty(0);
     return;
   } else if (!(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT)) {
     ESP_LOGW(TAG, "Boiler level low, not running");
-    ssr_ctrl_set_duty(_ssr_handle, 0);
+    boiler_temp_set_duty(0);
     return;
   } else if (data.fault != (uint8_t)RTD_NoError) {
     ESP_LOGE(TAG, "Boiler sensor error: %d", data.fault);
     s_stats.temp_read_error_count++;
     s_stats_changed = true;
-    ssr_ctrl_set_duty(_ssr_handle, 0);
+    boiler_temp_set_duty(0);
 
     // If we get successive errors from the boiler restart
     if (s_pid.last_time_us != 0) {
@@ -177,7 +182,7 @@ void boiler_temp_process(uint64_t time_us, const measure_t& data) {
     ESP_LOGE(TAG, "Boiler temperature out of range: %f", data.value);
     s_stats.temp_out_of_range_count++;
     s_stats_changed = true;
-    ssr_ctrl_set_duty(_ssr_handle, 0);
+    boiler_temp_set_duty(0);
     return;
   }
 

@@ -4,15 +4,15 @@
 
 /**
  * Initialize and start the HTTP web server.
- * Mounts the FAT data partition, registers all API and static file handlers.
- * Only call this after WiFi is connected (not during AP provisioning).
+ * Registers all API handlers and the embedded SPA static handler.
+ * Can be called when WiFi STA connects or when Soft-AP mode activates.
  *
  * @return ESP_OK on success
  */
 esp_err_t web_server_start();
 
 /**
- * Stop the HTTP web server and unmount the data partition.
+ * Stop the HTTP web server.
  */
 void web_server_stop();
 

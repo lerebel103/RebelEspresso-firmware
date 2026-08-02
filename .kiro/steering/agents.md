@@ -16,7 +16,7 @@ inclusion: auto
 - The ESP32 partition table defines hard limits on firmware binary size.
 - The firmware binary must fit within the OTA partition size (currently 2000KB / 2MB per slot).
 - Always verify binary size against partition limits before claiming a build is successful.
-- The `data` FAT partition (7.1MB) is used for web UI assets and is also subject to OTA updates.
+- The web UI (webapp/index.html) is gzipped and embedded in the firmware binary at build time. OTA updates the web UI and firmware together.
 
 ## Build Verification
 

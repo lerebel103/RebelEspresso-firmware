@@ -1,6 +1,6 @@
 # RebelEspresso Firmware
 
-ESP32 coffee machine controller with HomeKit, BLE provisioning, and a built-in web interface.
+ESP32 coffee machine controller with HomeKit and a built-in web interface. WiFi provisioning via Soft-AP captive portal — no companion app needed.
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ make monitor    # serial monitor (115200 baud)
 
 | Target | Description |
 |--------|-------------|
-| `make build` | Build firmware + web UI inside Docker |
+| `make build` | Build firmware (includes embedded web UI) |
 | `make test` | Run unit tests in QEMU emulator |
 | `make lint` | Static analysis (clang-tidy) |
 | `make format` | Format source files (clang-format) |
@@ -38,21 +38,40 @@ All flash targets auto-detect the serial port. Override with `PORT=/dev/cu.xxx`.
 
 | Target | Description |
 |--------|-------------|
-| `make flash` | Full flash (bootloader + firmware + web UI) |
+| `make flash` | Full flash (bootloader + firmware + partition table) |
 | `make flash-app` | Firmware only (preserves NVS config) |
-| `make flash-ui` | Web UI only (no firmware change) |
 | `make monitor` | Serial monitor |
 
 NVS (user configuration) is never overwritten except by `esptool.py erase_flash`.
 
 ## Web Interface
 
-Built-in HTTP interface at `http://<device-ip>:8080` (starts after WiFi connects).
+Built-in HTTP interface at `http://<device-ip>:8080` (starts after WiFi connects or in AP mode).
 
 - **Status** — live temperatures, power state, refill status
+- **WiFi** — scan networks, enter credentials, connect (primary setup mechanism)
 - **Config** — PID parameters, schedules, refill thresholds
 - **System** — device info, OTA firmware upload, config export/import, reboot
-- **Auth** — optional password protection (HTTP Basic)
+- **Auth** — optional password protection (token-based, no browser popup, bypassed during AP setup)
+
+## WiFi Provisioning
+
+The device uses a Soft-AP captive portal for WiFi setup — no phone app required.
+
+**First boot / no stored credentials:**
+1. Device starts a WiFi access point: `RebelEspresso-XXXXXX` (open, no password)
+2. Connect to this network from any phone/laptop
+3. A captive portal auto-redirects to the setup page (or navigate to `http://192.168.4.1:8080`)
+4. Select your WiFi network, enter the password, and tap Connect
+5. Device connects to your network and the AP shuts down
+
+**If WiFi disconnects** (router reboot, network change):
+- The AP automatically reactivates after 30 seconds of failed reconnection
+- Repeat the setup process to enter new credentials
+
+**Authentication during AP mode:**
+- HTTP auth is temporarily bypassed so you can always access the setup page
+- Auth re-engages as soon as the device connects to your WiFi
 
 ### Development
 
@@ -60,7 +79,7 @@ Built-in HTTP interface at `http://<device-ip>:8080` (starts after WiFi connects
 make webapp-dev    # mock API at http://localhost:8080
 ```
 
-Edit `webapp/index.html` and refresh — no build or hardware needed.
+Edit `webapp/index.html` and refresh — no build or hardware needed. The web UI is automatically gzipped and embedded in the firmware binary during `make build`.
 
 ## Configuration
 
@@ -97,13 +116,16 @@ Covers: PID algorithm, JSON config serialization, NVS persistence, event loop, c
 │   │   ├── src/hw/r2/src/      # Hardware-specific (display, webserver)
 │   │   ├── src/utils/          # PID, state machine, helpers
 │   │   └── src/sys/            # NVS abstraction
-│   ├── connectivity/           # WiFi, SNTP, NVS init, identity
+│   ├── esp-connectivity/       # WiFi STA/AP, captive portal, SNTP, NVS, identity
+│   │   ├── src/wifi/           # WiFi manager, Soft-AP, DNS server, scan
+│   │   ├── src/sntp/           # NTP time sync
+│   │   └── src/common/         # NVS init, device identity, event bits
 │   ├── esp-homekit-sdk/        # Apple HomeKit (submodule)
 │   ├── ESP32-MAX31865/         # RTD temperature sensor driver
 │   ├── esp-ssr-controller/     # SSR duty-cycle controller
 │   └── tft-driver/             # ST7796 TFT display driver
 ├── test_app/                   # QEMU unit tests
-├── webapp/                     # Web UI source + dev server
+├── webapp/                     # Web UI source (embedded in firmware at build time)
 ├── scripts/                    # Lint scripts, pre-commit hook
 └── .github/                    # CI pipeline + Dependabot
 ```

@@ -25,8 +25,8 @@ extern "C" {
 
 #include "hw_config.h"
 #include "events.h"
-#include "../../../../../../../managed_components/espressif__qrcode/qrcodegen.h"
-#include "wifi/wifi_connect.h"
+#include "wifi/wifi_manager.h"
+#include "wifi/wifi_ap.h"
 #include "brew.h"
 
 #define TAG "tft"
@@ -38,7 +38,6 @@ static TFT_t dev;
 static uint16_t model;
 static bool s_on = false;
 static bool s_last_on_state = false;
-static bool s_qr_displayed = false;
 static FontxFile fx16G[2];
 static FontxFile fx24G[2];
 static FontxFile fx32G[2];
@@ -114,42 +113,11 @@ void _display_info(FontxFile *fx1) {
   lcdDrawString(&dev, fx1, x, y, (uint8_t *)thing_info_id(), WHITE);
 }
 
-static void _qrcode_print(int x_off, int y_off, const uint8_t *qrcode, int size) {
-  if (s_qr_displayed) {
-    return;
-  }
-
-  lcdFillScreen(&dev, BLACK);
-
-  int qr_pixel = 4;
-
-  // Draw a square for the QR with a white border
-  int x1;
-  int x2;
-  int y1;
-  int y2;
-  int border = 1;
-  for (int y = -border; y < size + border; y += 1) {
-    for (int x = -border; x < size + border; x += 1) {
-      x1 = x * qr_pixel + x_off;
-      y1 = y * qr_pixel + y_off;
-      x2 = x1 + qr_pixel;
-      y2 = y1 + qr_pixel;
-      if (qrcodegen_getModule(qrcode, x, y) and x >= 0 and y >= 0 and x < size and y < size) {
-        lcdDrawFillRect(&dev, x1, y1, x2, y2, BLACK);
-      } else {
-        lcdDrawFillRect(&dev, x1, y1, x2, y2, WHITE);
-      }
-    }
-  }
-
-  s_qr_displayed = true;
-}
-
 void _ensure_power_state_ok() {
   // look at last event received
   bool on = s_on;
   if (s_last_on_state != on) {
+    ESP_LOGI(TAG, "Display power state change: %s -> %s", s_last_on_state ? "ON" : "OFF", on ? "ON" : "OFF");
     if (s_on) {
 #if CONFIG_ILI9225
       model = 0x9225;
@@ -169,7 +137,9 @@ void _ensure_power_state_ok() {
 #if CONFIG_ST7796
       model = 0x7796;
 #endif
+      ESP_LOGI(TAG, "lcdInit model=0x%04x w=%d h=%d", model, CONFIG_WIDTH, CONFIG_HEIGHT);
       lcdInit(&dev, model, CONFIG_WIDTH, CONFIG_HEIGHT, CONFIG_OFFSETY, CONFIG_OFFSETX);
+      ESP_LOGI(TAG, "lcdDisplayOn + fill");
       lcdDisplayOn(&dev);
       lcdFillScreen(&dev, BLACK);
       lcdSetFontFill(&dev, BLACK);
@@ -178,7 +148,6 @@ void _ensure_power_state_ok() {
     } else {
       lcdDisplayOff(&dev);
       lcdBacklightOff(&dev);
-      s_qr_displayed = false;
     }
     s_last_on_state = on;
   }
@@ -292,16 +261,18 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
   ESP_LOGD(TAG, "Render Took %" PRIu32 "ms\r\n", pdTICKS_TO_MS(endTick - startTick));
 }
 
-static void _draw_provisioning(FontxFile *fx16M) {
-  int x = 52;
+static void _draw_ap_mode(FontxFile *fx16M) {
+  int x = 20;
   int y = 25;
 
-  lcdDrawString(&dev, fx16M, x, y, (uint8_t *)"Scan to set", WHITE);
-  lcdDrawString(&dev, fx16M, x + 36, y + 28, (uint8_t *)"WiFi", WHITE);
+  lcdDrawString(&dev, fx16M, x, y, (uint8_t *)"WiFi Setup Mode", WHITE);
 
-  int xPos = x;
-  int yPos = 65;
-  _qrcode_print(xPos, yPos, wifi_get_prov_qr(), wifi_get_prov_qr_len());
+  wifi_ap_info_t ap_info = wifi_ap_get_info();
+  char ssid_buf[48];
+  snprintf(ssid_buf, sizeof(ssid_buf), "SSID: %s", ap_info.ssid);
+  lcdDrawString(&dev, fx16M, x, y + 32, (uint8_t *)ssid_buf, GREEN);
+  lcdDrawString(&dev, fx16M, x, y + 64, (uint8_t *)"Connect & open", WHITE);
+  lcdDrawString(&dev, fx16M, x, y + 88, (uint8_t *)"192.168.4.1:8080", WHITE);
 }
 
 static void _draw_descale_mode(FontxFile *fx) {
@@ -374,20 +345,19 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     _display_info(fx24G);
     s_on = prior_state;
   } else {
-    EventBits_t uxBits = xEventGroupWaitBits(status_event_group,
-                                             WIFI_CONNECTED_BIT | DESCALE_MODE_BIT | PROVISIONING_BIT, false, true, 0);
+    EventBits_t uxBits = xEventGroupWaitBits(
+        status_event_group, WIFI_CONNECTED_BIT | DESCALE_MODE_BIT | WIFI_AP_ACTIVE_BIT, false, true, 0);
     _ensure_power_state_ok();
 
     int state;
 
-    if (PROVISIONING_BIT & uxBits) {
+    if (WIFI_AP_ACTIVE_BIT & uxBits) {
       state = 1;
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
-        s_qr_displayed = false;
       }
-      _draw_provisioning(fx24M);
+      _draw_ap_mode(fx24M);
     } else if (DESCALE_MODE_BIT & uxBits) {
       state = 2;
       if (state != last_state) {
@@ -426,7 +396,6 @@ static void _power_events(void *handler_args, esp_event_base_t base, int32_t id,
     _tick(nullptr, MACHINE_EVENTS, TICK, nullptr);
   } else if (id == POWER_ACTIVE) {
     s_on = true;
-    s_qr_displayed = false;
     s_brew_start_time = -1;
     _tick(nullptr, MACHINE_EVENTS, TICK, nullptr);
   }

@@ -39,12 +39,12 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           rm -f dependencies.lock
-          ./webapp/build.sh
+          gzip -9 -n -k -f webapp/index.html
           idf.py -DBUILD_STAGE=$BUILD_STAGE -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE build
 
       - name: Check formatting
         run: |
-          find components/rebel-espresso/src components/connectivity/src main \
+          find components/rebel-espresso/src components/esp-connectivity/src main \
             \( -name '*.cpp' -o -name '*.c' -o -name '*.h' \) | xargs clang-format --dry-run --Werror
 
       - name: Run clang-tidy
@@ -95,7 +95,7 @@ jobs:
           submodules: recursive
 
       - name: Build web UI
-        run: ./webapp/build.sh
+        run: gzip -9 -n -k -f webapp/index.html
 
       - name: Build firmware
         run: |

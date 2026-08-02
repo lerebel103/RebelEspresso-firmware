@@ -72,13 +72,13 @@ void iot_process_events() {
   while (_go) {
     time_t time_since_boot_millis = esp_timer_get_time() / 1000;
 
-    // Start web server once WiFi is connected (not during AP provisioning)
+    // Start web server once WiFi is connected OR AP mode is active
     if (!_web_server_started && !_web_server_failed) {
       EventBits_t bits = xEventGroupGetBits(status_event_group);
-      if (bits & WIFI_CONNECTED_BIT) {
+      if ((bits & WIFI_CONNECTED_BIT) || (bits & WIFI_AP_ACTIVE_BIT)) {
         if (web_server_start() == ESP_OK) {
           _web_server_started = true;
-          ESP_LOGI(TAG, "Web server started after WiFi connected");
+          ESP_LOGI(TAG, "Web server started (WiFi %s)", (bits & WIFI_CONNECTED_BIT) ? "STA connected" : "AP mode");
         } else {
           _web_server_failed = true;
           ESP_LOGE(TAG, "Web server failed to start — will not retry");

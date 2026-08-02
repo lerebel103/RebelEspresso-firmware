@@ -66,6 +66,9 @@ add_definitions(
     -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
 )
 
+# Expose as CMake variable for sub-components (e.g. tft-driver SPIFFS font image)
+set(HARDWARE_REVISION_MAJOR "2")
+
 ###############################################################################
 # Build Configuration
 ###############################################################################
@@ -140,9 +143,7 @@ add_custom_target(deploy ALL
 )
 
 ###############################################################################
-# Web UI: FAT Filesystem Image
+# Web UI: Embedded in firmware (no separate partition needed)
 ###############################################################################
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/data")
-    fatfs_create_spiflash_image(data ${CMAKE_SOURCE_DIR}/data FLASH_IN_PROJECT)
-endif()
+# The webapp is gzipped and embedded directly in the firmware binary.
+# See components/rebel-espresso/CMakeLists.txt for the embedding logic.

@@ -1,8 +1,6 @@
 ## IDF Component Manager Manifest File
 dependencies:
   espressif/cjson: "^1.0.0"
-  espressif/qrcode: "*"
-  espressif/cbor: "*"
   ## Required IDF version
   idf:
     version: ">=6.0.0"

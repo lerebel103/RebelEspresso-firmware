@@ -84,15 +84,15 @@ if [ ${#FILES[@]} -eq 0 ]; then
                   "${PROJ_ROOT}/components/rebel-espresso/src/utils" \
                   "${PROJ_ROOT}/components/rebel-espresso/src/sys" \
                   "${PROJ_ROOT}/components/rebel-espresso/src/homekit" \
-                  "${PROJ_ROOT}/components/connectivity/src/common" \
-                  "${PROJ_ROOT}/components/connectivity/src/wifi" \
-                  "${PROJ_ROOT}/components/connectivity/src/sntp" \
+                  "${PROJ_ROOT}/components/esp-connectivity/src/common" \
+                  "${PROJ_ROOT}/components/esp-connectivity/src/wifi" \
+                  "${PROJ_ROOT}/components/esp-connectivity/src/sntp" \
                   "${PROJ_ROOT}/main" \
              \( -name '*.cpp' -o -name '*.c' \) \
              2>/dev/null | sort))
     # Also include the top-level connectivity.cpp
-    if [ -f "${PROJ_ROOT}/components/connectivity/src/connectivity.cpp" ]; then
-        FILES+=("${PROJ_ROOT}/components/connectivity/src/connectivity.cpp")
+    if [ -f "${PROJ_ROOT}/components/esp-connectivity/src/connectivity.cpp" ]; then
+        FILES+=("${PROJ_ROOT}/components/esp-connectivity/src/connectivity.cpp")
     fi
 fi
 

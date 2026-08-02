@@ -14,13 +14,22 @@ Rules for any AI agent working on this codebase.
 - The ESP32 partition table defines hard limits on firmware binary size.
 - The firmware binary must fit within the OTA partition size (currently 2000KB / 2MB per slot).
 - Always verify binary size against partition limits before claiming a build is successful.
-- The `data` FAT partition (7.1MB) is used for web UI assets and is also subject to OTA updates.
+- The web UI (webapp/index.html) is gzipped and embedded in the firmware binary at build time. OTA updates the web UI and firmware together.
 
 ## Build Verification
 
 - After making code changes, always verify the build succeeds before presenting the result.
 - Run `make test` when changes affect testable logic (PID, NVS, JSON, events).
 - Run `make lint` when modifying C/C++ source files.
+
+## Pre-Commit Gate (mandatory before every commit and push)
+
+Before EVERY `git commit`, run all three in order:
+1. `make format` — auto-format all source files
+2. `make build` — verify firmware compiles and check binary size
+3. `make test` — verify all unit tests pass
+
+If any step fails, fix the issue before committing. Never push code that hasn't passed all three steps. This is non-negotiable — CI will reject the PR otherwise.
 
 ## Code Style
 

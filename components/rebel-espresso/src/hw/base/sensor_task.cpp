@@ -32,6 +32,14 @@ static void _rtd_cb(uint64_t time_us, const struct measure_t data, uint8_t idx) 
 
 /**
  * Read the water level ADC and update the process image.
+ *
+ * IMPORTANT: The water level probe uses a voltage applied across electrodes
+ * in the boiler water. Prolonged application causes galvanic corrosion
+ * (electrolysis) that degrades the probe over time. The enable pin is toggled
+ * on for the shortest possible duration (microseconds) and immediately
+ * disabled after the ADC read completes. This function must NEVER be called
+ * in standby or descale mode — the caller is responsible for gating on
+ * power state and descale mode.
  */
 static void _read_water_level(process_image_t *img) {
   uint8_t status = 0;
@@ -57,11 +65,19 @@ static void _sensor_task(void *) {
     auto *img = process_image_get();
 
     // Read all RTD temperature sensors (SPI via ADS124S08, ~5-10ms)
+    // RTDs are passive resistance measurements — safe to read in any power state.
     auto now_us = esp_timer_get_time();
     rtds_update(_rtd_cb);
 
-    // Read water level ADC (also SPI via ADS124S08)
-    _read_water_level(img);
+    // Read water level ADC — ONLY when machine is powered on and NOT in descale mode.
+    // The water level probe works by applying a voltage across electrodes immersed
+    // in the boiler water. This causes galvanic corrosion (electrolysis) over time.
+    // To minimise probe degradation, the voltage is applied only momentarily during
+    // each read and NEVER in standby or descale mode. The probe enable GPIO is
+    // toggled on/off within _read_water_level() for the shortest possible pulse.
+    if (img->power_on && !img->descale_mode) {
+      _read_water_level(img);
+    }
 
     auto elapsed_ms = (esp_timer_get_time() - now_us) / 1000;
     ESP_LOGD(TAG, "Sensor scan: %lld ms", elapsed_ms);

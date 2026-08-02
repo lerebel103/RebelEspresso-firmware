@@ -135,6 +135,7 @@ A separate `status_event_group` (FreeRTOS EventGroup) provides fast bitwise stat
 | Watchdog → panic restart | 2 s task WDT on control loop; failure causes immediate restart to safe state |
 | OTA rollback | New firmware must pass self-test (WiFi + web server up) before being marked valid; failure causes bootloader rollback |
 | SSR duty clamping | `ssr_ctrl_set_duty()` trims input to [0, 100] regardless of caller |
+| Water probe corrosion guard | Water level probe voltage is ONLY applied during active operation (not in standby or descale). The probe enable GPIO is pulsed momentarily per read to minimise galvanic corrosion of the electrodes. |
 
 ### Component Map
 

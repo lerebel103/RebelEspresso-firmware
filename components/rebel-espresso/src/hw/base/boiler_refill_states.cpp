@@ -125,10 +125,8 @@ static void _state_error_enter(uint64_t timestamp) {
 }
 
 static void _state_error_process(uint64_t timestamp) {
-  // If level recovers, get out of error state
-  if (s_current_level_ok && !s_in_error) {
-    state_machine_transition(s_state, timestamp, REFILL_STATE_IDLE);
-  }
+  // Error state latches — only a power cycle (standby → ON) clears it.
+  // The user must manually intervene (power off, check water supply, power on).
 }
 
 void boiler_refill_states_process(uint64_t timestamp_ms, bool is_level_ok, bool in_error) {

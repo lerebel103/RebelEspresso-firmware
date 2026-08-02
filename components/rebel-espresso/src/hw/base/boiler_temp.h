@@ -105,6 +105,12 @@ void boiler_temp_init();
 
 void boiler_temp_delete();
 
+/**
+ * Set the SSR duty cycle directly. Used by the I/O scan task to apply
+ * the duty computed by the control loop (with safety overrides applied).
+ */
+void boiler_temp_set_duty(int duty);
+
 void boiler_temp_process(uint64_t time_us, const measure_t& data);
 
 /**

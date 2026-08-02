@@ -61,50 +61,6 @@ void boiler_set_check_level_fn(check_level_fn fn) {
   check_level = fn;
 }
 
-static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-  if (id != TICK) {
-    return;
-  }
-
-  // Not running any of this in standby
-  if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
-    return;
-  }
-
-  if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
-    // In descale mode, we don't run any of this
-    return;
-  }
-
-  // Don't run this until the machine finishes init basically, we get wrong level readings otherwise
-  uint64_t now_ms = 0;
-  if (event_data != nullptr) {
-    now_ms = *(uint64_t *)event_data;
-    now_ms = now_ms / 1e3;
-  }
-}
-
-static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-  if (id == POWER_STANDBY) {
-    boiler_refill_states_power_standby();
-  } else if (id == POWER_ACTIVE) {
-    boiler_refill_states_power_on();
-  }
-}
-
-static void _brew_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-  // Handle solenoid valve open/close for descaling here
-  if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
-    if (id == BREW_STARTED) {
-      ESP_LOGI(TAG, "Opening refill solenoid");
-      out_signals_set_level(OUT_SIGNALS_RELAY2, 1);
-    } else if (id == BREW_STOPPED) {
-      ESP_LOGI(TAG, "Closing refill solenoid");
-      out_signals_set_level(OUT_SIGNALS_RELAY2, 0);
-    }
-  }
-}
-
 static void _shadow_deleted_handler(void *, void *) {
   // re-create the shadow then
   _cfg_update_required = true;
@@ -150,16 +106,7 @@ void boiler_refill_init() {
   // Configure pins for voltage divider
   ESP_LOGI(TAG, "Initialising ADC pin input");
 
-  // Init state machine
-  boiler_refill_states_init(s_cfg);
-
-  // We want tick events
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick, nullptr));
-
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STARTED, _brew_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STOPPED, _brew_events, nullptr));
+  // Note: refill state machine is now initialised and driven by the I/O scan task.
 
   device_shadow_cfg_t shadow_cfg = {.name = "boiler_refill",
                                     .get = null_shadow_handler,
@@ -171,11 +118,7 @@ void boiler_refill_init() {
 }
 
 void boiler_refill_delete() {
-  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_STANDBY, _power_events));
-  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, POWER_ACTIVE, _power_events));
-  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, BREW_STARTED, _brew_events));
-  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, BREW_STOPPED, _brew_events));
-  ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, TICK, _tick));
+  // No event handlers to unregister — I/O scan owns the state machine now.
 }
 
 double boiler_refill_level_mv() {

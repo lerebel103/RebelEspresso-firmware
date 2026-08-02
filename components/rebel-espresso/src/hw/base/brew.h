@@ -10,6 +10,4 @@ struct brew_status_t {
 
 void brew_init();
 
-void brew_update(uint64_t time_us);
-
 brew_status_t brew_get_status();

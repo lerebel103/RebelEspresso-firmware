@@ -1,6 +1,4 @@
 #include "process_loop.h"
-#include "boiler_temp.h"
-#include "brew.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -9,18 +7,10 @@
 #include <hal/timer_types.h>
 #include <freertos/semphr.h>
 #include <esp_task_wdt.h>
-#include "rtds.h"
 #include <esp_event.h>
 #include <driver/gptimer.h>
 #include <esp_timer.h>
 #include "events.h"
-#include "brew_temp.h"
-#include "hw_specs.h"
-#include "out_signals.h"
-
-#ifdef PIN_OUT_HBRIDGE_PWM
-#include "brew_tec.h"
-#endif
 
 #define TAG "process"
 
@@ -59,10 +49,7 @@ static void _process_task(void *) {
     if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
       auto now_us = esp_timer_get_time();
 
-      // Get latest temperatures
-      rtds_update(hw_specs_handle_new_temp);
-
-      // Send down tick event (async)
+      // Send down tick event (async) — PID and other handlers react to this
       ESP_ERROR_CHECK(esp_event_post(MACHINE_EVENTS, TICK, (void *)&now_us, sizeof(uint64_t), portMAX_DELAY));
 
       auto elapsed_ms = (esp_timer_get_time() - now_us) / 1000;
@@ -78,15 +65,6 @@ static void _process_task(void *) {
   // Kill resources
   _process_task_handle = nullptr;
   vTaskDelete(nullptr);
-}
-
-static void _power_events(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
-  // Drive auxiliary output high/low
-  if (id == POWER_STANDBY) {
-    out_signals_set_level(OUT_SIGNALS_AUX, 0);
-  } else if (id == POWER_ACTIVE) {
-    out_signals_set_level(OUT_SIGNALS_AUX, 1);
-  }
 }
 
 void process_loop_init() {
@@ -124,8 +102,4 @@ void process_loop_init() {
   ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&cfg));
   xTaskCreate(_process_task, "process_loop", 3 * 1024, NULL, 7, &_process_task_handle);
   ESP_ERROR_CHECK(esp_task_wdt_add(_process_task_handle));
-
-  // Get our power events in place so we can run the process loop as needed
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
 }

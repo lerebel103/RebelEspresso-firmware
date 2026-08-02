@@ -26,6 +26,9 @@
 #include "schedules.h"
 #include "display.h"
 #include "reset_button.h"
+#include "process_image.h"
+#include "io_scan.h"
+#include "sensor_task.h"
 
 #define KEY_ENABLED "ctrl_enabled"
 
@@ -89,6 +92,11 @@ void controller_init() {
   schedules_init();
   iot_init();
   reset_button_init((gpio_num_t)CONFIG_RESET_GPIO);
+
+  // Start the I/O scan task (must be after GPIO/I2C peripherals are configured)
+  process_image_init();
+  sensor_task_init();
+  io_scan_init();
 }
 
 void controller_enter_loop() {

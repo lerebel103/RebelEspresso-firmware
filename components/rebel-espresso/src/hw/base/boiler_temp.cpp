@@ -10,6 +10,7 @@
 #include "boiler_temp.h"
 #include "brew_temp.h"
 #include "shadow_helper.h"
+#include "process_image.h"
 
 #define TAG "Boiler"
 
@@ -91,8 +92,10 @@ static void _save_nvram() {
  *
  * @param duty integral [0-100]
  */
-extern "C" void boiler_temp_set_duty(int duty) {
+void boiler_temp_set_duty(int duty) {
   ESP_ERROR_CHECK(ssr_ctrl_set_duty(_ssr_handle, duty));
+  // Also write to process image for the I/O scan to apply (with safety overrides)
+  process_image_get()->ssr_boiler_duty = duty;
 }
 
 int boiler_temp_get_duty() {
@@ -269,6 +272,7 @@ void boiler_temp_init() {
   ESP_ERROR_CHECK(ssr_ctrl_new(cfg, &_ssr_handle));
 
   pid_init(s_pid);
+  s_boiler_error_sec = 0;
   s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];
 
   // Get our power events in place, so we can run the process loop as needed

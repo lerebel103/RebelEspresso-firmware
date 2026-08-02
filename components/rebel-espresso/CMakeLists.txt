@@ -33,7 +33,6 @@ set(COMPONENT_REQUIRES
         esp_http_server
         mbedtls
         esp_wifi
-        ESP32-MAX31865
         tft-driver
         esp-ssr-controller
         )

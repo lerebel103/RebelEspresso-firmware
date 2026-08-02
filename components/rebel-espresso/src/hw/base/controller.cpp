@@ -67,6 +67,10 @@ void _init_spi() {
 }
 
 void controller_init() {
+  // Initialise process image first — before any task starts that reads/writes it.
+  // Sets all outputs OFF, all inputs inactive, all sensors faulted (safe defaults).
+  process_image_init();
+
   // install gpio isr service
   gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 
@@ -93,8 +97,7 @@ void controller_init() {
   iot_init();
   reset_button_init((gpio_num_t)CONFIG_RESET_GPIO);
 
-  // Start the I/O scan task (must be after GPIO/I2C peripherals are configured)
-  process_image_init();
+  // Start sensor and I/O scan tasks (must be after GPIO/I2C/SPI peripherals are configured)
   sensor_task_init();
   io_scan_init();
 }

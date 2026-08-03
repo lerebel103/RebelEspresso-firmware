@@ -21,6 +21,14 @@
  *   Consumers should tolerate a one-cycle-old value for these fields.
  *   Critical decisions (sensor fault gating) use only the fault byte (8-bit,
  *   atomic) rather than the full measure_t.
+ *
+ * Ownership model (see docs/../.kiro/specs/realtime-io-parity-audit.md §2):
+ *   Every field has exactly ONE writer layer; all other layers read only.
+ *   Each field below is tagged @owner. Do not write a field from a layer that
+ *   does not own it. `power_on` is the single deliberate exception: it is
+ *   written by BOTH the I/O scan (on a debounced GPIO edge) and the remote
+ *   power_active()/power_standby() API. Both express the same semantic and the
+ *   "last transition wins" rule keeps the outcome deterministic.
  */
 
 #include <cstdint>
@@ -39,28 +47,30 @@ extern "C" {
 
 struct process_image_t {
   // ─── INPUTS (written by I/O Scan task) ───────────────────────────────
-  bool power_on;     ///< Debounced power switch state
-  bool brew_on;      ///< Debounced brew switch state
-  bool steam_on;     ///< Debounced steam switch state
-  bool descale_mode; ///< Set on power-on if brew switch is held
+  bool power_on;     ///< @owner I/O Scan (edge) + remote power API. Debounced power switch state
+  bool brew_on;      ///< @owner I/O Scan. Debounced brew switch state
+  bool steam_on;     ///< @owner I/O Scan. Debounced steam switch state
+  bool descale_mode; ///< @owner I/O Scan. Set on power-on if brew switch is held
 
   // ─── SENSOR DATA (written by ADC/Sensor task) ────────────────────────
-  measure_t temperatures[PROCESS_IMAGE_MAX_SENSORS]; ///< Per-channel temp + fault
-  double water_level_mv;                             ///< Raw water level ADC voltage
-  bool water_level_ok;                               ///< Derived: mv <= threshold
+  measure_t temperatures[PROCESS_IMAGE_MAX_SENSORS]; ///< @owner Sensor task. Per-channel temp + fault
+  double water_level_mv;                             ///< @owner Sensor task. Raw water level ADC voltage
+  bool water_level_ok;                               ///< @owner Sensor task. Derived: mv <= threshold
 
-  // ─── DESIRED OUTPUTS (written by Control Loop) ───────────────────────
-  int ssr_boiler_duty;     ///< 0-100, computed by PID
-  bool pump_on;            ///< Desired pump relay state
-  bool refill_solenoid_on; ///< Desired refill valve state
-  bool three_way_on;       ///< Desired 3-way valve state
-  bool aux_on;             ///< Auxiliary output relay
+  // ─── DESIRED OUTPUTS ─────────────────────────────────────────────────
+  //   ssr_boiler_duty is written by the Control Loop (PID).
+  //   The relay states are written by the I/O Scan (brew/refill logic).
+  int ssr_boiler_duty;     ///< @owner Control Loop. 0-100, computed by PID
+  bool pump_on;            ///< @owner I/O Scan. Desired pump relay state
+  bool refill_solenoid_on; ///< @owner I/O Scan. Desired refill valve state
+  bool three_way_on;       ///< @owner I/O Scan. Desired 3-way valve state
+  bool aux_on;             ///< @owner I/O Scan. Auxiliary output relay
 
   // ─── STATE (written by I/O Scan task) ────────────────────────────────
-  RefillState_t refill_state;  ///< Current refill state machine state
-  bool brew_active;            ///< Brew shot in progress
-  uint64_t brew_start_time_us; ///< Timestamp when current brew started
-  uint64_t last_scan_time_us;  ///< Timestamp of last I/O scan completion
+  RefillState_t refill_state;  ///< @owner I/O Scan. Current refill state machine state
+  bool brew_active;            ///< @owner I/O Scan. Brew shot in progress
+  uint64_t brew_start_time_us; ///< @owner I/O Scan. Timestamp when current brew started
+  uint64_t last_scan_time_us;  ///< @owner I/O Scan. Timestamp of last I/O scan completion
 };
 
 /**

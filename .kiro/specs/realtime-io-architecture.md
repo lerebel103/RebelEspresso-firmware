@@ -1,5 +1,10 @@
 # Real-Time I/O Architecture Spec
 
+> **Status:** implemented on `feature/realtime-io-architecture`. For the legacy-to-new parity
+> matrix, the field ownership model, the safety-gate audit, remote-precedence semantics, and the
+> list of remaining transitional leftovers, see the companion
+> [Parity & Safety Audit](realtime-io-parity-audit.md).
+
 ## Overview
 
 Refactor the firmware control architecture from a single 1Hz tick-driven loop (that polls GPIO inputs and actuates outputs through the event system) into a layered scan-cycle architecture inspired by industrial PLC design. The goal is to guarantee <40ms input-to-output latency for all safety-critical physical I/O (switches, relays, SSR) while preserving strict PID timing and keeping non-critical communication decoupled.

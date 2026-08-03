@@ -91,6 +91,11 @@ static override_result_t apply_safety_overrides(const process_image_t *img) {
     if (img->temperatures[1].fault != 0) {
       out.ssr_duty = 0;
     }
+    // Over-temperature hard cutoff (defense-in-depth). Mirrors
+    // IO_SCAN_OVERTEMP_LIMIT_C in io_scan.cpp apply_outputs().
+    if (img->temperatures[1].fault == 0 && img->temperatures[1].value > 140.0) {
+      out.ssr_duty = 0;
+    }
   }
   return out;
 }
@@ -447,3 +452,319 @@ TEST_CASE("IO: Input writes don't affect sensor fields", "[io_scan]") {
   TEST_ASSERT_EQUAL_DOUBLE(92.0, img->temperatures[1].value);
   TEST_ASSERT_EQUAL_DOUBLE(1500.0, img->water_level_mv);
 }
+
+// ============================================================================
+// SECTION 7: Over-temperature Final Output Gate
+// ============================================================================
+
+TEST_CASE("IO: Over-temp boiler reading forces SSR to zero at final gate", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->descale_mode = false;
+  img->refill_state = REFILL_STATE_IDLE;
+  for (int i = 0; i < PROCESS_IMAGE_MAX_SENSORS; i++) {
+    img->temperatures[i].fault = 0;
+  }
+  // Boiler RTD reports above the 140C hard limit but control loop left duty high
+  img->temperatures[1].fault = 0;
+  img->temperatures[1].value = 145.0;
+  img->ssr_boiler_duty = 100;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+}
+
+TEST_CASE("IO: Boiler reading just below limit still allows duty", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->descale_mode = false;
+  img->refill_state = REFILL_STATE_IDLE;
+  for (int i = 0; i < PROCESS_IMAGE_MAX_SENSORS; i++) {
+    img->temperatures[i].fault = 0;
+  }
+  img->temperatures[1].value = 139.5;
+  img->ssr_boiler_duty = 60;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(60, result.ssr_duty);
+}
+
+TEST_CASE("IO: Over-temp gate ignored when boiler RTD is faulted (fault gate already cuts)", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+
+  img->power_on = true;
+  img->water_level_ok = true;
+  // Faulted boiler RTD with a garbage high value — fault gate must dominate.
+  img->temperatures[1].fault = 3;
+  img->temperatures[1].value = 200.0;
+  img->ssr_boiler_duty = 80;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+}
+
+// ============================================================================
+// SECTION 8: Remote / Physical Power Precedence Matrix ("last transition wins")
+// ============================================================================
+//
+// The I/O scan writes img->power_on ONLY on a debounced GPIO edge. The remote
+// API (power_active/power_standby) writes img->power_on directly. Whichever
+// path transitions last determines the active state. These tests model each
+// conflict combination by applying the writes in order and asserting the final
+// state and the safety-gate outcome.
+
+// Helper: apply a physical-switch edge (only writes on a genuine transition).
+static void apply_switch_edge(process_image_t *img, bool &prev_switch, bool new_switch) {
+  if (new_switch != prev_switch) {
+    prev_switch = new_switch;
+    img->power_on = new_switch; // io_scan writes power_on on edge
+  }
+}
+
+TEST_CASE("IO Precedence: remote ON while physical OFF -> machine ON", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  bool prev_switch = false; // physical switch OFF, no edge
+
+  // Remote turns machine on
+  img->power_on = true; // power_active()
+
+  // Physical switch stays OFF (no edge) across many scans
+  for (int i = 0; i < 50; i++) {
+    apply_switch_edge(img, prev_switch, false);
+  }
+  TEST_ASSERT_TRUE(img->power_on);
+}
+
+TEST_CASE("IO Precedence: remote OFF while physical ON -> machine OFF", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  bool prev_switch = true; // physical switch already ON (no new edge)
+  img->power_on = true;
+
+  // Remote turns machine off
+  img->power_on = false; // power_standby()
+
+  // Physical switch stays ON (no edge) — remote OFF persists
+  for (int i = 0; i < 50; i++) {
+    apply_switch_edge(img, prev_switch, true);
+  }
+  TEST_ASSERT_FALSE(img->power_on);
+}
+
+TEST_CASE("IO Precedence: remote ON then physical OFF edge -> physical wins (OFF)", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  bool prev_switch = true; // switch currently ON
+
+  // Remote ON (redundant, already effectively on)
+  img->power_on = true;
+
+  // Physical switch flips ON -> OFF: edge writes power_on = false (last transition)
+  apply_switch_edge(img, prev_switch, false);
+  TEST_ASSERT_FALSE(img->power_on);
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+  TEST_ASSERT_FALSE(result.pump);
+}
+
+TEST_CASE("IO Precedence: physical ON then remote OFF -> remote wins (OFF)", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  bool prev_switch = false; // switch currently OFF
+
+  // Physical switch flips OFF -> ON: edge writes power_on = true
+  apply_switch_edge(img, prev_switch, true);
+  TEST_ASSERT_TRUE(img->power_on);
+
+  // Remote OFF is the last transition
+  img->power_on = false; // power_standby()
+  TEST_ASSERT_FALSE(img->power_on);
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+}
+
+// ============================================================================
+// SECTION 9: Refill State Machine Sequencing (driven at scan rate)
+// ============================================================================
+
+static boiler_refill_cfg_t make_refill_cfg() {
+  boiler_refill_cfg_t cfg = {};
+  cfg.start_delay_ms = 0;             // immediate UNKNOWN -> IDLE/ACTIVE
+  cfg.stabilise_ms = 0;
+  cfg.adc_num_readings = 1;
+  cfg.refill_mv_threshold = 1000;
+  cfg.max_refill_time_ms = 5000;      // timeout -> ERROR
+  cfg.level_low_hysteresis_ms = 100;  // low for 100ms -> ACTIVE
+  cfg.level_ok_hysteresis_ms = 100;   // ok for 100ms -> IDLE
+  return cfg;
+}
+
+TEST_CASE("Refill: level OK at power-on settles to IDLE", "[io_scan]") {
+  auto cfg = make_refill_cfg();
+  boiler_refill_states_init(cfg);
+  boiler_refill_states_power_on();
+
+  boiler_refill_states_process(0, /*level_ok=*/true, /*in_error=*/false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
+}
+
+TEST_CASE("Refill: low water at power-on goes ACTIVE", "[io_scan]") {
+  auto cfg = make_refill_cfg();
+  boiler_refill_states_init(cfg);
+  boiler_refill_states_power_on();
+
+  boiler_refill_states_process(0, /*level_ok=*/false, /*in_error=*/false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
+}
+
+TEST_CASE("Refill: IDLE -> ACTIVE only after low-level hysteresis", "[io_scan]") {
+  auto cfg = make_refill_cfg();
+  boiler_refill_states_init(cfg);
+  boiler_refill_states_power_on();
+
+  // Settle IDLE
+  boiler_refill_states_process(0, true, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
+
+  // Level drops low, but not long enough
+  boiler_refill_states_process(10, false, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
+
+  // Sustained low beyond hysteresis (100ms)
+  boiler_refill_states_process(200, false, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
+}
+
+TEST_CASE("Refill: ACTIVE -> IDLE after level-ok hysteresis", "[io_scan]") {
+  auto cfg = make_refill_cfg();
+  boiler_refill_states_init(cfg);
+  boiler_refill_states_power_on();
+
+  boiler_refill_states_process(0, false, false); // ACTIVE
+  TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
+
+  // Level recovers but hysteresis not yet met
+  boiler_refill_states_process(50, true, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
+
+  // Sustained ok beyond hysteresis
+  boiler_refill_states_process(300, true, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
+}
+
+TEST_CASE("Refill: ACTIVE longer than max_refill_time latches ERROR", "[io_scan]") {
+  auto cfg = make_refill_cfg();
+  boiler_refill_states_init(cfg);
+  boiler_refill_states_power_on();
+
+  boiler_refill_states_process(0, false, false); // ACTIVE
+  TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
+
+  // Exceed max_refill_time_ms (5000) while still low
+  boiler_refill_states_process(6000, false, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_ERROR, boiler_refill_state());
+}
+
+TEST_CASE("Refill: ERROR latches until power cycle", "[io_scan]") {
+  auto cfg = make_refill_cfg();
+  boiler_refill_states_init(cfg);
+  boiler_refill_states_power_on();
+
+  boiler_refill_states_process(0, false, false);
+  boiler_refill_states_process(6000, false, false); // -> ERROR
+  TEST_ASSERT_EQUAL(REFILL_STATE_ERROR, boiler_refill_state());
+
+  // Even with water restored, ERROR persists (no auto-recovery)
+  boiler_refill_states_process(7000, true, false);
+  boiler_refill_states_process(8000, true, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_ERROR, boiler_refill_state());
+
+  // Power cycle clears it
+  boiler_refill_states_power_on();
+  boiler_refill_states_process(9000, true, false);
+  TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
+}
+
+// ============================================================================
+// SECTION 10: Integration Flow Scenarios (process image end-to-end state)
+// ============================================================================
+
+TEST_CASE("Flow: boot in standby keeps all outputs off through safety gate", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  // Sensor task later reports healthy values, control loop requests duty
+  img->power_on = false;
+  img->water_level_ok = true;
+  img->temperatures[1].fault = 0;
+  img->temperatures[1].value = 90.0;
+  img->ssr_boiler_duty = 100;
+  img->pump_on = true;
+  img->aux_on = true;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+  TEST_ASSERT_FALSE(result.pump);
+  TEST_ASSERT_FALSE(result.aux);
+}
+
+TEST_CASE("Flow: boot powered on with healthy sensors allows control", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->descale_mode = false;
+  img->refill_state = REFILL_STATE_IDLE;
+  img->temperatures[1].fault = 0;
+  img->temperatures[1].value = 95.0;
+  img->ssr_boiler_duty = 70;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(70, result.ssr_duty);
+}
+
+TEST_CASE("Flow: low-water cutoff during operation keeps pump for refill", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = true;
+  img->water_level_ok = false; // dropped low
+  img->refill_state = REFILL_STATE_ACTIVE;
+  img->temperatures[1].fault = 0;
+  img->temperatures[1].value = 95.0;
+  img->ssr_boiler_duty = 80;
+  img->pump_on = true;         // refill drives pump
+  img->refill_solenoid_on = true;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);  // heater cut
+  TEST_ASSERT_TRUE(result.pump);          // pump keeps running for refill
+  TEST_ASSERT_TRUE(result.solenoid);
+}
+
+TEST_CASE("Flow: descale mode inhibits heater but allows brew path outputs", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->descale_mode = true;
+  img->temperatures[1].fault = 0;
+  img->temperatures[1].value = 95.0;
+  img->ssr_boiler_duty = 90;
+  img->pump_on = true;
+  img->three_way_on = true;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+  TEST_ASSERT_TRUE(result.pump);
+  TEST_ASSERT_TRUE(result.three_way);
+}
+

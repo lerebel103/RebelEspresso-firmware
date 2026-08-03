@@ -24,6 +24,13 @@
 // At 20ms scan rate, 2 reads = 40ms debounce window.
 #define DEBOUNCE_COUNT 2
 
+// Hard over-temperature limit (°C) enforced at the final output gate as
+// defense-in-depth. Matches the out-of-range ceiling in boiler_temp.cpp.
+// If the boiler RTD reports above this, the SSR is cut regardless of the
+// duty the control loop requested. A torn read of the temperature can only
+// bias toward cutting the heater, never toward energising it.
+#define IO_SCAN_OVERTEMP_LIMIT_C 140.0
+
 // Task handle
 static TaskHandle_t s_task_handle = nullptr;
 static bool s_running = false;
@@ -215,6 +222,13 @@ static void apply_outputs(process_image_t *img) {
     }
     // Sensor fault on boiler RTD — cannot safely control heater
     if (img->temperatures[RTD_BREW_BOILER_IDX].fault != 0) {
+      ssr_duty = 0;
+    }
+    // Over-temperature hard cutoff (defense-in-depth). Only trust the value
+    // when the fault byte says the reading is valid; a valid reading above the
+    // hard limit cuts the heater independently of the PID/control loop.
+    if (img->temperatures[RTD_BREW_BOILER_IDX].fault == 0 &&
+        img->temperatures[RTD_BREW_BOILER_IDX].value > IO_SCAN_OVERTEMP_LIMIT_C) {
       ssr_duty = 0;
     }
   }

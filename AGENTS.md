@@ -54,13 +54,19 @@ This firmware actuates heater SSRs, solenoids, and pumps on a real coffee machin
 
 1. **Safety first** — The firmware drives critical components (heater SSRs, solenoid valves, pumps). Every code path must ensure that failures result in safe states (heaters OFF, solenoids closed). Defensive checks must gate every actuation: sensor faults, out-of-range readings, low water, and communication failures must all force outputs to zero before anything else.
 
-2. **Dedicated real-time control loop** — The main control loop (`process_loop`) is solely responsible for reading sensors and driving machine peripherals on its allocated tick cycle. No networking, display, or I/O-heavy work may execute in this context. Nothing may block or starve this loop.
+2. **Dedicated real-time I/O and control layers** — Physical I/O is handled by a high-priority I/O scan task (20 ms) that reads switches, drives the refill state machine, and applies every output through a single safety gate. A strict 1 Hz control loop (`process_loop`) runs the PID and writes desired duties. A sensor task owns RTD/water-level acquisition. No networking, display, or I/O-heavy work may execute in these contexts, and nothing may block or starve them. See [`.kiro/specs/realtime-io-architecture.md`](.kiro/specs/realtime-io-architecture.md) and [`.kiro/specs/realtime-io-parity-audit.md`](.kiro/specs/realtime-io-parity-audit.md).
 
 3. **Watchdog-protected execution** — The control loop task is enrolled in the ESP Task Watchdog (2 s timeout, panic on expiry). If the loop stalls or fails to complete within the deadline, the watchdog triggers a system restart to return to a known-safe state.
 
 4. **Event-driven secondary communication** — All non-critical work (TFT display updates, web server requests, HomeKit, cloud telemetry, OTA) runs on a secondary event loop that is fully decoupled from the control loop. The ESP event system (`MACHINE_EVENTS`) is the communication backbone — subsystems post events and listeners react asynchronously. This guarantees that a slow network response or a display redraw can never interfere with PID control or safety interlocks.
 
-### Dual-Loop Architecture
+### Layered Scan Architecture
+
+The firmware uses a four-layer, PLC-inspired scan architecture. All layers exchange
+state through a single shared `process_image_t` (one writer per field). See the
+[architecture spec](.kiro/specs/realtime-io-architecture.md) and
+[parity/safety audit](.kiro/specs/realtime-io-parity-audit.md) for the full design,
+ownership model, and safety gate.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -68,39 +74,53 @@ This firmware actuates heater SSRs, solenoids, and pumps on a real coffee machin
 │  Creates ESP event loop, inits connectivity + controller,       │
 │  then enters controller_enter_loop() (never returns)            │
 └──────────────────────────────┬──────────────────────────────────┘
-                               │
-             ┌─────────────────┴─────────────────┐
-             ▼                                   ▼
-┌──────────────────────────┐        ┌──────────────────────────────┐
-│   CONTROL LOOP (1 Hz)    │        │   IOT / COMMUNICATION LOOP   │
-│   (FreeRTOS task, pri 7) │        │   (main thread, ~1 Hz)       │
-│                          │        │                              │
-│  • HW timer ISR fires    │        │  • Web server lifecycle      │
-│    every 1 s, gives      │        │  • OTA rollback validation   │
-│    semaphore             │        │  • HomeKit                   │
-│  • Task wakes, reads     │        │  • Future: cloud telemetry   │
-│    RTD sensors           │  TICK  │                              │
-│  • Posts TICK event ─────┼───────►│  Listeners react to events:  │
-│  • Resets WDT (2 s)      │        │  display, schedules, etc.    │
-│                          │        │                              │
-│  Watchdog: panic if      │        │  Not time-critical; may      │
-│  tick doesn't complete   │        │  block on network/flash      │
-│  within 2 s              │        │  without affecting control   │
-└──────────────────────────┘        └──────────────────────────────┘
+                               │  all layers read/write process_image_t
+   ┌───────────────┬───────────┴───────────┬────────────────────┐
+   ▼               ▼                       ▼                    ▼
+┌──────────┐  ┌──────────┐  ┌──────────────────┐  ┌──────────────────────┐
+│ I/O SCAN │  │ SENSOR   │  │  CONTROL LOOP    │  │  IOT / COMMUNICATION │
+│ 20 ms    │  │ TASK     │  │  1 Hz (HW timer) │  │  main thread ~1 Hz   │
+│ pri 8    │  │ ~150 ms  │  │  pri 7           │  │  pri 3-5             │
+│          │  │ pri 6    │  │                  │  │                      │
+│ • debounce│ │ • RTDs   │  │ • read temps     │  │ • web server         │
+│   switches│ │   (SPI)  │  │   from image     │  │ • OTA rollback       │
+│ • refill  │ │ • water  │  │ • run PID →      │  │ • HomeKit            │
+│   state   │ │   level  │  │   ssr_boiler_duty│  │ • TFT display        │
+│ • brew    │ │ • writes │  │ • brew temp trim │  │                      │
+│   edges   │ │   image  │  │ • post TICK ─────┼──► reacts to events    │
+│ • SAFETY  │ │          │  │ • reset 2s WDT   │  │                      │
+│   GATE +  │ │          │  │                  │  │  never touches HW    │
+│   write   │ │          │  │                  │  │  actuators directly  │
+│   outputs │ │          │  │                  │  │                      │
+│ • 200ms   │ │          │  │                  │  │                      │
+│   WDT     │ │          │  │                  │  │                      │
+└──────────┘  └──────────┘  └──────────────────┘  └──────────────────────┘
 ```
 
-**Control loop** (`process_loop.cpp`):
-- A hardware GP timer fires an ISR every 1 second.
-- The ISR gives a binary semaphore; the `process_loop` task (priority 7) wakes and executes:
-  1. Read all RTD temperature sensors via SPI.
-  2. Dispatch readings to subsystem handlers (PID boiler control, brew head temp).
-  3. Post a `TICK` event so downstream listeners can react.
-  4. Reset the task watchdog timer.
-- Enrolled in `esp_task_wdt` with a 2 s timeout and `trigger_panic = true`.
+**I/O scan** (`io_scan.cpp`, priority 8, 20 ms):
+- Reads and software-debounces all switch GPIOs (power, brew, steam) — no edge ISRs.
+- Drives the boiler refill state machine and tracks brew on/off edges.
+- Applies the **safety gate** (`apply_outputs`) and writes every output every cycle
+  (SSR via `boiler_temp_apply_hw_duty`, relays via `out_signals_set_level`).
+- Syncs `status_event_group` bits from the process image for Layer 4 consumers.
+- Enrolled in the task WDT.
+
+**Sensor task** (`sensor_task.cpp`, priority 6, ~150 ms):
+- Owns RTD acquisition via `rtds_update()` and water-level ADC reads.
+- Writes temperatures + faults and `water_level_ok` into the process image.
+- Water probe voltage is pulsed only when powered on and not descaling (corrosion guard).
+
+**Control loop** (`process_loop.cpp`, priority 7, strict 1 Hz):
+- A hardware GP timer ISR gives a binary semaphore every 1 s; the task wakes and:
+  1. Reads the latest temperatures from the process image (no direct SPI).
+  2. Dispatches to PID boiler control and brew-head trim.
+  3. Writes `ssr_boiler_duty` to the process image (does not touch the SSR directly).
+  4. Posts a `TICK` event for Layer 4 consumers.
+  5. Resets the 2 s task watchdog (`trigger_panic = true`).
 
 **IoT / communication loop** (`iot.cpp`):
 - Runs on the main thread after `controller_enter_loop()`.
-- Manages web server start (after WiFi connects or AP activates), OTA self-test, and HomeKit.
+- Manages web server start, OTA self-test, and HomeKit.
 - Polls at ~1 Hz with `vTaskDelay` — never touches hardware actuators directly.
 
 ### Event System
@@ -109,13 +129,14 @@ The ESP-IDF event loop (`MACHINE_EVENTS`) is the backbone for inter-component co
 
 | Event | Posted by | Consumed by |
 |-------|-----------|-------------|
-| `TICK` | process_loop (every 1 s) | power, boiler_refill, brew, schedules, display |
-| `POWER_STANDBY` | power | process_loop (relay off), boiler_temp (SSR off), display |
-| `POWER_ACTIVE` | power | process_loop (relay on), display |
-| `BREW_STARTED/STOPPED` | brew | display, metrics |
-| `BOILER_REFILL_*` | boiler_refill | display, metrics |
+| `TICK` | process_loop (every 1 s) | boiler_temp (stats save), schedules, display |
+| `POWER_STANDBY` | io_scan (on power-off edge/remote) | boiler_temp (PID reset), brew, display |
+| `POWER_ACTIVE` | io_scan (on power-on edge/remote) | boiler_temp (PID resume), brew (descale count), display |
+| `BREW_STARTED/STOPPED` | io_scan (brew edge) | brew (stats), display, metrics |
+| `BOILER_REFILL_*` | io_scan (refill state change) | display, metrics |
 
-A separate `status_event_group` (FreeRTOS EventGroup) provides fast bitwise state queries for real-time decisions:
+A separate `status_event_group` (FreeRTOS EventGroup) provides fast bitwise state queries for
+real-time decisions. The I/O scan projects these bits from the process image every cycle:
 - `POWER_ON_BIT` — machine is active
 - `BOILER_LEVEL_OK_BIT` — water level safe for heating
 - `DESCALE_MODE_BIT` — maintenance mode, heaters inhibited
@@ -125,14 +146,17 @@ A separate `status_event_group` (FreeRTOS EventGroup) provides fast bitwise stat
 
 | Mechanism | Implementation |
 |-----------|---------------|
-| Sensor fault → heater off | `boiler_temp_process()` forces SSR duty to 0 on any RTD error before doing anything else |
-| Out-of-range temp → heater off | Readings >140 °C or <0 °C immediately kill SSR output |
+| Final output safety gate | `io_scan::apply_outputs()` applies every heater-inhibit condition every 20 ms cycle and is the ONLY path that drives the SSR/relays. No control-path caller writes hardware directly. |
+| Sensor fault → heater off | `apply_outputs` cuts SSR on boiler RTD fault byte; `boiler_temp_process()` also forces duty 0 on any RTD error |
+| Out-of-range temp → heater off | Readings >140 °C or <0 °C kill SSR in `boiler_temp_process()`; `apply_outputs` independently cuts SSR above 140 °C (defense-in-depth) |
 | Over-temp threshold → heater off | PID result flagged `is_over_threshold` forces duty to 0 |
-| Low water → heater off | `BOILER_LEVEL_OK_BIT` checked before every PID cycle |
+| Low water → heater off | `apply_outputs` cuts SSR when `!water_level_ok`; also checked in `boiler_temp_process()` |
+| Refill error → heater off | `apply_outputs` cuts SSR when `refill_state == REFILL_STATE_ERROR` (latched until power cycle) |
+| Descale mode → heater off | `apply_outputs` cuts SSR when `descale_mode`; also checked in `boiler_temp_process()` |
 | Sustained sensor errors → restart | Configurable timeout (`temp_error_restart_time_sec`) triggers `esp_restart()` |
-| Standby → all outputs off | `POWER_STANDBY` event forces SSR and relay outputs to 0 |
-| Init → outputs forced LOW | `out_signals_init()` writes all IO expander pins LOW before any logic runs |
-| Watchdog → panic restart | 2 s task WDT on control loop; failure causes immediate restart to safe state |
+| Standby → all outputs off | `apply_outputs` forces SSR + all relays to 0 within one 20 ms scan when `!power_on` |
+| Init → outputs forced LOW | `process_image_init()` sets all outputs OFF and all sensors faulted before any task starts; `out_signals_init()` writes IO expander pins LOW |
+| Watchdog → panic restart | 2 s task WDT on control loop + I/O scan; failure causes immediate restart to safe state |
 | OTA rollback | New firmware must pass self-test (WiFi + web server up) before being marked valid; failure causes bootloader rollback |
 | SSR duty clamping | `ssr_ctrl_set_duty()` trims input to [0, 100] regardless of caller |
 | Water probe corrosion guard | Water level probe voltage is ONLY applied during active operation (not in standby or descale). The probe enable GPIO is pulsed momentarily per read to minimise galvanic corrosion of the electrodes. |
@@ -143,11 +167,14 @@ A separate `status_event_group` (FreeRTOS EventGroup) provides fast bitwise stat
 components/
 ├── rebel-espresso/             ← Main application logic
 │   ├── src/hw/base/            ← Hardware-independent: PID, state machines, control loops
-│   │   ├── process_loop.cpp    ← Real-time control loop (timer ISR + WDT)
+│   │   ├── process_image.h/.cpp← Shared state bridging all layers (one writer per field)
+│   │   ├── io_scan.cpp         ← Layer 1: 20 ms I/O scan, debounce, refill, safety gate
+│   │   ├── sensor_task.cpp     ← Layer 2: RTD + water-level acquisition
+│   │   ├── process_loop.cpp    ← Layer 3: 1 Hz PID control loop (timer ISR + WDT)
 │   │   ├── boiler_temp.cpp     ← PID heater control + safety interlocks
-│   │   ├── power.cpp           ← Standby/active state machine
-│   │   ├── brew.cpp            ← Brew shot control
-│   │   ├── boiler_refill.cpp   ← Water level management
+│   │   ├── power.cpp           ← Remote standby/active API (switch polled by io_scan)
+│   │   ├── brew.cpp            ← Brew shot statistics (edges handled by io_scan)
+│   │   ├── boiler_refill_states.cpp ← Refill state machine (driven by io_scan)
 │   │   ├── iot.cpp             ← Communication loop (web, OTA, HomeKit)
 │   │   └── controller.cpp      ← Init orchestration, enters event loop
 │   ├── src/hw/r2/src/          ← Hardware revision 2 specifics

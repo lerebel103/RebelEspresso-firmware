@@ -339,6 +339,16 @@ TEST_CASE("Safety: Refill hysteresis prevents spurious refill cycles", "[safety]
 // ============================================================================
 
 #include "boiler_temp.h"
+#include "process_image.h"
+
+// boiler_temp_process() now reads machine state from the process image (it was
+// migrated off the legacy status_event_group bits). This helper sets that state.
+static inline void set_machine_state(bool power_on, bool level_ok, bool descale) {
+  auto *img = process_image_get();
+  img->power_on = power_on;
+  img->water_level_ok = level_ok;
+  img->descale_mode = descale;
+}
 
 // External shim functions declared in safety_test_shims.cpp
 extern "C" bool test_shim_restart_called();
@@ -354,9 +364,8 @@ TEST_CASE("Safety: boiler_temp standby forces SSR duty to zero", "[safety]") {
     new_cfg.temp_error_restart_time_sec = 0;
     boiler_temp_set_cfg(new_cfg);
 
-    // Ensure machine is in STANDBY (POWER_ON_BIT cleared)
-    xEventGroupClearBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    // Ensure machine is in STANDBY (power off)
+    set_machine_state(false, true, false);
 
     measure_t data = {.value = 100.0, .fault = RTD_NoError};
     boiler_temp_process(1000000, data);
@@ -375,8 +384,7 @@ TEST_CASE("Safety: boiler_temp low water forces SSR duty to zero", "[safety]") {
     boiler_temp_set_cfg(new_cfg);
 
     // Power ON but water level NOT OK
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    set_machine_state(true, false, false);
 
     measure_t data = {.value = 90.0, .fault = RTD_NoError};
     boiler_temp_process(1000000, data);
@@ -395,16 +403,13 @@ TEST_CASE("Safety: boiler_temp descale mode forces SSR duty to zero", "[safety]"
     boiler_temp_set_cfg(new_cfg);
 
     // Power ON, water OK, but DESCALE active
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, true);
 
     measure_t data = {.value = 90.0, .fault = RTD_NoError};
     boiler_temp_process(1000000, data);
 
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
 
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
     boiler_temp_delete();
 }
 
@@ -417,9 +422,7 @@ TEST_CASE("Safety: boiler_temp RTD fault forces SSR duty to zero", "[safety]") {
     boiler_temp_set_cfg(new_cfg);
 
     // All conditions OK except sensor has a fault
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
 
     // Test every RTD fault code
     uint8_t faults[] = {RTD_Voltage, RTD_InLow, RTD_RefLow,
@@ -443,9 +446,7 @@ TEST_CASE("Safety: boiler_temp out-of-range high (>140C) forces duty zero", "[sa
     new_cfg.temp_error_restart_time_sec = 0;
     boiler_temp_set_cfg(new_cfg);
 
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
 
     // Temperature above 140C — out of safe range
     measure_t data = {.value = 141.0, .fault = RTD_NoError};
@@ -468,9 +469,7 @@ TEST_CASE("Safety: boiler_temp out-of-range low (<0C) forces duty zero", "[safet
     new_cfg.temp_error_restart_time_sec = 0;
     boiler_temp_set_cfg(new_cfg);
 
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
 
     // Temperature below 0C — likely sensor disconnected
     measure_t data = {.value = -1.0, .fault = RTD_NoError};
@@ -495,9 +494,7 @@ TEST_CASE("Safety: boiler_temp sustained RTD errors trigger restart", "[safety]"
     new_cfg.temp_error_restart_time_sec = 5;
     boiler_temp_set_cfg(new_cfg);
 
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
 
     // Feed successive RTD errors every 1 second for 7 seconds
     measure_t data = {.value = 0, .fault = RTD_RTDHigh};
@@ -525,9 +522,7 @@ TEST_CASE("Safety: boiler_temp error counter resets on good reading", "[safety]"
     new_cfg.pid.setpoints[0] = 105.0;
     boiler_temp_set_cfg(new_cfg);
 
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
 
     // First, clear any stale error accumulator with a good reading
     measure_t data = {.value = 90.0, .fault = RTD_NoError};
@@ -574,9 +569,7 @@ TEST_CASE("Safety: boiler_temp over-temp threshold cuts heater in context", "[sa
     new_cfg.temp_error_restart_time_sec = 0;
     boiler_temp_set_cfg(new_cfg);
 
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
 
     // First reading to establish baseline
     measure_t data = {.value = 100.0, .fault = RTD_NoError};
@@ -603,8 +596,7 @@ TEST_CASE("Safety: POWER_STANDBY event forces SSR power off", "[safety]") {
     boiler_temp_init();
 
     // Start with power active
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
+    set_machine_state(true, true, false);
 
     // Process a normal reading to get some duty
     measure_t data = {.value = 80.0, .fault = RTD_NoError};
@@ -636,38 +628,28 @@ TEST_CASE("Safety: Multiple fault conditions all independently cut heater", "[sa
     // Each condition tested independently — only one fault at a time
 
     // 1. Standby only
-    xEventGroupClearBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(false, true, false);
     boiler_temp_process(1000000, data);
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
 
     // 2. Low water only
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupClearBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, false, false);
     boiler_temp_process(2000000, data);
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
 
     // 3. Descale only
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupSetBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, true);
     boiler_temp_process(3000000, data);
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
 
     // 4. RTD fault only
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
     measure_t bad_data = {.value = 90.0, .fault = RTD_Voltage};
     boiler_temp_process(4000000, bad_data);
     TEST_ASSERT_EQUAL(0, boiler_temp_get_duty());
 
     // 5. All conditions OK — heater should be allowed to run
-    xEventGroupSetBits(status_event_group, POWER_ON_BIT);
-    xEventGroupSetBits(status_event_group, BOILER_LEVEL_OK_BIT);
-    xEventGroupClearBits(status_event_group, DESCALE_MODE_BIT);
+    set_machine_state(true, true, false);
     data.value = 80.0;
     boiler_temp_process(5000000, data);
     boiler_temp_process(6000000, data);

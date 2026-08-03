@@ -1,4 +1,5 @@
 #include "io_scan.h"
+#include "io_scan_safety.h"
 #include "process_image.h"
 #include "out_signals.h"
 #include "boiler_temp.h"
@@ -23,13 +24,6 @@
 // Debounce: require N consecutive same-state reads before accepting.
 // At 20ms scan rate, 2 reads = 40ms debounce window.
 #define DEBOUNCE_COUNT 2
-
-// Hard over-temperature limit (°C) enforced at the final output gate as
-// defense-in-depth. Matches the out-of-range ceiling in boiler_temp.cpp.
-// If the boiler RTD reports above this, the SSR is cut regardless of the
-// duty the control loop requested. A torn read of the temperature can only
-// bias toward cutting the heater, never toward energising it.
-#define IO_SCAN_OVERTEMP_LIMIT_C 140.0
 
 // Task handle
 static TaskHandle_t s_task_handle = nullptr;
@@ -195,54 +189,19 @@ static void scan_refill(process_image_t *img) {
 // ─── Safety overrides + output writing ─────────────────────────────────────
 
 static void apply_outputs(process_image_t *img) {
-  int ssr_duty = img->ssr_boiler_duty;
-  bool pump = img->pump_on;
-  bool solenoid = img->refill_solenoid_on;
-  bool three_way = img->three_way_on;
-  bool aux = img->aux_on;
-
-  // ─── SAFETY OVERRIDES (non-negotiable) ───────────────────────────────
-  if (!img->power_on) {
-    // Standby: ALL outputs OFF
-    ssr_duty = 0;
-    pump = false;
-    solenoid = false;
-    three_way = false;
-    aux = false;
-  } else {
-    // Power is on — apply conditional overrides
-    if (!img->water_level_ok) {
-      ssr_duty = 0;
-    }
-    if (img->refill_state == REFILL_STATE_ERROR) {
-      ssr_duty = 0;
-    }
-    if (img->descale_mode) {
-      ssr_duty = 0;
-    }
-    // Sensor fault on boiler RTD — cannot safely control heater
-    if (img->temperatures[RTD_BREW_BOILER_IDX].fault != 0) {
-      ssr_duty = 0;
-    }
-    // Over-temperature hard cutoff (defense-in-depth). Only trust the value
-    // when the fault byte says the reading is valid; a valid reading above the
-    // hard limit cuts the heater independently of the PID/control loop.
-    if (img->temperatures[RTD_BREW_BOILER_IDX].fault == 0 &&
-        img->temperatures[RTD_BREW_BOILER_IDX].value > IO_SCAN_OVERTEMP_LIMIT_C) {
-      ssr_duty = 0;
-    }
-  }
+  // Compute the safety-gated outputs (pure logic, unit-tested directly).
+  io_scan_outputs_t out = io_scan_apply_safety(img);
 
   // ─── WRITE OUTPUTS TO HARDWARE (every cycle, unconditionally) ────────
 
   // SSR duty (applied via boiler_temp hardware interface, after safety overrides)
-  boiler_temp_apply_hw_duty(ssr_duty);
+  boiler_temp_apply_hw_duty(out.ssr_duty);
 
   // I2C relays (pump, refill solenoid, 3-way valve, aux)
-  out_signals_set_level(OUT_SIGNALS_RELAY1, pump ? 1 : 0);
-  out_signals_set_level(OUT_SIGNALS_RELAY2, solenoid ? 1 : 0);
-  out_signals_set_level(OUT_SIGNALS_RELAY3, three_way ? 1 : 0);
-  out_signals_set_level(OUT_SIGNALS_AUX, aux ? 1 : 0);
+  out_signals_set_level(OUT_SIGNALS_RELAY1, out.pump ? 1 : 0);
+  out_signals_set_level(OUT_SIGNALS_RELAY2, out.solenoid ? 1 : 0);
+  out_signals_set_level(OUT_SIGNALS_RELAY3, out.three_way ? 1 : 0);
+  out_signals_set_level(OUT_SIGNALS_AUX, out.aux ? 1 : 0);
 }
 
 // ─── Task loop ─────────────────────────────────────────────────────────────

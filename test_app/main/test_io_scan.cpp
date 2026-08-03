@@ -11,6 +11,7 @@
 #include <cstring>
 
 #include "process_image.h"
+#include "io_scan_safety.h"
 #include "boiler_refill_states.h"
 
 // ============================================================================
@@ -53,51 +54,12 @@ TEST_CASE("IO: Process image init sets sensors to fault state", "[io_scan]") {
 // SECTION 2: Safety Override Logic
 // ============================================================================
 
-// Helper: replicate the safety override logic from io_scan.cpp apply_outputs()
-// This is a pure function that can be tested without hardware.
-struct override_result_t {
-  int ssr_duty;
-  bool pump;
-  bool solenoid;
-  bool three_way;
-  bool aux;
-};
-
-static override_result_t apply_safety_overrides(const process_image_t *img) {
-  override_result_t out;
-  out.ssr_duty = img->ssr_boiler_duty;
-  out.pump = img->pump_on;
-  out.solenoid = img->refill_solenoid_on;
-  out.three_way = img->three_way_on;
-  out.aux = img->aux_on;
-
-  if (!img->power_on) {
-    out.ssr_duty = 0;
-    out.pump = false;
-    out.solenoid = false;
-    out.three_way = false;
-    out.aux = false;
-  } else {
-    if (!img->water_level_ok) {
-      out.ssr_duty = 0;
-    }
-    if (img->refill_state == REFILL_STATE_ERROR) {
-      out.ssr_duty = 0;
-    }
-    if (img->descale_mode) {
-      out.ssr_duty = 0;
-    }
-    // Sensor fault on boiler RTD
-    if (img->temperatures[1].fault != 0) {
-      out.ssr_duty = 0;
-    }
-    // Over-temperature hard cutoff (defense-in-depth). Mirrors
-    // IO_SCAN_OVERTEMP_LIMIT_C in io_scan.cpp apply_outputs().
-    if (img->temperatures[1].fault == 0 && img->temperatures[1].value > 140.0) {
-      out.ssr_duty = 0;
-    }
-  }
-  return out;
+// These tests exercise the REAL production safety gate (io_scan_apply_safety in
+// io_scan_safety.cpp) directly — no logic is duplicated in the test. The thin
+// alias keeps the existing test bodies readable; io_scan_outputs_t exposes the
+// same field names (ssr_duty, pump, solenoid, three_way, aux).
+static inline io_scan_outputs_t apply_safety_overrides(const process_image_t *img) {
+  return io_scan_apply_safety(img);
 }
 
 TEST_CASE("IO: Standby forces ALL outputs OFF regardless of desired state", "[io_scan]") {
@@ -767,4 +729,98 @@ TEST_CASE("Flow: descale mode inhibits heater but allows brew path outputs", "[i
   TEST_ASSERT_TRUE(result.pump);
   TEST_ASSERT_TRUE(result.three_way);
 }
+
+// ============================================================================
+// SECTION 11: Seqlock temperature snapshot (process_image_read_temp/write_temp)
+// ============================================================================
+
+TEST_CASE("Seqlock: write then read returns consistent snapshot", "[io_scan]") {
+  process_image_init();
+
+  measure_t w = {.value = 96.5, .fault = 0};
+  process_image_write_temp(1, w);
+
+  measure_t r = process_image_read_temp(1);
+  TEST_ASSERT_EQUAL_DOUBLE(96.5, r.value);
+  TEST_ASSERT_EQUAL(0, r.fault);
+}
+
+TEST_CASE("Seqlock: out-of-range index returns zeroed measure", "[io_scan]") {
+  process_image_init();
+  measure_t r = process_image_read_temp(PROCESS_IMAGE_MAX_SENSORS);
+  TEST_ASSERT_EQUAL_DOUBLE(0.0, r.value);
+  TEST_ASSERT_EQUAL(0, r.fault);
+}
+
+TEST_CASE("Seqlock: safety gate reads boiler temp through snapshot", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->refill_state = REFILL_STATE_IDLE;
+  img->ssr_boiler_duty = 75;
+
+  // Publish an over-temp boiler reading via the seqlock writer.
+  measure_t hot = {.value = 150.0, .fault = 0};
+  process_image_write_temp(1, hot);
+
+  auto result = io_scan_apply_safety(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+}
+
+// ============================================================================
+// SECTION 12: boiler_temp_process cutoffs via process image (migrated off bits)
+// ============================================================================
+#include "boiler_temp.h"
+
+TEST_CASE("Boiler: standby forces desired duty to 0 (process image)", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = false;
+  img->water_level_ok = true;
+  img->ssr_boiler_duty = 80;
+
+  measure_t data = {.value = 95.0, .fault = 0};
+  boiler_temp_process(1000000, data);
+  TEST_ASSERT_EQUAL(0, img->ssr_boiler_duty);
+}
+
+TEST_CASE("Boiler: descale mode forces desired duty to 0 (process image)", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->descale_mode = true;
+  img->ssr_boiler_duty = 70;
+
+  measure_t data = {.value = 95.0, .fault = 0};
+  boiler_temp_process(1000000, data);
+  TEST_ASSERT_EQUAL(0, img->ssr_boiler_duty);
+}
+
+TEST_CASE("Boiler: low water forces desired duty to 0 (process image)", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = true;
+  img->water_level_ok = false;
+  img->ssr_boiler_duty = 65;
+
+  measure_t data = {.value = 95.0, .fault = 0};
+  boiler_temp_process(1000000, data);
+  TEST_ASSERT_EQUAL(0, img->ssr_boiler_duty);
+}
+
+TEST_CASE("Boiler: RTD fault forces desired duty to 0 (process image)", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+  img->power_on = true;
+  img->water_level_ok = true;
+  img->descale_mode = false;
+  img->ssr_boiler_duty = 90;
+
+  measure_t data = {.value = 95.0, .fault = 5}; // RTD fault
+  boiler_temp_process(1000000, data);
+  TEST_ASSERT_EQUAL(0, img->ssr_boiler_duty);
+}
+
 

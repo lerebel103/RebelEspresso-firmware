@@ -71,6 +71,13 @@ struct process_image_t {
   bool brew_active;            ///< @owner I/O Scan. Brew shot in progress
   uint64_t brew_start_time_us; ///< @owner I/O Scan. Timestamp when current brew started
   uint64_t last_scan_time_us;  ///< @owner I/O Scan. Timestamp of last I/O scan completion
+
+  // ─── CONCURRENCY ─────────────────────────────────────────────────────
+  ///< Per-channel seqlock counter guarding temperatures[] (measure_t is a
+  ///< multi-word value that can tear). Even = stable, odd = write in progress.
+  ///< Written by the Sensor task via process_image_write_temp(); readers use
+  ///< process_image_read_temp() to obtain a consistent (value, fault) snapshot.
+  volatile uint32_t temp_seq[PROCESS_IMAGE_MAX_SENSORS];
 };
 
 /**
@@ -85,6 +92,19 @@ process_image_t *process_image_get(void);
  * All outputs OFF, all inputs false, all sensors zeroed.
  */
 void process_image_init(void);
+
+/**
+ * Write a temperature channel using a seqlock so readers never observe a torn
+ * (value, fault) pair. Only the Sensor task (the owner) should call this.
+ */
+void process_image_write_temp(uint8_t idx, measure_t data);
+
+/**
+ * Read a temperature channel as a consistent (value, fault) snapshot. Safe to
+ * call from any layer; retries while a write is in progress. Returns a zeroed
+ * measure_t for an out-of-range index.
+ */
+measure_t process_image_read_temp(uint8_t idx);
 
 #ifdef __cplusplus
 }

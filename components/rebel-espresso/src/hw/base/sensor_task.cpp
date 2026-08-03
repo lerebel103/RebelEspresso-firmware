@@ -24,9 +24,9 @@ static bool s_running = false;
  * and dispatches to existing PID handlers.
  */
 static void _rtd_cb(uint64_t time_us, const struct measure_t data, uint8_t idx) {
-  auto *img = process_image_get();
   if (idx < PROCESS_IMAGE_MAX_SENSORS) {
-    img->temperatures[idx] = data;
+    // Publish via the seqlock so readers never see a torn (value, fault) pair.
+    process_image_write_temp(idx, data);
   }
 }
 

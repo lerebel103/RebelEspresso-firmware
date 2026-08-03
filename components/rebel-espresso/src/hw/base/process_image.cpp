@@ -37,3 +37,35 @@ extern "C" void process_image_init(void) {
   s_image.brew_start_time_us = 0;
   s_image.last_scan_time_us = 0;
 }
+
+extern "C" void process_image_write_temp(uint8_t idx, measure_t data) {
+  if (idx >= PROCESS_IMAGE_MAX_SENSORS) {
+    return;
+  }
+  // seqlock write: bump to odd, publish, bump to even.
+  // Use plain assignment (not ++/+=) to avoid the C++ volatile-compound-op warning.
+  uint32_t seq = s_image.temp_seq[idx];
+  s_image.temp_seq[idx] = seq + 1U; // odd → write in progress
+  __sync_synchronize();
+  s_image.temperatures[idx] = data;
+  __sync_synchronize();
+  s_image.temp_seq[idx] = seq + 2U; // even → complete
+}
+
+extern "C" measure_t process_image_read_temp(uint8_t idx) {
+  measure_t out = {};
+  if (idx >= PROCESS_IMAGE_MAX_SENSORS) {
+    return out;
+  }
+  // seqlock read: retry while a write is in progress or the counter changed.
+  uint32_t s0;
+  uint32_t s1;
+  do {
+    s0 = s_image.temp_seq[idx];
+    __sync_synchronize();
+    out = s_image.temperatures[idx];
+    __sync_synchronize();
+    s1 = s_image.temp_seq[idx];
+  } while ((s0 & 1U) || (s0 != s1));
+  return out;
+}

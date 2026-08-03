@@ -18,6 +18,7 @@ idf_component_register(
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/base/boiler_temp.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/base/boiler_refill_states.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/base/process_image.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/base/io_scan_safety.cpp"
         # nvram_store.cpp has a dependency on HomeKit config for init — provide a
         # stripped version for tests that only includes the get/set functions.
         "nvram_store_test_shim.cpp"

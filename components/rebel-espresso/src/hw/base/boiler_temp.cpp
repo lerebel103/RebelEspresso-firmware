@@ -149,15 +149,19 @@ double boiler_temp_get_current_setpoint() {
 }
 
 void boiler_temp_process(uint64_t time_us, const measure_t& data) {
-  if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
+  // Read machine state directly from the process image (single source of truth).
+  // The legacy status_event_group bits are only a projection for display/HomeKit.
+  const process_image_t *img = process_image_get();
+
+  if (!img->power_on) {
     ESP_LOGD(TAG, "In standby, not running.");
     boiler_temp_set_duty(0);
     return;
-  } else if (xEventGroupGetBits(status_event_group) & DESCALE_MODE_BIT) {
+  } else if (img->descale_mode) {
     ESP_LOGI(TAG, "Descaling, not running");
     boiler_temp_set_duty(0);
     return;
-  } else if (!(xEventGroupGetBits(status_event_group) & BOILER_LEVEL_OK_BIT)) {
+  } else if (!img->water_level_ok) {
     ESP_LOGW(TAG, "Boiler level low, not running");
     boiler_temp_set_duty(0);
     return;

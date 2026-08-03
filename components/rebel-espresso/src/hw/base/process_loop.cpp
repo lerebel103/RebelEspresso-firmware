@@ -50,11 +50,10 @@ static void _process_task(void *) {
   do {
     if (xSemaphoreTake(s_semaphore, portMAX_DELAY) == pdTRUE) {
       auto now_us = esp_timer_get_time();
-      auto *img = process_image_get();
 
       // Read latest temperatures from process image and dispatch to PID controllers
       for (uint8_t i = 0; i < PROCESS_IMAGE_MAX_SENSORS; i++) {
-        measure_t data = img->temperatures[i];
+        measure_t data = process_image_read_temp(i);
         if (data.fault != 0 && data.value == 0 && now_us < 2000000) {
           // Skip initial faulted readings before sensor task has run
           continue;

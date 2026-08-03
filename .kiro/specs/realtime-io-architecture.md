@@ -31,7 +31,7 @@ Responsibilities:
 - Track brew state transitions (on/off edges, brew duration)
 - Apply safety overrides before writing outputs
 - Write ALL physical outputs unconditionally every cycle (SSR duty, I2C relays)
-- Reset its own 200ms WDT
+- Reset the shared task WDT (2s timeout, enrolled alongside the control loop)
 
 Safety override rules (applied every cycle, non-negotiable):
 - If !power_on → ALL outputs forced OFF
@@ -121,7 +121,7 @@ Ownership rules:
 - Apply safety overrides per spec
 - Write SSR duty via `ssr_ctrl_set_duty` every cycle
 - Write relays via `out_signals_set_level` every cycle (unconditionally)
-- Enroll in task WDT with 200ms timeout
+- Enroll in the shared task WDT (2s timeout, `trigger_panic = true`), reset every cycle
 - Stack allocation: 2048 bytes
 
 ### R3: Implement ADC Sensor Task
@@ -152,7 +152,8 @@ Ownership rules:
 - Error state in refill latches until power cycle (no auto-recovery)
 - All outputs forced OFF on power standby within one scan cycle (20ms)
 - SSR duty forced to 0 on any sensor fault, low water, or descale mode
-- WDT on I/O scan (200ms) guarantees system restart if scan stalls
+- The I/O scan is enrolled in the shared 2s task WDT; if it stalls beyond the
+  timeout the watchdog panics and restarts the system to a safe state
 
 ### R7: Test Coverage
 - Existing safety interlock tests must continue to pass (adapted to exercise logic through process image)

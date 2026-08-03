@@ -92,8 +92,8 @@ ownership model, and safety gate.
 │   GATE +  │ │          │  │                  │  │  never touches HW    │
 │   write   │ │          │  │                  │  │  actuators directly  │
 │   outputs │ │          │  │                  │  │                      │
-│ • 200ms   │ │          │  │                  │  │                      │
-│   WDT     │ │          │  │                  │  │                      │
+│ • shared  │ │          │  │                  │  │                      │
+│   2s WDT  │ │          │  │                  │  │                      │
 └──────────┘  └──────────┘  └──────────────────┘  └──────────────────────┘
 ```
 

@@ -199,7 +199,7 @@ real-time decisions. The I/O scan projects these bits from the process image eve
 ```
 components/
 ├── rebel-espresso/             ← Main application logic
-│   ├── src/hw/base/            ← Hardware-independent: PID, state machines, control loops
+│   ├── src/control/            ← Shared runtime/control logic (board-independent)
 │   │   ├── process_image.h/.cpp← Shared state bridging all layers (one writer per field)
 │   │   ├── io_scan.cpp         ← Layer 1: 20 ms I/O scan, debounce, refill, safety gate
 │   │   ├── sensor_task.cpp     ← Layer 2: RTD + water-level acquisition
@@ -210,7 +210,7 @@ components/
 │   │   ├── boiler_refill_states.cpp ← Refill state machine (driven by io_scan)
 │   │   ├── iot.cpp             ← Communication loop (web, OTA, HomeKit)
 │   │   └── controller.cpp      ← Init orchestration, enters event loop
-│   ├── src/hw/r2/src/          ← Hardware revision 2 specifics
+│   ├── src/hw/r2/src/          ← R2 board-specific code (only supported board)
 │   │   ├── hw_config.h         ← Pin assignments, I2C/SPI addresses
 │   │   ├── hw_specs.cpp        ← Sensor dispatch, HW-specific init
 │   │   ├── out_signals.c       ← I2C IO expander relay control

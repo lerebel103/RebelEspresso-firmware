@@ -113,7 +113,7 @@ Ownership rules:
 - No direct gpio_get_level or ssr_ctrl_set_duty calls from the control loop
 
 ### R2: Implement I/O Scan Task
-- Create `io_scan.cpp` / `io_scan.h` in `components/rebel-espresso/src/hw/base/`
+- Create `io_scan.cpp` / `io_scan.h` in `components/rebel-espresso/src/control/`
 - 20ms polling loop at FreeRTOS priority 8
 - Read all switch GPIOs with software debounce (configurable debounce time, default 40ms = 2 consecutive same-state reads)
 - Drive refill state machine every cycle
@@ -125,7 +125,7 @@ Ownership rules:
 - Stack allocation: 2048 bytes
 
 ### R3: Implement ADC Sensor Task
-- Create `sensor_task.cpp` / `sensor_task.h` in `components/rebel-espresso/src/hw/base/`
+- Create `sensor_task.cpp` / `sensor_task.h` in `components/rebel-espresso/src/control/`
 - Owns RTD reads via existing `rtds_update()` mechanism
 - Owns water level ADC read via existing `hw_specs_read_water_level_mv()`
 - Writes results to process image

@@ -112,8 +112,8 @@ Covers: PID algorithm, JSON config serialization, NVS persistence, event loop, c
 ├── main/                       # Application entry point
 ├── components/
 │   ├── rebel-espresso/         # Main application logic
-│   │   ├── src/hw/base/        # Hardware-independent control logic
-│   │   ├── src/hw/r2/src/      # Hardware-specific (display, webserver)
+│   │   ├── src/control/        # Shared runtime/control logic (board-independent)
+│   │   ├── src/hw/r2/src/      # R2 board-specific (display, webserver)
 │   │   ├── src/utils/          # PID, state machine, helpers
 │   │   └── src/sys/            # NVS abstraction
 │   ├── esp-connectivity/       # WiFi STA/AP, captive portal, SNTP, NVS, identity

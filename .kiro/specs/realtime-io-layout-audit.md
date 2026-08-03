@@ -6,15 +6,37 @@ Companion to [`realtime-io-architecture.md`](realtime-io-architecture.md) and
 This document audits how the current file layout maps to the runtime architecture, proposes a
 target layout, and records which structural changes were **applied now** versus **deferred**.
 
+## Update — single-board R2 simplification pass (applied)
+
+Since the original audit below was written, the following was **applied and verified**:
+
+- **`src/hw/base/` → `src/control/`** (git mv). The misleading "hardware base/HAL" name is gone;
+  shared runtime/control logic now lives under `control/`. All path-rooted includes
+  (`<src/hw/base/…>` in `display.cpp`, `hw_specs.cpp`, `thing_info.cpp`), the component
+  `CMakeLists.txt` (SRC_DIRS + INCLUDE_DIRS), and the test-app references were updated.
+- **Deleted `components/rebel-espresso/test/`** — an orphaned pre-refactor test harness
+  (unreferenced by any build; its tests `#include <src/control/…>`, a path that did not exist).
+- **Deleted `src/hw/r2/src/sdkconfig`** — an unreferenced stale sdkconfig duplicate.
+
+**Verification:** `make test` → ALL TESTS PASSED; firmware `idf.py reconfigure` (with the unrelated
+untracked AWS components temporarily set aside) → **CONFIGURE OK**; per-TU `-fsyntax-only` compile
+of every file whose includes changed (`display.cpp`, `hw_specs.cpp`, `thing_info.cpp`) plus
+representative `control/` files (`io_scan`, `boiler_temp`, `sensor_task`) → **all OK**. (The one
+remaining pre-existing failure, `process_loop.cpp`/`controller.cpp` → `hal/timer_types.h`, is an
+ESP-IDF-6.0 header removal unrelated to this rename.)
+
+**Deferred: `src/hw/r2/src/` → `src/board/`.** The R2 folder is build-config-entangled: the
+committed `sdkconfig` sets the partition table to `.../src/hw/r2/partitions.csv` while
+`sdkconfig.defaults` points at the repo-root `partitions.csv`. Renaming `hw/r2` touches a
+build-critical, **unverifiable** partition path (partition-table generation needs a full firmware
+build, which is blocked here). This move is deferred to a CI-backed change and should first
+reconcile the two partition-table paths.
+
 > **Constraint that shaped this pass.** The full firmware build (`make build`) cannot currently
 > be completed in this workspace due to pre-existing, unrelated issues (untracked
 > `esp32-aws-connector` needs `wifi_provisioning`; `esp-homekit-sdk` submodule drift misses
-> `esp_driver_gpio` in the `button` component). Only the QEMU unit-test app (`make test`) is
-> verifiable. Per the task's low-risk mandate ("ensure references, includes, and build scripts
-> still work"), **no firmware-component source files were physically moved** — moving them would
-> change `components/rebel-espresso/CMakeLists.txt` globs and include paths in a way that cannot
-> be build-verified here. Those moves are proposed below and should be executed once CI can run a
-> full build. Verifiable changes (test-app layout, docs) were applied.
+> `esp_driver_gpio` in the `button` component). Only the QEMU unit-test app (`make test`) plus
+> firmware-configure + per-TU compile checks are verifiable here.
 
 ---
 

@@ -79,7 +79,7 @@ done
 
 # If no files specified, find all project C/C++ source files
 if [ ${#FILES[@]} -eq 0 ]; then
-    FILES=($(find "${PROJ_ROOT}/components/rebel-espresso/src/hw/base" \
+    FILES=($(find "${PROJ_ROOT}/components/rebel-espresso/src/control" \
                   "${PROJ_ROOT}/components/rebel-espresso/src/hw/r2/src" \
                   "${PROJ_ROOT}/components/rebel-espresso/src/utils" \
                   "${PROJ_ROOT}/components/rebel-espresso/src/sys" \

@@ -8,7 +8,7 @@ set(COMPONENT_SRCDIRS
         src/
         src/utils
         src/sys
-        src/hw/base
+        src/control
         src/hw/r2/src
         src/hw/r2/src/display
         src/hw/r2/src/webserver
@@ -42,7 +42,7 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src"
         "./src/utils"
         "./_generated/"
-        "./src/hw/base/"
+        "./src/control/"
         "./src/hw/r2/src"
         )
 

@@ -20,10 +20,11 @@ static TaskHandle_t s_task_handle = nullptr;
 static bool s_running = false;
 
 /**
- * Callback from rtds_update() — writes each RTD reading to the process image
- * and dispatches to existing PID handlers.
+ * Callback from rtds_update() — publishes each RTD reading into the process
+ * image via the seqlock. The 1 Hz control loop reads these values later and
+ * dispatches them to the PID handlers; this callback does not run the PID.
  */
-static void _rtd_cb(uint64_t time_us, const struct measure_t data, uint8_t idx) {
+static void _rtd_cb([[maybe_unused]] uint64_t time_us, const struct measure_t data, uint8_t idx) {
   if (idx < PROCESS_IMAGE_MAX_SENSORS) {
     // Publish via the seqlock so readers never see a torn (value, fault) pair.
     process_image_write_temp(idx, data);

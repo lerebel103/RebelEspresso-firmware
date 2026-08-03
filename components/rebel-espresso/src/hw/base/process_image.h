@@ -16,11 +16,15 @@
  * Thread safety:
  *   The I/O scan task runs at the highest priority and cannot be preempted by
  *   lower layers. 32-bit aligned fields (bool, int, float, pointers) are
- *   naturally atomic on ESP32. 64-bit fields (double, uint64_t) and compound
- *   fields (measure_t) may exhibit torn reads if accessed concurrently.
- *   Consumers should tolerate a one-cycle-old value for these fields.
- *   Critical decisions (sensor fault gating) use only the fault byte (8-bit,
- *   atomic) rather than the full measure_t.
+ *   naturally atomic on ESP32. 64-bit fields (double, uint64_t) may exhibit
+ *   torn reads if accessed concurrently; consumers should tolerate a
+ *   one-cycle-old value for those non-safety fields.
+ *   The temperatures[] array (measure_t: value + fault) is a multi-word value
+ *   that safety decisions depend on (fault gating AND the over-temp value
+ *   cutoff), so it is NOT read directly. It is written by the Sensor task via
+ *   process_image_write_temp() and read via process_image_read_temp(), a
+ *   per-channel seqlock that always returns a consistent (value, fault)
+ *   snapshot.
  *
  * Ownership model (see docs/../.kiro/specs/realtime-io-parity-audit.md §2):
  *   Every field has exactly ONE writer layer; all other layers read only.
@@ -89,7 +93,9 @@ process_image_t *process_image_get(void);
 /**
  * Reset the process image to safe defaults.
  * Called once at boot before any task starts.
- * All outputs OFF, all inputs false, all sensors zeroed.
+ * All outputs OFF, all inputs false, and every temperature channel marked
+ * faulted (fault != 0) with water_level_ok = false, so the heater stays
+ * inhibited until the Sensor task publishes a real, valid reading.
  */
 void process_image_init(void);
 

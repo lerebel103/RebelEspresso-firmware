@@ -6,6 +6,30 @@ Companion to [`realtime-io-architecture.md`](realtime-io-architecture.md) and
 This document audits how the current file layout maps to the runtime architecture, proposes a
 target layout, and records which structural changes were **applied now** versus **deferred**.
 
+## Final layout (authoritative)
+
+The source tree now groups by runtime responsibility (this is the source of truth; the
+component map in [`AGENTS.md`](../../AGENTS.md) mirrors it):
+
+```
+components/rebel-espresso/src/
+├── controller.{h,cpp}   ← init orchestration / entry point
+├── events.h             ← MACHINE_EVENTS definitions (cross-cutting)
+├── runtime/    ← real-time scan engine + shared state (io_scan, io_scan_safety,
+│                 sensor_task, process_loop, process_image)
+├── machine/    ← coffee-machine domain control (boiler_temp, brew_temp,
+│                 boiler_refill(+_states), brew, power, schedules, setpoint_selector)
+├── comms/      ← outside-world I/O (iot, shadow_helper, app_metrics, webserver/, homekit/)
+├── device/     ← R2 board drivers + device services (hw_specs, rtds, out_signals,
+│                 display, ADS124S08, hw_config, device_info, eeprom, reset_button, thing_info)
+└── utils/      ← pid, state_machine, measure, str_utils, nvram_store (NVS)
+```
+
+> **Sections 1–9 below are the ORIGINAL audit and the intermediate proposals, kept for history.**
+> They describe the pre-migration `hw/base` layout and an early `core/ rt/ app/ config/ compat/`
+> proposal that was **superseded** by the layout above. See the “Update” sections for what was
+> actually applied at each step.
+
 ## Update — single-board R2 simplification pass (applied)
 
 Since the original audit below was written, the following was **applied and verified**:
@@ -119,6 +143,10 @@ transitional glue:
 ---
 
 ## 2) Proposed target layout
+
+> **Historical / superseded.** This early proposal (`core/ rt/ app/ config/ compat/ hal/`) was
+> not adopted. The layout that was actually built is `runtime/ machine/ comms/ device/ utils/`
+> — see “Final layout (authoritative)” at the top.
 
 Minimal, responsibility-grouped, and safety-forward. Grouping is by **runtime layer**, with the
 process image and safety gate promoted to first-class locations:

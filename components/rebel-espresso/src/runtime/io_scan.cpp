@@ -22,8 +22,9 @@
 #define IO_SCAN_INTERVAL_MS 20
 
 // Debounce: require N consecutive same-state reads before accepting.
-// At 20ms scan rate, 2 reads = 40ms debounce window.
-#define DEBOUNCE_COUNT 2
+// Mechanical toggle switches bounce for 50-200ms. At 20ms scan rate,
+// 5 reads = 100ms debounce window — filters out typical switch bounce.
+#define DEBOUNCE_COUNT 5
 
 // Task handle
 static TaskHandle_t s_task_handle = nullptr;
@@ -34,6 +35,13 @@ static RefillState_t s_prev_refill_state = REFILL_STATE_UNKNOWN;
 
 // Power state tracking — detects changes from any source (GPIO edge or remote command)
 static bool s_prev_power_on = false;
+
+// Timestamp when power last went to standby (for descale bounce rejection)
+static uint64_t s_standby_since_us = 0;
+
+// Minimum time in standby before a power-on can trigger descale mode (ms).
+// Prevents switch bounce from falsely activating descale.
+#define DESCALE_MIN_STANDBY_MS 500
 
 // ─── Debounce state per input ──────────────────────────────────────────────
 
@@ -98,18 +106,23 @@ static void scan_inputs(process_image_t *img) {
     s_prev_power_on = img->power_on;
 
     if (img->power_on) {
-      // Check if brew switch is held on power-on → descale mode
-      if (s_brew_db.stable_state) {
+      // Descale mode: only activate if the machine was in standby for a meaningful
+      // duration (>500ms). This prevents switch bounce from falsely triggering descale.
+      uint64_t now_us = esp_timer_get_time();
+      bool was_stable_standby =
+          (s_standby_since_us > 0) && ((now_us - s_standby_since_us) / 1000 > DESCALE_MIN_STANDBY_MS);
+      if (was_stable_standby && s_brew_db.stable_state) {
         img->descale_mode = true;
       }
       // Restart refill state machine on power-on
       boiler_refill_states_power_on();
       s_prev_refill_state = REFILL_STATE_UNKNOWN;
       img->aux_on = true;
-      ESP_LOGI(TAG, "Power ON%s", power_changed ? " (switch)" : " (remote)");
+      ESP_LOGI(TAG, "Power ON%s%s", power_changed ? " (switch)" : " (remote)", img->descale_mode ? " [DESCALE]" : "");
       esp_event_post(MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, 0);
     } else {
       img->descale_mode = false;
+      s_standby_since_us = esp_timer_get_time();
       // Stop refill on power-off
       boiler_refill_states_power_standby();
       img->refill_state = REFILL_STATE_UNKNOWN;

@@ -50,6 +50,17 @@ firmware `idf.py reconfigure` (fresh build dir, so the new partition path was ex
 CONFIGURE OK; per-TU `-fsyntax-only` compile of the moved board drivers + webserver + `iot.cpp`
 → all OK.
 
+**Done: consolidated to top-level layers (dropped the `control/` wrapper).** With board code
+collapsed, `control/` had become a redundant namespace every path passed through. The four
+layers were promoted to `src/` (`runtime/`, `machine/`, `comms/`, `device/`), `homekit/` moved
+into `comms/homekit/` (it is an external integration, like the web API and cloud shadow),
+`nvram_store` moved into `utils/` (a board-independent NVS wrapper, not board hardware), and
+`thing_info` moved into `device/` (device identity). `controller.{cpp,h}` and `events.h` stay at
+the `src/` root as the entry point and cross-cutting event definitions. Verified: `make test`
+PASSED; firmware `idf.py reconfigure` (fresh build dir) → CONFIGURE OK; per-TU `-fsyntax-only`
+compile across all layers (device/comms/machine/utils, including the relocated `thing_info`/
+`homekit`) → all OK.
+
 > **Constraint that shaped this pass.** The full firmware build (`make build`) cannot currently
 > be completed in this workspace due to pre-existing, unrelated issues (untracked
 > `esp32-aws-connector` needs `wifi_provisioning`; `esp-homekit-sdk` submodule drift misses

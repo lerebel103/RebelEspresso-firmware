@@ -1,7 +1,7 @@
 #include "hw_specs.h"
 
-#include <src/control/machine/boiler_temp.h>
-#include <src/control/machine/brew_temp.h>
+#include <src/machine/boiler_temp.h>
+#include <src/machine/brew_temp.h>
 #include <driver/i2c_master.h>
 #include <esp_log.h>
 #include <driver/gpio.h>

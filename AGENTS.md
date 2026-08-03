@@ -54,7 +54,7 @@ Where to find things (keep these in sync with the code):
 ### Build & Deployment
 
 - Build runs inside Docker (`make build`). Flash and monitor run on the host.
-- The web interface backend is in `components/rebel-espresso/src/control/comms/webserver/`.
+- The web interface backend is in `components/rebel-espresso/src/comms/webserver/`.
 - Config structs use `from_json()`/`to_json()` for serialization — maintain this pattern.
 - All NVS keys must remain stable for backward compatibility with existing devices.
 - Web server runs on port 8080 (HomeKit uses port 80).
@@ -199,8 +199,9 @@ real-time decisions. The I/O scan projects these bits from the process image eve
 ```
 components/
 ├── rebel-espresso/             ← Main application logic
-│   ├── src/control/            ← Application/control logic (board-independent)
+│   ├── src/                    ← Firmware source, grouped by runtime responsibility
 │   │   ├── controller.cpp      ← Init orchestration, enters event loop (entry point)
+│   │   ├── events.h            ← MACHINE_EVENTS definitions (cross-cutting)
 │   │   ├── runtime/            ← Real-time scan engine + shared state (safety-critical)
 │   │   │   ├── process_image.h/.cpp ← Shared state bridging all layers (one writer per field)
 │   │   │   ├── io_scan.cpp     ← Layer 1: 20 ms I/O scan, debounce, refill, safety gate
@@ -214,15 +215,16 @@ components/
 │   │   │   ├── brew.cpp        ← Brew shot statistics (edges handled by io_scan)
 │   │   │   ├── power.cpp       ← Remote standby/active API (switch polled by io_scan)
 │   │   │   └── schedules.cpp, setpoint_selector.cpp
-│   │   ├── comms/              ← Layer 4 network/cloud services
+│   │   ├── comms/              ← Layer 4: everything that talks to the outside world
 │   │   │   ├── iot.cpp, shadow_helper.cpp, app_metrics.cpp
-│   │   │   └── webserver/      ← HTTP API handlers (port 8080)
-│   │   └── device/            ← R2 board drivers + device services (only supported board)
-│   │       ├── hw_config.h     ← Pin assignments, I2C/SPI addresses
-│   │       ├── hw_specs.{h,cpp}, rtds.{h,cpp}, out_signals.{h,c}, display.{h,cpp}, ADS124S08.{h,cpp}
-│   │       └── device_info.cpp, eeprom.cpp, reset_button.cpp
-│   ├── src/utils/              ← PID algorithm, state machine template
-│   └── src/sys/                ← NVS abstraction
+│   │   │   ├── webserver/      ← HTTP API handlers (port 8080)
+│   │   │   └── homekit/        ← Apple HomeKit integration
+│   │   ├── device/             ← R2 board drivers + device services (only supported board)
+│   │   │   ├── hw_config.h     ← Pin assignments, I2C/SPI addresses
+│   │   │   ├── hw_specs.{h,cpp}, rtds.{h,cpp}, out_signals.{h,c}, display.{h,cpp}, ADS124S08.{h,cpp}
+│   │   │   ├── device_info.cpp, eeprom.cpp, reset_button.cpp
+│   │   │   └── thing_info.{h,cpp} ← Device identity
+│   │   └── utils/              ← PID, state machine, measure, str_utils, nvram_store (NVS)
 ├── esp-connectivity/           ← WiFi STA/AP, captive portal, SNTP, identity
 ├── esp-ssr-controller/         ← Zero-cross SSR duty-cycle driver (mains-synced)
 ├── ESP32-MAX31865/             ← RTD temperature sensor SPI driver

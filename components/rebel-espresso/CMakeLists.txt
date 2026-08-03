@@ -7,14 +7,12 @@ ENDIF()
 set(COMPONENT_SRCDIRS
         src/
         src/utils
-        src/sys
-        src/control
-        src/control/runtime
-        src/control/machine
-        src/control/comms
-        src/control/comms/webserver
-        src/control/device
-        src/homekit
+        src/runtime
+        src/machine
+        src/comms
+        src/comms/webserver
+        src/comms/homekit
+        src/device
         )
 
 set(COMPONENT_REQUIRES
@@ -44,12 +42,12 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src"
         "./src/utils"
         "./_generated/"
-        "./src/control"
-        "./src/control/runtime"
-        "./src/control/machine"
-        "./src/control/comms"
-        "./src/control/comms/webserver"
-        "./src/control/device"
+        "./src/runtime"
+        "./src/machine"
+        "./src/comms"
+        "./src/comms/webserver"
+        "./src/comms/homekit"
+        "./src/device"
         )
 
 # The web UI is pre-gzipped (webapp/index.html.gz) and embedded in the firmware binary.

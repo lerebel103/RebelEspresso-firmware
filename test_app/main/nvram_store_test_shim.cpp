@@ -7,7 +7,7 @@
 #include <esp_log.h>
 #include <nvs.h>
 #include <nvs_flash.h>
-#include "sys/nvram_store.h"
+#include "utils/nvram_store.h"
 
 static const char *TAG = "store";
 

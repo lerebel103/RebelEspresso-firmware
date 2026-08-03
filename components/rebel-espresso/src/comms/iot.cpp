@@ -1,6 +1,6 @@
-#include <src/thing_info.h>
+#include <src/device/thing_info.h>
 #include <_generated/version.h>
-#include <src/homekit/homekit.h>
+#include <src/comms/homekit/homekit.h>
 #include <freertos/task.h>
 #include <src/events.h>
 #include <esp_log.h>

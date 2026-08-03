@@ -5,13 +5,13 @@
 #include <freertos/task.h>
 #include <esp_event.h>
 #include "rtds.h"
-#include <src/control/machine/boiler_refill.h>
-#include <src/control/machine/boiler_temp.h>
-#include <src/control/machine/brew_temp.h>
-#include <src/thing_info.h>
+#include <src/machine/boiler_refill.h>
+#include <src/machine/boiler_temp.h>
+#include <src/machine/brew_temp.h>
+#include <src/device/thing_info.h>
 #include <version.h>
-#include <src/control/machine/power.h>
-#include <src/control/machine/boiler_refill_states.h>
+#include <src/machine/power.h>
+#include <src/machine/boiler_refill_states.h>
 #include <cmath>
 #include "hw_specs.h"
 

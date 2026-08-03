@@ -9,7 +9,7 @@
 #include <src/events.h>
 #include <hap_apple_chars.h>
 #include <hap_apple_servs.h>
-#include <src/thing_info.h>
+#include <src/device/thing_info.h>
 #include <hw_config.h>
 #include <esp_log.h>
 #include "power.h"

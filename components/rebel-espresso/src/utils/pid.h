@@ -3,7 +3,7 @@
 #include <cstring>
 #include <cJSON.h>
 #include "str_utils.h"
-#include "src/sys/nvram_store.h"
+#include "src/utils/nvram_store.h"
 #include "measure.h"
 
 #define PID_CFG_JSON_KEY "pid."

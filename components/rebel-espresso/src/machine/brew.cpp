@@ -10,7 +10,7 @@
 #include <nvs_handle.hpp>
 #include "brew.h"
 #include "process_image.h"
-#include "sys/nvram_store.h"
+#include "utils/nvram_store.h"
 
 #define TAG "brew"
 #define BREW_REFILL_NVS_STATUS_STORE "st.brew"

@@ -3,7 +3,7 @@
 #include <cmath>
 #include <src/events.h>
 #include <esp_event.h>
-#include <src/sys/nvram_store.h>
+#include <src/utils/nvram_store.h>
 #include <ssr_ctrl.h>
 
 #include "rtds.h"

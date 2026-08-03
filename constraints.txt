@@ -11,6 +11,6 @@
 # base Docker image (espressif/idf:v6.0.2).
 
 bitstring==4.4.0
-boto3==1.43.58
-botocore==1.43.58
+boto3==1.43.59
+botocore==1.43.59
 requests==2.34.2

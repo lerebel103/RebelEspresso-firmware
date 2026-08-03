@@ -229,7 +229,6 @@ components/
 │   │   └── utils/              ← PID, state machine, measure, str_utils, nvram_store (NVS)
 ├── esp-connectivity/           ← WiFi STA/AP, captive portal, SNTP, identity
 ├── esp-ssr-controller/         ← Zero-cross SSR duty-cycle driver (mains-synced)
-├── ESP32-MAX31865/             ← RTD temperature sensor SPI driver
 ├── esp-homekit-sdk/            ← Apple HomeKit (submodule)
 └── tft-driver/                 ← ST7796 TFT display driver
 ```

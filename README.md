@@ -123,7 +123,6 @@ Covers: PID algorithm, JSON config serialization, NVS persistence, event loop, c
 │   │   ├── src/sntp/           # NTP time sync
 │   │   └── src/common/         # NVS init, device identity, event bits
 │   ├── esp-homekit-sdk/        # Apple HomeKit (submodule)
-│   ├── ESP32-MAX31865/         # RTD temperature sensor driver
 │   ├── esp-ssr-controller/     # SSR duty-cycle controller
 │   └── tft-driver/             # ST7796 TFT display driver
 ├── test_app/                   # QEMU unit tests

@@ -39,6 +39,18 @@ If any step fails, fix the issue before committing. Never push code that hasn't 
 
 ## Architecture
 
+### Documentation Map
+
+Where to find things (keep these in sync with the code):
+
+| Looking for… | Read |
+|--------------|------|
+| Architectural truth (layers, tasks, timing) | [`.kiro/specs/realtime-io-architecture.md`](.kiro/specs/realtime-io-architecture.md) |
+| Parity/safety audit + outstanding gaps | [`.kiro/specs/realtime-io-parity-audit.md`](.kiro/specs/realtime-io-parity-audit.md) |
+| Repository layout audit + target structure | [`.kiro/specs/realtime-io-layout-audit.md`](.kiro/specs/realtime-io-layout-audit.md) |
+| Required manual hardware validation | [`docs/testing/manual-hardware-validation.md`](docs/testing/manual-hardware-validation.md) |
+| Merge-gate + validation policy | this file (Pre-Commit Gate, Required Hardware Validation) |
+
 ### Build & Deployment
 
 - Build runs inside Docker (`make build`). Flash and monitor run on the host.

@@ -13,6 +13,7 @@ idf_component_register(
         "test_ap_fallback_timer.cpp"
         "test_safety_interlocks.cpp"
         "test_io_scan.cpp"
+        "test_process_image.cpp"
         # Source files under test (pulled from the main project)
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/utils/pid.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/base/boiler_temp.cpp"

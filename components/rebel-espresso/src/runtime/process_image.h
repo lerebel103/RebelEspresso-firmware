@@ -4,8 +4,9 @@
  * Process Image — shared data structure bridging all architectural layers.
  *
  * This is the single source of truth for the state of all physical I/O and
- * derived control values. Each field has exactly one owning layer that writes
- * it; other layers read only.
+ * derived control values. Almost every field has exactly one owning layer that
+ * writes it (all other layers read only); the sole deliberate exception is
+ * `power_on` — see the ownership model note below.
  *
  * Layers (highest to lowest priority):
  *   Layer 1 — I/O Scan (20ms, priority 8): reads switches, writes outputs
@@ -26,13 +27,15 @@
  *   per-channel seqlock that always returns a consistent (value, fault)
  *   snapshot.
  *
- * Ownership model (see docs/../.kiro/specs/realtime-io-parity-audit.md §2):
- *   Every field has exactly ONE writer layer; all other layers read only.
- *   Each field below is tagged @owner. Do not write a field from a layer that
- *   does not own it. `power_on` is the single deliberate exception: it is
- *   written by BOTH the I/O scan (on a debounced GPIO edge) and the remote
- *   power_active()/power_standby() API. Both express the same semantic and the
- *   "last transition wins" rule keeps the outcome deterministic.
+ * Ownership model (see .kiro/specs/realtime-io-parity-audit.md §2):
+ *   Every field EXCEPT `power_on` has exactly one writer layer; all other
+ *   layers read only. Each field below is tagged @owner. Do not write a field
+ *   from a layer that does not own it.
+ *   `power_on` is the single deliberate DUAL-writer exception: it is written by
+ *   BOTH the I/O scan (on a debounced GPIO edge) and the remote
+ *   power_active()/power_standby() API. Both express the same semantic, and the
+ *   "last transition wins" rule (whichever source transitioned most recently
+ *   determines the state) keeps the outcome deterministic.
  */
 
 #include <cstdint>
@@ -61,14 +64,19 @@ struct process_image_t {
   double water_level_mv;                             ///< @owner Sensor task. Raw water level ADC voltage
   bool water_level_ok;                               ///< @owner Sensor task. Derived: mv <= threshold
 
-  // ─── DESIRED OUTPUTS ─────────────────────────────────────────────────
-  //   ssr_boiler_duty is written by the Control Loop (PID).
-  //   The relay states are written by the I/O Scan (brew/refill logic).
-  int ssr_boiler_duty;     ///< @owner Control Loop. 0-100, computed by PID
+  // ─── DESIRED OUTPUTS (what each owner requests, BEFORE the safety gate) ──
+  //   ssr_boiler_duty is the DESIRED duty written by the Control Loop (PID).
+  //   The relay states are the DESIRED states written by the I/O Scan.
+  //   None of these are the value actually driven to hardware — the I/O Scan
+  //   safety gate (io_scan_apply_safety) turns them into the APPLIED outputs.
+  int ssr_boiler_duty;     ///< @owner Control Loop. 0-100 DESIRED duty from PID (not yet gated)
   bool pump_on;            ///< @owner I/O Scan. Desired pump relay state
   bool refill_solenoid_on; ///< @owner I/O Scan. Desired refill valve state
   bool three_way_on;       ///< @owner I/O Scan. Desired 3-way valve state
   bool aux_on;             ///< @owner I/O Scan. Auxiliary output relay
+
+  // ─── APPLIED OUTPUT (post safety gate; for observability/telemetry) ──────
+  int ssr_applied_duty; ///< @owner I/O Scan. 0-100 actually driven to the SSR after the safety gate
 
   // ─── STATE (written by I/O Scan task) ────────────────────────────────
   RefillState_t refill_state;  ///< @owner I/O Scan. Current refill state machine state

@@ -12,6 +12,7 @@ extern "C" void process_image_init(void) {
 
   // Explicit safe defaults for outputs
   s_image.ssr_boiler_duty = 0;
+  s_image.ssr_applied_duty = 0;
   s_image.pump_on = false;
   s_image.refill_solenoid_on = false;
   s_image.three_way_on = false;

@@ -106,8 +106,9 @@ void boiler_temp_init();
 void boiler_temp_delete();
 
 /**
- * Set the SSR duty cycle directly. Used by the I/O scan task to apply
- * the duty computed by the control loop (with safety overrides applied).
+ * Store the DESIRED SSR duty (0-100) in the process image. Called by the
+ * control loop (boiler_temp_process). This does NOT touch the SSR — the I/O
+ * scan safety gate turns the desired duty into the applied duty and drives it.
  */
 void boiler_temp_set_duty(int duty);
 
@@ -120,8 +121,9 @@ void boiler_temp_apply_hw_duty(int duty);
 void boiler_temp_process(uint64_t time_us, const measure_t& data);
 
 /**
- * Get current duty value applied to the SSR
- * @return
+ * Get the DESIRED SSR duty last requested by the control loop (the process
+ * image ssr_boiler_duty). This is the REQUESTED value, not the value actually
+ * applied to hardware after the safety gate (see process_image.ssr_applied_duty).
  */
 int boiler_temp_get_duty();
 

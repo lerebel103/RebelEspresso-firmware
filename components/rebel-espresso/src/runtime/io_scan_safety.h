@@ -32,7 +32,7 @@ extern "C" {
  * Safety-gated outputs computed from the process image.
  */
 typedef struct {
-  int ssr_duty;   ///< 0-100, after all heater-inhibit conditions
+  int ssr_duty;   ///< 0-100 APPLIED SSR duty (the desired duty after the safety gate)
   bool pump;      ///< Pump relay
   bool solenoid;  ///< Refill solenoid relay
   bool three_way; ///< 3-way valve relay

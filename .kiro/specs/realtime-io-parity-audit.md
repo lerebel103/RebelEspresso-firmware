@@ -5,6 +5,11 @@ hardening work for the layered scan architecture. Language is deliberately conse
 **verified** = proven by unit tests in QEMU; **implemented** = in code but not hardware-proven;
 **remaining** = not yet done.
 
+> **No item below — including those marked ✅ — is proven on physical hardware.** All verification
+> here is QEMU unit tests plus firmware configure/compile checks. Safety-critical behaviour still
+> requires the manual hardware validation recorded in
+> [`docs/testing/manual-hardware-validation.md`](../../docs/testing/manual-hardware-validation.md).
+
 ## Status summary
 
 | # | Item | Status | Where |
@@ -13,11 +18,11 @@ hardening work for the layered scan architecture. Language is deliberately conse
 | 2 | Torn-read risk on `measure_t` | ✅ addressed (safety path) | seqlock `process_image_read_temp/write_temp`; 64-bit non-safety fields still 1-cycle-tolerated |
 | 3 | `power_on` dual-writer ownership | ✅ verified | documented in `process_image.h`; precedence tests in `test_io_scan.cpp` §8 |
 | 4 | Watchdog docs vs implementation | ✅ done | spec + `AGENTS.md` now state the shared 2 s task WDT |
-| 5 | Legacy event-group mirroring | 🟡 partial | `boiler_temp` migrated off bits; io_scan still projects bits for display/HomeKit |
+| 5 | Legacy event-group mirroring | 🟡 partial | `boiler_temp` migrated off bits; io_scan still projects `POWER_ON`/`BOILER_LEVEL_OK`/`DESCALE_MODE` but no in-tree code reads them (dead mirror, safe to delete) |
 | 6 | GPIO config ownership | ⛔ remaining | still in `power.cpp` / refill init |
 | 7 | Production-code tests for scan helpers | ✅ done (safety gate) | `io_scan_apply_safety()` shared by prod + tests; debounce still replicated in tests |
 | 8 | Hardware end-to-end timing | ⛔ hardware-only | methodology only |
-| 9 | Desired vs applied duty semantics | 🟡 clarified | `ssr_boiler_duty` = desired; io_scan is sole applier; applied-duty reporting not split out |
+| 9 | Desired vs applied duty semantics | ✅ done | `ssr_boiler_duty` = desired (control loop); `ssr_applied_duty` = applied (I/O scan, post gate); io_scan is the sole applier |
 | 10 | Docs conservative & accurate | ✅ done | this rewrite |
 
 **Verification run:** `make format` clean · `make test` → **ALL TESTS PASSED** · `make lint` on
@@ -130,11 +135,13 @@ misses `esp_driver_gpio` in the `button` REQUIRES) — neither is touched by thi
      - Measured latency meets target.
      - Control loop timing remains stable.
 
-9. **Confirm `boiler_temp` final safety gate and desired-duty separation** — 🟡 **CLARIFIED**
-   - Resolution: `ssr_boiler_duty` means exactly one thing — the *desired* duty written by the
-     control loop. `io_scan_apply_safety()` is the sole path that turns it into the applied duty
-     (after overrides) and `boiler_temp_apply_hw_duty()` is the only hardware writer. A separate
-     *applied-duty* reporting field was considered but not added (no consumer needs it yet).
+9. **Confirm `boiler_temp` final safety gate and desired-duty separation** — ✅ **DONE**
+   - Resolution: the split is now explicit in both the state and the APIs.
+     `process_image.ssr_boiler_duty` is the *desired* duty written by the control loop;
+     `process_image.ssr_applied_duty` is the *applied* duty written by the I/O scan after the
+     safety gate. `io_scan_apply_safety()` is the sole path that computes the applied duty and
+     `boiler_temp_apply_hw_duty()` is the only hardware writer. `boiler_temp_set_duty()` /
+     `boiler_temp_get_duty()` are documented as operating on the *desired* value only.
    - Current state: `boiler_temp_set_duty()` and `boiler_temp_apply_hw_duty()` still risk mixing “desired” and “applied” duty semantics.
    - Why this is incomplete: the control loop should write desired duty only; I/O scan should be the sole hardware-applier after safety overrides.
    - Needed work:

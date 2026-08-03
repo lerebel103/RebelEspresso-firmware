@@ -96,7 +96,8 @@ This firmware actuates heater SSRs, solenoids, and pumps on a real coffee machin
 ### Layered Scan Architecture
 
 The firmware uses a four-layer, PLC-inspired scan architecture. All layers exchange
-state through a single shared `process_image_t` (one writer per field). See the
+state through a single shared `process_image_t` (one writer per field, the lone
+exception being `power_on`). See the
 [architecture spec](.kiro/specs/realtime-io-architecture.md) and
 [parity/safety audit](.kiro/specs/realtime-io-parity-audit.md) for the full design,
 ownership model, and safety gate.
@@ -135,7 +136,7 @@ ownership model, and safety gate.
 - Drives the boiler refill state machine and tracks brew on/off edges.
 - Applies the **safety gate** (`apply_outputs`) and writes every output every cycle
   (SSR via `boiler_temp_apply_hw_duty`, relays via `out_signals_set_level`).
-- Syncs `status_event_group` bits from the process image for Layer 4 consumers.
+- Projects `status_event_group` bits from the process image (transitional compatibility mirror; see the Event System note — no in-tree readers remain).
 - Enrolled in the task WDT.
 
 **Sensor task** (`sensor_task.cpp`, priority 6, ~150 ms):
@@ -168,12 +169,13 @@ The ESP-IDF event loop (`MACHINE_EVENTS`) is the backbone for inter-component co
 | `BREW_STARTED/STOPPED` | io_scan (brew edge) | brew (stats), display, metrics |
 | `BOILER_REFILL_*` | io_scan (refill state change) | display, metrics |
 
-A separate `status_event_group` (FreeRTOS EventGroup) provides fast bitwise state queries for
-real-time decisions. The I/O scan projects these bits from the process image every cycle:
-- `POWER_ON_BIT` — machine is active
-- `BOILER_LEVEL_OK_BIT` — water level safe for heating
-- `DESCALE_MODE_BIT` — maintenance mode, heaters inhibited
-- `WIFI_CONNECTED_BIT` / `WIFI_AP_ACTIVE_BIT` — network state
+A separate `status_event_group` (FreeRTOS EventGroup) carries network state
+(`WIFI_CONNECTED_BIT` / `WIFI_AP_ACTIVE_BIT`), which is still authoritative.
+
+**Transitional:** the I/O scan also projects `POWER_ON_BIT`, `BOILER_LEVEL_OK_BIT`, and
+`DESCALE_MODE_BIT` from the process image every cycle, but these are a legacy compatibility
+mirror only — the control path reads the process image directly and no in-tree code currently
+consumes them. They are kept until any remaining external consumers are migrated, then removed.
 
 ### Safety Mechanisms
 

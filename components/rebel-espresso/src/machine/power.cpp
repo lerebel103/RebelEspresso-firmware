@@ -14,6 +14,13 @@
  * The physical power switch is now polled by the I/O scan task (20ms).
  * This module only provides the API for software-driven standby/active
  * transitions (e.g., HomeKit, wake schedules) and the status query.
+ *
+ * Remote vs physical precedence: these functions write process_image.power_on
+ * directly. Together with the I/O scan's edge-driven switch handling they follow
+ * a "last transition wins" rule — whichever source (a physical switch edge or a
+ * remote command) changed power_on most recently determines the active state.
+ * A remote command can therefore hold the machine on while the physical switch
+ * is off, until the next physical switch edge.
  */
 
 extern "C" void power_standby() {

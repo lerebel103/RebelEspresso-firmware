@@ -83,10 +83,12 @@ static void scan_inputs(process_image_t *img) {
   img->brew_on = s_brew_db.stable_state;
   img->steam_on = s_steam_db.stable_state;
 
-  // Power: only update on GPIO edge (transition).
-  // Between edges, the process image retains whatever was last set — either by
-  // a GPIO transition or by a remote command (HomeKit/HTTP via power_active/power_standby).
-  // This allows remote on/off to work even when the physical switch is in the opposite position.
+  // Power uses a "last transition wins" rule. The physical switch writes
+  // power_on ONLY on a debounced GPIO edge; the remote API (power_active/
+  // power_standby) writes it on an explicit command. Between edges the process
+  // image retains whatever was last set, so remote on/off works even when the
+  // physical switch is in the opposite position — and whichever source
+  // transitioned most recently determines the active state.
   if (power_changed) {
     img->power_on = s_power_db.stable_state;
   }
@@ -192,6 +194,11 @@ static void apply_outputs(process_image_t *img) {
   // Compute the safety-gated outputs (pure logic, unit-tested directly).
   io_scan_outputs_t out = io_scan_apply_safety(img);
 
+  // Record the APPLIED duty (post safety gate) back into the process image for
+  // observability/telemetry. ssr_boiler_duty remains the control loop's DESIRED
+  // value; ssr_applied_duty is what is actually driven to the SSR this cycle.
+  img->ssr_applied_duty = out.ssr_duty;
+
   // ─── WRITE OUTPUTS TO HARDWARE (every cycle, unconditionally) ────────
 
   // SSR duty (applied via boiler_temp hardware interface, after safety overrides)
@@ -240,8 +247,11 @@ static void io_scan_task(void *) {
     // 2. Drive refill state machine
     scan_refill(img);
 
-    // 3. Sync process image state to legacy event group bits
-    //    (consumed by boiler_temp_process, brew_temp_process, display, homekit)
+    // 3. Project process-image state onto the legacy status_event_group bits.
+    //    TRANSITIONAL: this is a compatibility mirror only. The control path
+    //    (boiler_temp_process) now reads the process image directly, and no
+    //    in-tree code currently consumes POWER_ON/BOILER_LEVEL_OK/DESCALE_MODE.
+    //    Kept until any remaining external consumers are migrated, then remove.
     if (img->power_on) {
       xEventGroupSetBits(status_event_group, POWER_ON_BIT);
     } else {

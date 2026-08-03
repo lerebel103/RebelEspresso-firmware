@@ -25,6 +25,7 @@ static hap_char_t *hc_internal_temp = nullptr;
 static hap_char_t *hc_cur_duty = nullptr;
 static hap_char_t *hc_boiler_fault = nullptr;
 static hap_char_t *hc_brew_fault = nullptr;
+static hap_char_t *hc_internal_fault = nullptr;
 
 #define TAG "hk"
 
@@ -135,6 +136,12 @@ static int _char_read(hap_char_t *hc, hap_status_t *status_code, void *serv_priv
     rtds_get(&result, RTD_INTERNAL_IDX);
     new_val.f = _round_temp(result);
     hap_char_update_val(hc, &new_val);
+    // Update fault status (served from cache; this service has no read callback)
+    if (hc_internal_fault) {
+      hap_val_t fv;
+      fv.u = (result.fault != RTD_NoError) ? 1 : 0;
+      hap_char_update_val(hc_internal_fault, &fv);
+    }
     *status_code = HAP_STATUS_SUCCESS;
   } else if (hc == hc_cur_duty) {
     new_val.f = boiler_temp_get_duty();
@@ -165,6 +172,13 @@ static int _char_read(hap_char_t *hc, hap_status_t *status_code, void *serv_priv
     } else {
       new_val.i = 1;
     }
+    hap_char_update_val(hc, &new_val);
+    *status_code = HAP_STATUS_SUCCESS;
+  } else if (hc == hc_brew_fault) {
+    // Brew-head RTD fault. StatusFault lives on the Brew thermostat service,
+    // which has a read callback, so HAP routes reads here (0 = ok, 1 = fault).
+    rtds_get(&result, RTD_BREW_HEAD_IDX);
+    new_val.u = (result.fault != RTD_NoError) ? 1 : 0;
     hap_char_update_val(hc, &new_val);
     *status_code = HAP_STATUS_SUCCESS;
   } else {
@@ -333,7 +347,9 @@ static void espresso_thread_entry(void *arg) {
   internal_temp = result.fault == RTD_NoError ? (float)result.value : 0;
   hc = hap_serv_temperature_sensor_create(internal_temp);
   hap_serv_add_char(hc, hap_char_name_create((char *)"Internal"));
+  hap_serv_add_char(hc, hap_char_status_fault_create(result.fault != RTD_NoError ? 1 : 0));
   hc_internal_temp = hap_serv_get_char_by_uuid(hc, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
+  hc_internal_fault = hap_serv_get_char_by_uuid(hc, HAP_CHAR_UUID_STATUS_FAULT);
   hap_acc_add_serv(accessory, hc);
 
   cur_duty = boiler_temp_get_duty();

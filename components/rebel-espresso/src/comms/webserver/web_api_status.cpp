@@ -10,6 +10,7 @@
 #include "web_auth.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
+#include "brew.h"
 #include "boiler_refill.h"
 #include "boiler_refill_states.h"
 #include "rtds.h"
@@ -62,6 +63,12 @@ static esp_err_t _status_handler(httpd_req_t *req) {
       break;
   }
   cJSON_AddStringToObject(root, "boiler_level", refill_state);
+  cJSON_AddNumberToObject(root, "boiler_level_mv", boiler_refill_level_mv());
+
+  // Brew stats
+  auto brew_status = brew_get_status();
+  cJSON_AddNumberToObject(root, "brew_count", brew_status.brew_count);
+  cJSON_AddNumberToObject(root, "descale_count", brew_status.descale_count);
 
   // WiFi
   wifi_ap_record_t ap_info = {};

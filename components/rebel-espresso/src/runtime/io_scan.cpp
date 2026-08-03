@@ -40,8 +40,11 @@ static bool s_prev_power_on = false;
 static uint64_t s_standby_since_us = 0;
 
 // Minimum time in standby before a power-on can trigger descale mode (ms).
-// Prevents switch bounce from falsely activating descale.
-#define DESCALE_MIN_STANDBY_MS 500
+// Must be long enough that a normal off→on cycle cannot trigger it. Set to
+// 10 seconds — only a deliberate "turn off machine, wait, hold brew switch,
+// turn back on" sequence will activate descale mode. Bounce and quick flips
+// are completely excluded.
+#define DESCALE_MIN_STANDBY_MS 10000
 
 // ─── Debounce state per input ──────────────────────────────────────────────
 

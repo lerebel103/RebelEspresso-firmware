@@ -23,6 +23,8 @@ static hap_char_t *hc_brew_temp = nullptr;
 static hap_char_t *hc_boiler_temp = nullptr;
 static hap_char_t *hc_internal_temp = nullptr;
 static hap_char_t *hc_cur_duty = nullptr;
+static hap_char_t *hc_boiler_fault = nullptr;
+static hap_char_t *hc_brew_fault = nullptr;
 
 #define TAG "hk"
 
@@ -90,7 +92,9 @@ static int _char_write(hap_write_data_t *write_data, int count, void *serv_priv,
 }
 
 static float _round_temp(measure_t result) {
-  float temp = (float)(result.fault == (uint8_t)RTD_NoError ? result.value : 24);
+  // On fault, report 0°C — clearly wrong for a coffee machine, signals a sensor issue.
+  // StatusFault characteristic is also set but Apple Home doesn't display it visually.
+  float temp = (float)(result.fault == (uint8_t)RTD_NoError ? result.value : 0);
   return int(temp * 10) / 10.0f;
 }
 
@@ -108,12 +112,24 @@ static int _char_read(hap_char_t *hc, hap_status_t *status_code, void *serv_priv
     rtds_get(&result, RTD_BREW_BOILER_IDX);
     new_val.f = _round_temp(result);
     hap_char_update_val(hc, &new_val);
+    // Update fault status
+    if (hc_boiler_fault) {
+      hap_val_t fv;
+      fv.u = (result.fault != RTD_NoError) ? 1 : 0;
+      hap_char_update_val(hc_boiler_fault, &fv);
+    }
     *status_code = HAP_STATUS_SUCCESS;
   } else if (hc == hc_brew_temp) {
     // Brew temperature
     rtds_get(&result, RTD_BREW_HEAD_IDX);
     new_val.f = _round_temp(result);
     hap_char_update_val(hc, &new_val);
+    // Update fault status
+    if (hc_brew_fault) {
+      hap_val_t fv;
+      fv.u = (result.fault != RTD_NoError) ? 1 : 0;
+      hap_char_update_val(hc_brew_fault, &fv);
+    }
     *status_code = HAP_STATUS_SUCCESS;
   } else if (hc == hc_internal_temp) {
     rtds_get(&result, RTD_INTERNAL_IDX);
@@ -294,6 +310,10 @@ static void espresso_thread_entry(void *arg) {
   hap_char_float_set_constraints(hc_brew_temp, 0, 150, 0.1);
   hc = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_TARGET_TEMPERATURE);
   hap_char_float_set_constraints(hc, BREW_TEMP_MIN, BREW_TEMP_MAX, 0.5);
+  // Add StatusFault for brew head RTD
+  rtds_get(&result, RTD_BREW_HEAD_IDX);
+  hap_serv_add_char(service, hap_char_status_fault_create(result.fault != RTD_NoError ? 1 : 0));
+  hc_brew_fault = hap_serv_get_char_by_uuid(service, HAP_CHAR_UUID_STATUS_FAULT);
   hap_serv_set_write_cb(service, _char_write);
   hap_serv_set_read_cb(service, _char_read);
   hap_acc_add_serv(accessory, service);
@@ -303,7 +323,9 @@ static void espresso_thread_entry(void *arg) {
   boiler_temp = result.fault == RTD_NoError ? (float)result.value : 0;
   hc = hap_serv_temperature_sensor_create(boiler_temp);
   hap_serv_add_char(hc, hap_char_name_create((char *)"Boiler"));
+  hap_serv_add_char(hc, hap_char_status_fault_create(result.fault != RTD_NoError ? 1 : 0));
   hc_boiler_temp = hap_serv_get_char_by_uuid(hc, HAP_CHAR_UUID_CURRENT_TEMPERATURE);
+  hc_boiler_fault = hap_serv_get_char_by_uuid(hc, HAP_CHAR_UUID_STATUS_FAULT);
   hap_char_float_set_constraints(hc_boiler_temp, 0.0, 150.0, 0.1);
   hap_acc_add_serv(accessory, hc);
 

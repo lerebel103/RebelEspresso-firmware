@@ -274,6 +274,7 @@ nav .tab .tab-label { display: inline; }
       <div class="stat-grid">
         <div class="stat"><div class="value" id="s-duty">--<span class="unit">%</span></div><div class="label">Duty</div></div>
         <div class="stat"><div class="value" id="s-level">--</div><div class="label">Level</div></div>
+        <div class="stat"><div class="value" id="s-brews">--</div><div class="label">Brews</div></div>
         <div class="stat"><div class="value" id="s-wifi">--</div><div class="label">Signal</div></div>
         <div class="stat"><div class="value" id="s-uptime">--</div><div class="label">Uptime</div></div>
       </div>
@@ -483,11 +484,38 @@ let _currentBrewSetpoint = 0;
 async function refreshStatus() {
   try {
     const d = await api('status');
-    // Temperatures
+    // Temperatures (show error state when sensor is faulted)
     const brewTemp = d.temperatures?.brew_head;
+    const brewFault = d.temperatures?.brew_head_fault;
     const boilerTemp = d.temperatures?.boiler;
-    document.getElementById('s-brew').textContent = brewTemp != null ? brewTemp.toFixed(1) + '\u00B0' : '--';
-    document.getElementById('s-boiler').textContent = boilerTemp != null ? boilerTemp.toFixed(1) + '\u00B0' : '--';
+    const boilerFault = d.temperatures?.boiler_fault;
+    const faultNames = {0:'OK',2:'Voltage',3:'RTD In Low',4:'Ref Low',5:'Ref High',6:'RTD Low',7:'RTD High'};
+    if (boilerFault) {
+      document.getElementById('s-boiler').textContent = faultNames[boilerFault] || ('Fault ' + boilerFault);
+      document.getElementById('s-boiler').style.color = 'var(--error)';
+    } else {
+      document.getElementById('s-boiler').textContent = boilerTemp != null ? boilerTemp.toFixed(1) + '\u00B0' : '--';
+      document.getElementById('s-boiler').style.color = '';
+    }
+    if (brewFault) {
+      document.getElementById('s-brew').textContent = faultNames[brewFault] || ('Fault ' + brewFault);
+      document.getElementById('s-brew').style.color = 'var(--error)';
+    } else {
+      document.getElementById('s-brew').textContent = brewTemp != null ? brewTemp.toFixed(1) + '\u00B0' : '--';
+      // Color-code brew temp relative to setpoint (matches TFT display logic)
+      const brewSp = d.temperatures?.brew_head_setpoint;
+      if (brewTemp != null && brewSp != null) {
+        if (Math.abs(brewTemp - brewSp) < 1.5) {
+          document.getElementById('s-brew').style.color = 'var(--success)'; // green — at target
+        } else if (brewTemp > brewSp) {
+          document.getElementById('s-brew').style.color = 'var(--error)'; // red — too hot
+        } else {
+          document.getElementById('s-brew').style.color = '#00bcd4'; // cyan — heating up
+        }
+      } else {
+        document.getElementById('s-brew').style.color = '';
+      }
+    }
     document.getElementById('s-brew-sp').textContent = d.temperatures?.brew_head_setpoint?.toFixed(1) || '--';
     document.getElementById('s-setpoint').textContent = d.temperatures?.boiler_setpoint?.toFixed(1) || '--';
 
@@ -514,7 +542,22 @@ async function refreshStatus() {
 
     // Stats
     document.getElementById('s-duty').innerHTML = (d.temperatures?.boiler_duty || '0') + '<span class="unit">%</span>';
-    document.getElementById('s-level').textContent = d.boiler_level || '--';
+
+    // Boiler level with full state context and color
+    const levelEl = document.getElementById('s-level');
+    const level = d.boiler_level || 'unknown';
+    const levelLabels = {ok:'OK', refilling:'Refilling', error:'Error', starting:'Starting', unknown:'--'};
+    levelEl.textContent = levelLabels[level] || level;
+    if (level === 'error') {
+      levelEl.style.color = 'var(--error)';
+    } else if (level === 'refilling') {
+      levelEl.style.color = 'var(--warning, #ff9800)';
+    } else {
+      levelEl.style.color = '';
+    }
+
+    // Brew count
+    document.getElementById('s-brews').textContent = d.brew_count != null ? d.brew_count : '--';
     document.getElementById('s-wifi').textContent = (d.wifi?.rssi || '--') + ' dBm';
     const up = Math.floor(d.uptime_sec || 0);
     const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
@@ -630,6 +673,15 @@ async function resetConfig() {
 }
 
 // SYSTEM
+function _timeSince(epochSec) {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - epochSec;
+  if (diff < 60) return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
 async function loadSystemInfo() {
   try {
     const d = await api('system/info');
@@ -642,6 +694,8 @@ async function loadSystemInfo() {
       ['IDF', d.idf_version], ['Build', d.build_date + ' ' + d.build_time],
       ['Hardware', 'r' + d.hardware_rev], ['Thing ID', d.thing_id],
       ['Boots', d.boot_count], ['Crashes', d.crash_count],
+      ['Descales', d.descale_count || 0],
+      ['Since Descale', d.last_descale_time > 0 ? _timeSince(d.last_descale_time) : 'Never'],
       ['Free Heap', (d.free_heap/1024).toFixed(0) + ' KB'],
       ['Min Heap', (d.min_free_heap/1024).toFixed(0) + ' KB'],
     ];

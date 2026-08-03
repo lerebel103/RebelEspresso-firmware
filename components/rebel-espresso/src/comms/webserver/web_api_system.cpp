@@ -14,6 +14,7 @@
 #include "web_auth.h"
 #include "common/identity.h"
 #include "app_metrics.h"
+#include "brew.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
 #include "boiler_refill.h"
@@ -45,6 +46,11 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   cJSON_AddNumberToObject(root, "free_heap", (double)esp_get_free_heap_size());
   cJSON_AddNumberToObject(root, "min_free_heap", (double)esp_get_minimum_free_heap_size());
   cJSON_AddNumberToObject(root, "uptime_sec", (double)(esp_timer_get_time() / 1000000));
+
+  // Maintenance stats
+  auto brew_status = brew_get_status();
+  cJSON_AddNumberToObject(root, "descale_count", brew_status.descale_count);
+  cJSON_AddNumberToObject(root, "last_descale_time", (double)brew_status.last_descale_time);
 
   const char *json = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");

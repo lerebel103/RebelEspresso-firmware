@@ -9,7 +9,6 @@
 #include "rtds.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
-#include "shadow_helper.h"
 #include "process_image.h"
 
 #define TAG "Boiler"
@@ -18,8 +17,6 @@ const uint8_t BOILER_MAINS_HZ_DEFAULT = 50;
 const uint16_t BOILER_TEMP_ERROR_RESTART_SEC_DEFAULT = 60;
 const uint16_t BOILER_FULL_DUTY_PID_ERROR_THRESHOLD_DEFAULT = 10;
 
-static device_shadow_handle_t shadow_handle{};
-static bool _cfg_update_required = true;
 static boiler_temp_cfg_t s_cfg;
 static ssr_ctrl_handle_t _ssr_handle;
 
@@ -249,27 +246,6 @@ void boiler_temp_process(uint64_t time_us, const measure_t& data) {
   ESP_LOGW(TAG, "Boiler temp=%f, pid_duty=%f, duty=%f, setpoint=%f", data.value, result.duty, duty, setpoint);
 }
 
-static void _shadow_deleted_handler(void *, void *) {
-  // re-create the shadow then
-  _cfg_update_required = true;
-}
-
-static void update_config_resp(void *, void *) {
-  // Shadow updates removed — config is now managed locally only
-  _cfg_update_required = true;
-}
-
-void boiler_temp_handle_cfg(char *buffer, size_t len) {
-  if (_cfg_update_required) {
-    cJSON *reported = cJSON_CreateObject();
-    auto cfg = boiler_temp_get_cfg();
-    cfg.to_json(reported, "");
-
-    shadow_helper_send_shadow(shadow_handle, buffer, len, reported);
-    _cfg_update_required = false;
-  }
-}
-
 void boiler_temp_init() {
   _load_nvram();
   _load_stats();
@@ -288,12 +264,6 @@ void boiler_temp_init() {
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
-
-  device_shadow_cfg_t shadow_cfg = {.name = "boiler_temp",
-                                    .get = null_shadow_handler,
-                                    .updated = update_config_resp,
-                                    .deleted = _shadow_deleted_handler};
-  ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 }
 
 void boiler_temp_delete() {
@@ -377,7 +347,6 @@ double boiler_setpoint_inc(double inc) {
     ESP_ERROR_CHECK(nvs_open(NVS_BOILER_CFG_STORE, NVS_READWRITE, &my_handle));
     pid_save_setpoint(my_handle, s_cfg.pid);
     nvs_close(my_handle);
-    _cfg_update_required = true;
   }
 
   return s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];

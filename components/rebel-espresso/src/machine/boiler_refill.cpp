@@ -9,8 +9,6 @@
 #include "boiler_refill_states.h"
 #include "out_signals.h"
 #include "hw_specs.h"
-#include "shadow_helper.h"
-#include "shadow_helper.h"
 #include <src/events.h>
 #include <esp_event.h>
 #include <src/utils/nvram_store.h>
@@ -29,9 +27,6 @@ const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT = 2400;
 const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 15000;
 const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 750;
 const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 1000;
-
-static device_shadow_handle_t shadow_handle{};
-static bool _cfg_update_required = true;
 
 static boiler_refill_cfg_t s_cfg;
 static boiler_refill_status_t s_status;
@@ -61,26 +56,6 @@ void boiler_set_check_level_fn(check_level_fn fn) {
   check_level = fn;
 }
 
-static void _shadow_deleted_handler(void *, void *) {
-  // re-create the shadow then
-  _cfg_update_required = true;
-}
-
-static void update_config_resp(void *, void *) {
-  _cfg_update_required = true;
-}
-
-void boiler_refill_handle_cfg(char *buffer, size_t len) {
-  if (_cfg_update_required) {
-    cJSON *reported = cJSON_CreateObject();
-    auto cfg = boiler_refill_get_cfg();
-    cfg.to_json(reported, "");
-
-    shadow_helper_send_shadow(shadow_handle, buffer, len, reported);
-    _cfg_update_required = false;
-  }
-}
-
 void boiler_refill_init() {
   check_level = boiler_check_level;
   _load_nvram();
@@ -107,12 +82,6 @@ void boiler_refill_init() {
   ESP_LOGI(TAG, "Initialising ADC pin input");
 
   // Note: refill state machine is now initialised and driven by the I/O scan task.
-
-  device_shadow_cfg_t shadow_cfg = {.name = "boiler_refill",
-                                    .get = null_shadow_handler,
-                                    .updated = update_config_resp,
-                                    .deleted = _shadow_deleted_handler};
-  ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 
   ESP_LOGI(TAG, "Initialised");
 }

@@ -116,8 +116,6 @@ void brew_temp_init();
 
 void brew_temp_delete();
 
-void brew_temp_handle_cfg(char *buffer, size_t len);
-
 void brew_temp_process(uint64_t time_us, const measure_t& brew_head_data);
 
 double brew_temp_get_setpoint();

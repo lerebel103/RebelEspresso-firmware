@@ -9,8 +9,6 @@
 #include "rtds.h"
 #include "pid.h"
 #include "app_metrics.h"
-#include "shadow_helper.h"
-#include "shadow_helper.h"
 
 #define TAG "BrewTemp"
 
@@ -18,8 +16,6 @@ const uint8_t BREW_TEMP_ENABLED_DEFAULT = 1;
 const double BREW_TEMP_PERC_DEFAULT = 10.0;
 const double BREW_SETPOINT_HOLD_SEC_DEFAULT = 3 * 60;
 
-static device_shadow_handle_t shadow_handle{};
-static bool _cfg_update_required = true;
 static brew_temp_trim_t s_trim = {};
 static uint64_t s_last_brew_time = 0;
 
@@ -107,7 +103,6 @@ void brew_temp_set_setpoint(double setpoint) {
   s_cfg.pid.setpoints[s_cfg.pid.active_setpoint] = setpoint;
   brew_temp_set_cfg(s_cfg);
   app_metrics_reset_update();
-  _cfg_update_required = true;
 }
 
 void brew_temp_process(uint64_t time_us, const measure_t& brew_head_data) {
@@ -206,26 +201,6 @@ static void _tick_events(void *handler_args, esp_event_base_t base, int32_t id, 
   }
 }
 
-static void _shadow_deleted_handler(void *, void *) {
-  // re-create the shadow then
-  _cfg_update_required = true;
-}
-
-static void update_config_resp(void *, void *) {
-  _cfg_update_required = true;
-}
-
-void brew_temp_handle_cfg(char *buffer, size_t len) {
-  if (_cfg_update_required) {
-    cJSON *reported = cJSON_CreateObject();
-    auto cfg = brew_temp_get_cfg();
-    cfg.to_json(reported, "");
-
-    shadow_helper_send_shadow(shadow_handle, buffer, len, reported);
-    _cfg_update_required = false;
-  }
-}
-
 void brew_temp_init() {
   _load_nvram();
   _load_stats();
@@ -239,12 +214,6 @@ void brew_temp_init() {
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STOPPED, _brew_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, BREW_STARTED, _brew_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
-
-  device_shadow_cfg_t shadow_cfg = {.name = "brew_temp",
-                                    .get = null_shadow_handler,
-                                    .updated = update_config_resp,
-                                    .deleted = _shadow_deleted_handler};
-  ESP_ERROR_CHECK(shadow_handler_init(shadow_cfg, &shadow_handle));
 }
 
 void brew_temp_delete() {

@@ -124,8 +124,6 @@ struct schedules_status_t {};
 
 void schedules_init();
 
-void schedules_handle_cfg(char *buffer, size_t len);
-
 void schedules_delete();
 
 /**

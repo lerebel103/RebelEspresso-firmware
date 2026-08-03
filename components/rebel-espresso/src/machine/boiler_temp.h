@@ -99,8 +99,6 @@ struct boiler_temp_status_t {
   uint32_t temp_out_of_range_count;
 };
 
-void boiler_temp_handle_cfg(char *buffer, size_t len);
-
 void boiler_temp_init();
 
 void boiler_temp_delete();

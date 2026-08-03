@@ -218,7 +218,7 @@ components/
 │   │   │   ├── power.cpp       ← Remote standby/active API (switch polled by io_scan)
 │   │   │   └── schedules.cpp, setpoint_selector.cpp
 │   │   ├── comms/              ← Layer 4: everything that talks to the outside world
-│   │   │   ├── iot.cpp, shadow_helper.cpp, app_metrics.cpp
+│   │   │   ├── iot.cpp, app_metrics.cpp
 │   │   │   ├── webserver/      ← HTTP API handlers (port 8080)
 │   │   │   └── homekit/        ← Apple HomeKit integration
 │   │   ├── device/             ← R2 board drivers + device services (only supported board)

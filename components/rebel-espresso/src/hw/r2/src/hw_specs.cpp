@@ -1,12 +1,12 @@
 #include "hw_specs.h"
 
-#include <src/control/boiler_temp.h>
-#include <src/control/brew_temp.h>
+#include <src/control/machine/boiler_temp.h>
+#include <src/control/machine/brew_temp.h>
 #include <driver/i2c_master.h>
 #include <esp_log.h>
 #include <driver/gpio.h>
 
-#include "src/control/out_signals.h"
+#include "src/control/hal/out_signals.h"
 #include "hw_config.h"
 #include "ADS124S08.h"
 

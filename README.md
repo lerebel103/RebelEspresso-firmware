@@ -112,7 +112,12 @@ Covers: PID algorithm, JSON config serialization, NVS persistence, event loop, c
 ├── main/                       # Application entry point
 ├── components/
 │   ├── rebel-espresso/         # Main application logic
-│   │   ├── src/control/        # Shared runtime/control logic (board-independent)
+│   │   ├── src/control/        # Application/control logic (board-independent)
+│   │   │   ├── runtime/        #   real-time scan engine + shared process image
+│   │   │   ├── machine/        #   coffee-machine domain control (PID, brew, refill)
+│   │   │   ├── comms/          #   network/cloud services (web, OTA, HomeKit)
+│   │   │   ├── device/         #   device services (identity, storage, buttons)
+│   │   │   └── hal/            #   hardware interface contracts
 │   │   ├── src/hw/r2/src/      # R2 board-specific (display, webserver)
 │   │   ├── src/utils/          # PID, state machine, helpers
 │   │   └── src/sys/            # NVS abstraction

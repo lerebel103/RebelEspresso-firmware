@@ -9,6 +9,11 @@ set(COMPONENT_SRCDIRS
         src/utils
         src/sys
         src/control
+        src/control/runtime
+        src/control/machine
+        src/control/comms
+        src/control/device
+        src/control/hal
         src/hw/r2/src
         src/hw/r2/src/display
         src/hw/r2/src/webserver
@@ -42,7 +47,12 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src"
         "./src/utils"
         "./_generated/"
-        "./src/control/"
+        "./src/control"
+        "./src/control/runtime"
+        "./src/control/machine"
+        "./src/control/comms"
+        "./src/control/device"
+        "./src/control/hal"
         "./src/hw/r2/src"
         )
 

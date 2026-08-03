@@ -14,16 +14,29 @@ Since the original audit below was written, the following was **applied and veri
   shared runtime/control logic now lives under `control/`. All path-rooted includes
   (`<src/hw/base/…>` in `display.cpp`, `hw_specs.cpp`, `thing_info.cpp`), the component
   `CMakeLists.txt` (SRC_DIRS + INCLUDE_DIRS), and the test-app references were updated.
+- **`src/control/` sub-foldered by responsibility** (the flat 44-file folder now reflects the
+  layered architecture). `controller.{h,cpp}` stays at the `control/` root as the entry point;
+  everything else is grouped:
+  - `control/runtime/` — real-time scan engine + shared state: `process_image`, `io_scan`,
+    `io_scan_safety`, `sensor_task`, `process_loop`.
+  - `control/machine/` — coffee-machine domain control: `boiler_temp`, `brew_temp`,
+    `boiler_refill`, `boiler_refill_states`, `brew`, `power`, `setpoint_selector`, `schedules`.
+  - `control/comms/` — Layer 4 network/cloud: `iot`, `shadow_helper`, `app_metrics`.
+  - `control/device/` — device services: `device_info`, `eeprom`, `reset_button`.
+  - `control/hal/` — hardware interface contracts (implemented by `hw/r2/src`): `hw_specs.h`,
+    `out_signals.h`, `rtds.h`, `display.h`.
+  Internal includes are all bare (all subdirs added to INCLUDE_DIRS); the few external
+  path-rooted includes were updated to the new subpaths.
 - **Deleted `components/rebel-espresso/test/`** — an orphaned pre-refactor test harness
   (unreferenced by any build; its tests `#include <src/control/…>`, a path that did not exist).
 - **Deleted `src/hw/r2/src/sdkconfig`** — an unreferenced stale sdkconfig duplicate.
 
 **Verification:** `make test` → ALL TESTS PASSED; firmware `idf.py reconfigure` (with the unrelated
 untracked AWS components temporarily set aside) → **CONFIGURE OK**; per-TU `-fsyntax-only` compile
-of every file whose includes changed (`display.cpp`, `hw_specs.cpp`, `thing_info.cpp`) plus
-representative `control/` files (`io_scan`, `boiler_temp`, `sensor_task`) → **all OK**. (The one
-remaining pre-existing failure, `process_loop.cpp`/`controller.cpp` → `hal/timer_types.h`, is an
-ESP-IDF-6.0 header removal unrelated to this rename.)
+of every file whose includes changed plus a representative file from each new subfolder
+(`runtime/`, `machine/`, `comms/`, `device/`, plus the board `display.cpp`/`hw_specs.cpp`) → **all OK**.
+(The one remaining pre-existing failure, `process_loop.cpp`/`controller.cpp` → `hal/timer_types.h`,
+is an ESP-IDF-6.0 header removal unrelated to this work.)
 
 **Deferred: `src/hw/r2/src/` → `src/board/`.** The R2 folder is build-config-entangled: the
 committed `sdkconfig` sets the partition table to `.../src/hw/r2/partitions.csv` while

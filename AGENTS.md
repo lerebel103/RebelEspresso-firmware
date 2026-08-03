@@ -199,17 +199,27 @@ real-time decisions. The I/O scan projects these bits from the process image eve
 ```
 components/
 ├── rebel-espresso/             ← Main application logic
-│   ├── src/control/            ← Shared runtime/control logic (board-independent)
-│   │   ├── process_image.h/.cpp← Shared state bridging all layers (one writer per field)
-│   │   ├── io_scan.cpp         ← Layer 1: 20 ms I/O scan, debounce, refill, safety gate
-│   │   ├── sensor_task.cpp     ← Layer 2: RTD + water-level acquisition
-│   │   ├── process_loop.cpp    ← Layer 3: 1 Hz PID control loop (timer ISR + WDT)
-│   │   ├── boiler_temp.cpp     ← PID heater control + safety interlocks
-│   │   ├── power.cpp           ← Remote standby/active API (switch polled by io_scan)
-│   │   ├── brew.cpp            ← Brew shot statistics (edges handled by io_scan)
-│   │   ├── boiler_refill_states.cpp ← Refill state machine (driven by io_scan)
-│   │   ├── iot.cpp             ← Communication loop (web, OTA, HomeKit)
-│   │   └── controller.cpp      ← Init orchestration, enters event loop
+│   ├── src/control/            ← Application/control logic (board-independent)
+│   │   ├── controller.cpp      ← Init orchestration, enters event loop (entry point)
+│   │   ├── runtime/            ← Real-time scan engine + shared state (safety-critical)
+│   │   │   ├── process_image.h/.cpp ← Shared state bridging all layers (one writer per field)
+│   │   │   ├── io_scan.cpp     ← Layer 1: 20 ms I/O scan, debounce, refill, safety gate
+│   │   │   ├── io_scan_safety.cpp ← Pure final safety gate (unit-tested directly)
+│   │   │   ├── sensor_task.cpp ← Layer 2: RTD + water-level acquisition
+│   │   │   └── process_loop.cpp← Layer 3: 1 Hz PID control loop (timer ISR + WDT)
+│   │   ├── machine/            ← Coffee-machine domain control
+│   │   │   ├── boiler_temp.cpp ← PID heater control + safety interlocks
+│   │   │   ├── brew_temp.cpp   ← Brew-head temp trim
+│   │   │   ├── boiler_refill*.cpp ← Refill config + state machine (driven by io_scan)
+│   │   │   ├── brew.cpp        ← Brew shot statistics (edges handled by io_scan)
+│   │   │   ├── power.cpp       ← Remote standby/active API (switch polled by io_scan)
+│   │   │   └── schedules.cpp, setpoint_selector.cpp
+│   │   ├── comms/              ← Layer 4 network/cloud services
+│   │   │   └── iot.cpp, shadow_helper.cpp, app_metrics.cpp
+│   │   ├── device/             ← Device services (identity, storage, buttons)
+│   │   │   └── device_info.cpp, eeprom.cpp, reset_button.cpp
+│   │   └── hal/                ← Hardware interface contracts (implemented by hw/r2/src)
+│   │       └── hw_specs.h, out_signals.h, rtds.h, display.h
 │   ├── src/hw/r2/src/          ← R2 board-specific code (only supported board)
 │   │   ├── hw_config.h         ← Pin assignments, I2C/SPI addresses
 │   │   ├── hw_specs.cpp        ← Sensor dispatch, HW-specific init

@@ -4,16 +4,16 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_event.h>
-#include <src/control/rtds.h>
-#include <src/control/boiler_refill.h>
-#include <src/control/boiler_temp.h>
-#include <src/control/brew_temp.h>
+#include <src/control/hal/rtds.h>
+#include <src/control/machine/boiler_refill.h>
+#include <src/control/machine/boiler_temp.h>
+#include <src/control/machine/brew_temp.h>
 #include <src/thing_info.h>
 #include <version.h>
-#include <src/control/power.h>
-#include <src/control/boiler_refill_states.h>
+#include <src/control/machine/power.h>
+#include <src/control/machine/boiler_refill_states.h>
 #include <cmath>
-#include <src/control/hw_specs.h>
+#include <src/control/hal/hw_specs.h>
 
 extern "C" {
 #include <hal/gpio_types.h>

@@ -5,7 +5,7 @@
 
 #include <esp_log.h>
 #include <memory.h>
-#include <src/control/eeprom.h>
+#include <src/control/device/eeprom.h>
 #include <_generated/version.h>
 #include <esp_mac.h>
 

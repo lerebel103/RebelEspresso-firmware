@@ -16,10 +16,10 @@ idf_component_register(
         "test_process_image.cpp"
         # Source files under test (pulled from the main project)
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/utils/pid.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/boiler_temp.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/boiler_refill_states.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/process_image.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/io_scan_safety.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/machine/boiler_temp.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/machine/boiler_refill_states.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/runtime/process_image.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/runtime/io_scan_safety.cpp"
         # nvram_store.cpp has a dependency on HomeKit config for init — provide a
         # stripped version for tests that only includes the get/set functions.
         "nvram_store_test_shim.cpp"
@@ -31,7 +31,11 @@ idf_component_register(
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/utils"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/sys"
-        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/runtime"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/machine"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/comms"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/device"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/hal"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/r2/src"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/esp-connectivity/src"

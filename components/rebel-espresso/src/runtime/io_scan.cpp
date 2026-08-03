@@ -310,8 +310,19 @@ extern "C" void io_scan_init(void) {
     return;
   }
 
-  // Note: Switch GPIO inputs are already configured by power_init().
-  // When legacy code is removed, pin configuration will move here exclusively.
+  // Configure every switch input this task reads. The I/O scan owns these pins
+  // (it is the sole reader), which keeps it self-sufficient and fixes brew
+  // (GPIO 34): its input config was lost when the legacy brew ISR/task was
+  // removed — power_init() only configures the power pin, and steam is set up
+  // by setpoint_selector. gpio_config is idempotent, so this is safe alongside
+  // any remaining legacy configuration.
+  gpio_config_t in_conf = {};
+  in_conf.intr_type = GPIO_INTR_DISABLE;
+  in_conf.mode = GPIO_MODE_INPUT;
+  in_conf.pin_bit_mask = (1ULL << PIN_IN_SYS_EN) | (1ULL << PIN_IN_BREW_EN) | (1ULL << PIN_IN_STEAM_EN);
+  in_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  in_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+  gpio_config(&in_conf);
 
   // Initialise refill state machine (config loaded by boiler_refill_init earlier)
   boiler_refill_states_init(boiler_refill_get_cfg());

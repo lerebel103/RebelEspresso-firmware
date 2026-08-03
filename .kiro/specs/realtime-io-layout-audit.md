@@ -38,12 +38,17 @@ of every file whose includes changed plus a representative file from each new su
 (The one remaining pre-existing failure, `process_loop.cpp`/`controller.cpp` → `hal/timer_types.h`,
 is an ESP-IDF-6.0 header removal unrelated to this work.)
 
-**Deferred: `src/hw/r2/src/` → `src/board/`.** The R2 folder is build-config-entangled: the
-committed `sdkconfig` sets the partition table to `.../src/hw/r2/partitions.csv` while
-`sdkconfig.defaults` points at the repo-root `partitions.csv`. Renaming `hw/r2` touches a
-build-critical, **unverifiable** partition path (partition-table generation needs a full firmware
-build, which is blocked here). This move is deferred to a CI-backed change and should first
-reconcile the two partition-table paths.
+**Done: `src/hw/r2/` and `src/control/hal/` collapsed into `device/` (single-board cleanup).**
+With only R2 supported (no future boards), the interface/implementation split was pure
+abstraction for non-existent variants. The `hal/` interface headers were co-located with their
+single implementations, the `hw/r2/src` board drivers moved into `control/device/`, and
+`hw/r2/src/webserver/` moved into `control/comms/webserver/` (it is the network API, not board
+hardware). The partition table was standardized on the repo-root `partitions.csv` (the two CSVs
+were functionally identical; `sdkconfig` was updated to match `sdkconfig.defaults`) and the
+`hw/r2` duplicate deleted, removing the `src/hw/` tree entirely. Verified: `make test` PASSED;
+firmware `idf.py reconfigure` (fresh build dir, so the new partition path was exercised) →
+CONFIGURE OK; per-TU `-fsyntax-only` compile of the moved board drivers + webserver + `iot.cpp`
+→ all OK.
 
 > **Constraint that shaped this pass.** The full firmware build (`make build`) cannot currently
 > be completed in this workspace due to pre-existing, unrelated issues (untracked

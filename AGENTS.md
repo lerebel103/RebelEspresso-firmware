@@ -54,7 +54,7 @@ Where to find things (keep these in sync with the code):
 ### Build & Deployment
 
 - Build runs inside Docker (`make build`). Flash and monitor run on the host.
-- The web interface backend is in `components/rebel-espresso/src/hw/r2/src/webserver/`.
+- The web interface backend is in `components/rebel-espresso/src/control/comms/webserver/`.
 - Config structs use `from_json()`/`to_json()` for serialization — maintain this pattern.
 - All NVS keys must remain stable for backward compatibility with existing devices.
 - Web server runs on port 8080 (HomeKit uses port 80).
@@ -215,16 +215,12 @@ components/
 │   │   │   ├── power.cpp       ← Remote standby/active API (switch polled by io_scan)
 │   │   │   └── schedules.cpp, setpoint_selector.cpp
 │   │   ├── comms/              ← Layer 4 network/cloud services
-│   │   │   └── iot.cpp, shadow_helper.cpp, app_metrics.cpp
-│   │   ├── device/             ← Device services (identity, storage, buttons)
-│   │   │   └── device_info.cpp, eeprom.cpp, reset_button.cpp
-│   │   └── hal/                ← Hardware interface contracts (implemented by hw/r2/src)
-│   │       └── hw_specs.h, out_signals.h, rtds.h, display.h
-│   ├── src/hw/r2/src/          ← R2 board-specific code (only supported board)
-│   │   ├── hw_config.h         ← Pin assignments, I2C/SPI addresses
-│   │   ├── hw_specs.cpp        ← Sensor dispatch, HW-specific init
-│   │   ├── out_signals.c       ← I2C IO expander relay control
-│   │   └── webserver/          ← HTTP API handlers (port 8080)
+│   │   │   ├── iot.cpp, shadow_helper.cpp, app_metrics.cpp
+│   │   │   └── webserver/      ← HTTP API handlers (port 8080)
+│   │   └── device/            ← R2 board drivers + device services (only supported board)
+│   │       ├── hw_config.h     ← Pin assignments, I2C/SPI addresses
+│   │       ├── hw_specs.{h,cpp}, rtds.{h,cpp}, out_signals.{h,c}, display.{h,cpp}, ADS124S08.{h,cpp}
+│   │       └── device_info.cpp, eeprom.cpp, reset_button.cpp
 │   ├── src/utils/              ← PID algorithm, state machine template
 │   └── src/sys/                ← NVS abstraction
 ├── esp-connectivity/           ← WiFi STA/AP, captive portal, SNTP, identity

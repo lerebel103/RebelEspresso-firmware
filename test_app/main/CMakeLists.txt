@@ -35,8 +35,6 @@ idf_component_register(
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/machine"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/comms"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/device"
-        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/control/hal"
-        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/hw/r2/src"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/esp-connectivity/src"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/esp-ssr-controller/src"

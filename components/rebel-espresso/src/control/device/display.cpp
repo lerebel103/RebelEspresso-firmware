@@ -4,7 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_event.h>
-#include <src/control/hal/rtds.h>
+#include "rtds.h"
 #include <src/control/machine/boiler_refill.h>
 #include <src/control/machine/boiler_temp.h>
 #include <src/control/machine/brew_temp.h>
@@ -13,7 +13,7 @@
 #include <src/control/machine/power.h>
 #include <src/control/machine/boiler_refill_states.h>
 #include <cmath>
-#include <src/control/hal/hw_specs.h>
+#include "hw_specs.h"
 
 extern "C" {
 #include <hal/gpio_types.h>

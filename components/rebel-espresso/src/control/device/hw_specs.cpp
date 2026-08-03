@@ -6,7 +6,7 @@
 #include <esp_log.h>
 #include <driver/gpio.h>
 
-#include "src/control/hal/out_signals.h"
+#include "out_signals.h"
 #include "hw_config.h"
 #include "ADS124S08.h"
 

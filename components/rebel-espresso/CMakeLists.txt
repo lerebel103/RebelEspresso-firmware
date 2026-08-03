@@ -12,11 +12,8 @@ set(COMPONENT_SRCDIRS
         src/control/runtime
         src/control/machine
         src/control/comms
+        src/control/comms/webserver
         src/control/device
-        src/control/hal
-        src/hw/r2/src
-        src/hw/r2/src/display
-        src/hw/r2/src/webserver
         src/homekit
         )
 
@@ -51,9 +48,8 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src/control/runtime"
         "./src/control/machine"
         "./src/control/comms"
+        "./src/control/comms/webserver"
         "./src/control/device"
-        "./src/control/hal"
-        "./src/hw/r2/src"
         )
 
 # The web UI is pre-gzipped (webapp/index.html.gz) and embedded in the firmware binary.

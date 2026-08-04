@@ -87,7 +87,10 @@ Notes:
   heater stays off and nothing refills automatically, so descaling solution can be
   pumped through the boiler fill path by toggling the brew switch (which opens the
   refill solenoid `RELAY2` in addition to the pump/3-way). It latches until the
-  next power-off. This matches the pre-refactor (`master`) behaviour.
+  next power-off. A start-up lockout ignores the *initial* brew signal (which
+  energises with the machine) so the pump does not engage on entry — the pump only
+  starts once the brew switch has been released and pressed again. This matches the
+  pre-refactor (`master`) behaviour.
 - **Steam** simply re-targets the boiler PID at the secondary setpoint; it is not a
   latched state and follows the switch. Selection is driven from `steam_on` in the
   process image (see `setpoint_selector`).

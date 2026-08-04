@@ -37,6 +37,12 @@ static RefillState_t s_prev_refill_state = REFILL_STATE_UNKNOWN;
 // Power state tracking — detects changes from any source (GPIO edge or remote command)
 static bool s_prev_power_on = false;
 
+// Descale start-up lockout: when descale is entered with the brew switch held,
+// the initial (self-energising) brew signal must not engage the pump. Cleared on
+// the first brew release — after which normal descale pumping is allowed — or on
+// power-off.
+static bool s_descale_brew_lockout = false;
+
 // ─── Debounce state per input ──────────────────────────────────────────────
 
 struct debounce_t {
@@ -103,6 +109,7 @@ static void scan_inputs(process_image_t *img) {
       // Descale entry (parity with master): brew switch held at power-on.
       if (io_scan_descale_on_power_up(s_brew_db.stable_state)) {
         img->descale_mode = true;
+        s_descale_brew_lockout = true; // ignore this initial brew signal
       }
       // Restart refill state machine on power-on
       boiler_refill_states_power_on();
@@ -112,6 +119,7 @@ static void scan_inputs(process_image_t *img) {
       esp_event_post(MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, 0);
     } else {
       img->descale_mode = false;
+      s_descale_brew_lockout = false;
       // Stop refill on power-off
       boiler_refill_states_power_standby();
       img->refill_state = REFILL_STATE_UNKNOWN;
@@ -125,7 +133,9 @@ static void scan_inputs(process_image_t *img) {
 
   // Handle brew transitions
   if (brew_changed) {
-    if (img->brew_on && img->power_on) {
+    auto act = io_scan_brew_edge(img->brew_on, img->brew_active, img->power_on, s_descale_brew_lockout);
+    s_descale_brew_lockout = act.lockout;
+    if (act.start) {
       auto o = io_scan_brew_started(img->descale_mode, img->refill_solenoid_on);
       img->brew_active = o.brew_active;
       img->brew_start_time_us = esp_timer_get_time();
@@ -135,7 +145,7 @@ static void scan_inputs(process_image_t *img) {
       auto now_us = img->brew_start_time_us;
       esp_event_post(MACHINE_EVENTS, BREW_STARTED, (void *)&now_us, sizeof(now_us), 0);
       ESP_LOGI(TAG, "Brew STARTED%s", img->descale_mode ? " [DESCALE]" : "");
-    } else if (!img->brew_on && img->brew_active) {
+    } else if (act.stop) {
       auto o = io_scan_brew_stopped(img->descale_mode, img->refill_solenoid_on);
       img->brew_active = o.brew_active;
       img->pump_on = o.pump;

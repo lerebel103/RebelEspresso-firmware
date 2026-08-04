@@ -17,12 +17,25 @@ typedef struct {
   bool solenoid; ///< refill/fill solenoid (RELAY2)
 } brew_path_outputs_t;
 
+/// Action to take on a brew switch edge, honouring the descale start-up lockout.
+typedef struct {
+  bool start;   ///< begin brewing (drive outputs, post BREW_STARTED)
+  bool stop;    ///< end brewing (post BREW_STOPPED)
+  bool lockout; ///< updated descale brew-lockout latch
+} brew_edge_action_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /// On a power-on edge, descale is entered when the brew switch is (debounced) held on.
 bool io_scan_descale_on_power_up(bool brew_switch_on);
+
+/// Decide what a brew switch edge does, honouring the descale start-up lockout.
+/// While `lockout` is set (descale was entered with the brew switch held), the
+/// initial brew-on is ignored so the pump/peripherals stay off; the first
+/// brew-off releases the lockout, after which a brew-on drives the descale pump.
+brew_edge_action_t io_scan_brew_edge(bool brew_on, bool brew_active, bool power_on, bool lockout);
 
 /// Actuator states when the brew switch turns ON. In descale the fill solenoid
 /// also opens so descaler flows through the boiler fill path; otherwise the

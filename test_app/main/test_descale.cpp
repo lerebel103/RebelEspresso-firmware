@@ -68,6 +68,43 @@ TEST_CASE("Normal brew stop keeps pump while auto-refill holds the solenoid", "[
 }
 
 // ============================================================================
+// Descale start-up brew lockout (initial brew signal must not engage the pump)
+// ============================================================================
+
+TEST_CASE("Descale lockout: initial brew-on is ignored (no pump)", "[descale]") {
+  // Descale just entered with the brew switch held -> lockout armed.
+  auto a = io_scan_brew_edge(/*brew_on=*/true, /*brew_active=*/false, /*power_on=*/true, /*lockout=*/true);
+  TEST_ASSERT_FALSE(a.start); // the self-energising brew edge is suppressed
+  TEST_ASSERT_FALSE(a.stop);
+  TEST_ASSERT_TRUE(a.lockout); // still armed, waiting for release
+}
+
+TEST_CASE("Descale lockout: first brew release arms without stopping", "[descale]") {
+  auto a = io_scan_brew_edge(/*brew_on=*/false, /*brew_active=*/false, /*power_on=*/true, /*lockout=*/true);
+  TEST_ASSERT_FALSE(a.start);
+  TEST_ASSERT_FALSE(a.stop);     // nothing was brewing, so no stop event
+  TEST_ASSERT_FALSE(a.lockout);  // released -> real pumping now allowed
+}
+
+TEST_CASE("Descale lockout: brew-on after release starts pumping", "[descale]") {
+  auto a = io_scan_brew_edge(/*brew_on=*/true, /*brew_active=*/false, /*power_on=*/true, /*lockout=*/false);
+  TEST_ASSERT_TRUE(a.start);
+  TEST_ASSERT_FALSE(a.lockout);
+}
+
+TEST_CASE("Brew edge: normal start/stop unaffected when not locked out", "[descale]") {
+  auto start = io_scan_brew_edge(/*brew_on=*/true, /*brew_active=*/false, /*power_on=*/true, /*lockout=*/false);
+  TEST_ASSERT_TRUE(start.start);
+
+  auto stop = io_scan_brew_edge(/*brew_on=*/false, /*brew_active=*/true, /*power_on=*/true, /*lockout=*/false);
+  TEST_ASSERT_TRUE(stop.stop);
+
+  // No brew while powered off.
+  auto off = io_scan_brew_edge(/*brew_on=*/true, /*brew_active=*/false, /*power_on=*/false, /*lockout=*/false);
+  TEST_ASSERT_FALSE(off.start);
+}
+
+// ============================================================================
 // Descale + final safety gate (real production gate)
 // ============================================================================
 

@@ -4,6 +4,23 @@ bool io_scan_descale_on_power_up(bool brew_switch_on) {
   return brew_switch_on;
 }
 
+brew_edge_action_t io_scan_brew_edge(bool brew_on, bool brew_active, bool power_on, bool lockout) {
+  brew_edge_action_t a = {false, false, lockout};
+  if (brew_on && power_on) {
+    // Ignore the initial descale brew signal; only real cycles after release start.
+    if (!lockout) {
+      a.start = true;
+    }
+  } else if (!brew_on) {
+    if (lockout) {
+      a.lockout = false;
+    } else if (brew_active) {
+      a.stop = true;
+    }
+  }
+  return a;
+}
+
 brew_path_outputs_t io_scan_brew_started(bool descale_mode, bool solenoid_now) {
   brew_path_outputs_t o;
   o.brew_active = true;

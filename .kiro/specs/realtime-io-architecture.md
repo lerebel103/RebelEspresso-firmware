@@ -67,6 +67,33 @@ Responsibilities:
 - Receive events for state change notifications
 - Never touches hardware directly
 
+## Machine Modes
+
+The machine's observable behaviour is the combination of a few orthogonal modes.
+All are derived from the debounced switch inputs in the process image; the I/O
+scan owns entry/exit and the safety gate enforces the actuator effects.
+
+| Mode | Entry | Exit | Actuator effect | Reflected in |
+|------|-------|------|-----------------|--------------|
+| **Standby** | Power switch/remote OFF (`power_on = false`) | Power ON | Safety gate forces **all** outputs OFF (SSR, pump, solenoid, 3-way, aux) | TFT (standby), HTTP `power_active=false` |
+| **Active** | Power ON (`power_on = true`) with brew switch **not** held | Power OFF | Normal PID heating + refill enabled | TFT active view, HTTP `power_active=true` |
+| **Brew** | Brew switch ON while active (`brew_active`) | Brew switch OFF | Pump + 3-way valve ON; brew-head trim applied | TFT brew counter, HTTP `brewing`, events `BREW_STARTED/STOPPED` |
+| **Steam** | Steam switch ON (`steam_on`) while active | Steam switch OFF | Boiler PID switches to the **secondary setpoint** (`active_setpoint = 1`) | TFT boiler target temp, HTTP `steam` + `boiler_setpoint` |
+| **Descale** | Brew switch **held at power-on** (`descale_mode`) | Power OFF (latched until then) | SSR inhibited; auto-refill suspended; water-level probe not pulsed. Brewing manually opens pump + 3-way + **refill solenoid** to circulate descaler | TFT "Descaling Mode", HTTP `descale`, `DESCALE_MODE_BIT` |
+| **Refill** | Boiler water low while active (state machine) | Level restored / error | Refill solenoid + pump driven by the refill state machine | TFT refill/level, HTTP `boiler_level` |
+
+Notes:
+- **Descale** is the maintenance mode: hold the brew switch while powering on. The
+  heater stays off and nothing refills automatically, so descaling solution can be
+  pumped through the boiler fill path by toggling the brew switch (which opens the
+  refill solenoid `RELAY2` in addition to the pump/3-way). It latches until the
+  next power-off. This matches the pre-refactor (`master`) behaviour.
+- **Steam** simply re-targets the boiler PID at the secondary setpoint; it is not a
+  latched state and follows the switch. Selection is driven from `steam_on` in the
+  process image (see `setpoint_selector`).
+- Modes are not mutually exclusive at the data level (e.g. steam can be on while
+  descaling), but the safety gate's heater-inhibit conditions always win.
+
 ## Process Image
 
 A shared data structure that bridges all layers:

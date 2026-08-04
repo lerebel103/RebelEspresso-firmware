@@ -1,33 +1,19 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include <hal/gpio_types.h>
-#include <hw_config.h>
 #include <src/events.h>
 #include <esp_event.h>
 #include <esp_log.h>
-#include <driver/gpio.h>
 #include "setpoint_selector.h"
 #include "boiler_temp.h"
+#include "process_image.h"
 
 #define TAG "setpoint_selector"
 
-static bool _setpoint_selector_sw_on = false;
-static bool _boiler_refilling = false;
-
-static void _setpoint_selector_on() {
-  boiler_set_active_setpoint(1);
-}
-
-static void _setpoint_selector_off() {
-  boiler_set_active_setpoint(0);
-}
-
-static void _selector_switch_off(void *arg) {
-  _setpoint_selector_sw_on = false;
-  if (!_boiler_refilling) {
-    _setpoint_selector_off();
-  }
+// Boiler PID setpoint index selected by the steam switch:
+// 0 = brew/primary, 1 = steam/secondary.
+int setpoint_selector_index(bool steam_on) {
+  return steam_on ? 1 : 0;
 }
 
 /*
@@ -42,34 +28,22 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
     return;
   }
 
+  const process_image_t *img = process_image_get();
+
   // Not running any of this in standby
-  if (!(xEventGroupGetBits(status_event_group) & POWER_ON_BIT)) {
+  if (!img->power_on) {
     return;
   }
 
-  // maintain setpoint_selector state with switch
-  if (gpio_get_level(PIN_IN_STEAM_EN) == 0) {
-    _setpoint_selector_sw_on = true;
-    _setpoint_selector_on();
-  } else {
-    _selector_switch_off(nullptr);
-  }
+  // The steam switch selects the boiler's secondary PID setpoint. Read the
+  // debounced state from the process image (I/O scan owns the switch GPIOs).
+  boiler_set_active_setpoint(setpoint_selector_index(img->steam_on));
 }
 
 void setpoint_selector_init() {
-  gpio_config_t io_conf;
-
-  // --- Configure input switch that drives the setpoint_selector
-  io_conf.intr_type = GPIO_INTR_DISABLE;
-  io_conf.mode = GPIO_MODE_INPUT;
-  io_conf.pin_bit_mask = ((1ULL << PIN_IN_STEAM_EN));
-
-  io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-  gpio_config(&io_conf);
-
-  // Get everything synced up
-  _tick(NULL, MACHINE_EVENTS, TICK, NULL);
+  // The steam switch GPIO is configured and debounced by the I/O scan; this
+  // module only maps the process-image steam state onto the boiler setpoint.
+  boiler_set_active_setpoint(setpoint_selector_index(process_image_get()->steam_on));
 
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick, nullptr));
 }

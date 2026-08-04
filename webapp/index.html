@@ -165,6 +165,12 @@ nav .tab .tab-label { display: inline; }
 .sched-empty { font-size: 0.8em; color: var(--text-dim); font-style: italic; }
 .btn-sm { padding: 4px 10px; font-size: 0.75em; }
 
+/* Mode badges */
+.mode-badge { font-size: 0.7em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); }
+.mode-badge.descale { color: #ff9800; border-color: #ff9800; background: rgba(255,152,0,0.1); }
+.mode-badge.brewing { color: var(--primary); border-color: var(--primary); background: rgba(33,150,243,0.1); }
+.mode-badge.steam { color: #e91e63; border-color: #e91e63; background: rgba(233,30,99,0.1); }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -255,6 +261,7 @@ nav .tab .tab-label { display: inline; }
         <svg viewBox="0 0 24 24" width="36" height="36"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/></svg>
       </button>
       <div id="power-label" style="margin-top:8px;font-size:0.85em;color:var(--text-dim)">--</div>
+      <div id="mode-badges" style="margin-top:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;"></div>
     </div>
 
     <!-- Temperature gauges -->
@@ -557,6 +564,20 @@ async function refreshStatus() {
       label.textContent = 'Standby';
       label.style.color = 'var(--text-dim)';
     }
+
+    // Machine mode badges (descale / brewing / steam)
+    const badges = document.getElementById('mode-badges');
+    badges.innerHTML = '';
+    const modes = [];
+    if (d.descale) modes.push(['descale', 'Descale']);
+    if (d.brewing) modes.push(['brewing', 'Brewing']);
+    if (d.steam) modes.push(['steam', 'Steam']);
+    modes.forEach(([cls, text]) => {
+      const b = document.createElement('span');
+      b.className = 'mode-badge ' + cls;
+      b.textContent = text;
+      badges.appendChild(b);
+    });
 
     // Stats
     document.getElementById('s-duty').innerHTML = (d.temperatures?.boiler_duty || '0') + '<span class="unit">%</span>';

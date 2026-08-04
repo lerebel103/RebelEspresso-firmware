@@ -1,5 +1,6 @@
 #include "io_scan.h"
 #include "io_scan_safety.h"
+#include "io_scan_modes.h"
 #include "process_image.h"
 #include "out_signals.h"
 #include "boiler_temp.h"
@@ -35,16 +36,6 @@ static RefillState_t s_prev_refill_state = REFILL_STATE_UNKNOWN;
 
 // Power state tracking — detects changes from any source (GPIO edge or remote command)
 static bool s_prev_power_on = false;
-
-// Timestamp when power last went to standby (for descale bounce rejection)
-static uint64_t s_standby_since_us = 0;
-
-// Minimum time in standby before a power-on can trigger descale mode (ms).
-// Must be long enough that a normal off→on cycle cannot trigger it. Set to
-// 10 seconds — only a deliberate "turn off machine, wait, hold brew switch,
-// turn back on" sequence will activate descale mode. Bounce and quick flips
-// are completely excluded.
-#define DESCALE_MIN_STANDBY_MS 10000
 
 // ─── Debounce state per input ──────────────────────────────────────────────
 
@@ -109,12 +100,8 @@ static void scan_inputs(process_image_t *img) {
     s_prev_power_on = img->power_on;
 
     if (img->power_on) {
-      // Descale mode: only activate if the machine was in standby for a meaningful
-      // duration (>500ms). This prevents switch bounce from falsely triggering descale.
-      uint64_t now_us = esp_timer_get_time();
-      bool was_stable_standby =
-          (s_standby_since_us > 0) && ((now_us - s_standby_since_us) / 1000 > DESCALE_MIN_STANDBY_MS);
-      if (was_stable_standby && s_brew_db.stable_state) {
+      // Descale entry (parity with master): brew switch held at power-on.
+      if (io_scan_descale_on_power_up(s_brew_db.stable_state)) {
         img->descale_mode = true;
       }
       // Restart refill state machine on power-on
@@ -125,7 +112,6 @@ static void scan_inputs(process_image_t *img) {
       esp_event_post(MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, 0);
     } else {
       img->descale_mode = false;
-      s_standby_since_us = esp_timer_get_time();
       // Stop refill on power-off
       boiler_refill_states_power_standby();
       img->refill_state = REFILL_STATE_UNKNOWN;
@@ -140,21 +126,21 @@ static void scan_inputs(process_image_t *img) {
   // Handle brew transitions
   if (brew_changed) {
     if (img->brew_on && img->power_on) {
-      img->brew_active = true;
+      auto o = io_scan_brew_started(img->descale_mode, img->refill_solenoid_on);
+      img->brew_active = o.brew_active;
       img->brew_start_time_us = esp_timer_get_time();
-      // Desired outputs: pump + 3-way ON
-      img->pump_on = true;
-      img->three_way_on = true;
+      img->pump_on = o.pump;
+      img->three_way_on = o.three_way;
+      img->refill_solenoid_on = o.solenoid;
       auto now_us = img->brew_start_time_us;
       esp_event_post(MACHINE_EVENTS, BREW_STARTED, (void *)&now_us, sizeof(now_us), 0);
-      ESP_LOGI(TAG, "Brew STARTED");
+      ESP_LOGI(TAG, "Brew STARTED%s", img->descale_mode ? " [DESCALE]" : "");
     } else if (!img->brew_on && img->brew_active) {
-      img->brew_active = false;
-      // Desired outputs: pump + 3-way OFF (unless refill needs pump)
-      if (!img->refill_solenoid_on) {
-        img->pump_on = false;
-      }
-      img->three_way_on = false;
+      auto o = io_scan_brew_stopped(img->descale_mode, img->refill_solenoid_on);
+      img->brew_active = o.brew_active;
+      img->pump_on = o.pump;
+      img->three_way_on = o.three_way;
+      img->refill_solenoid_on = o.solenoid;
       auto now_us = esp_timer_get_time();
       esp_event_post(MACHINE_EVENTS, BREW_STOPPED, (void *)&now_us, sizeof(now_us), 0);
       ESP_LOGI(TAG, "Brew STOPPED");

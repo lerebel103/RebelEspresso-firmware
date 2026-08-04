@@ -17,6 +17,7 @@
 #include "power.h"
 #include "events.h"
 #include "measure.h"
+#include "process_image.h"
 
 #define TAG "api_status"
 
@@ -42,7 +43,11 @@ static esp_err_t _status_handler(httpd_req_t *req) {
   cJSON_AddNumberToObject(temps, "brew_head_setpoint", brew_temp_get_setpoint());
 
   // Power / machine state
+  const process_image_t *img = process_image_get();
   cJSON_AddBoolToObject(root, "power_active", power_is_active());
+  cJSON_AddBoolToObject(root, "descale", img->descale_mode);
+  cJSON_AddBoolToObject(root, "brewing", img->brew_active);
+  cJSON_AddBoolToObject(root, "steam", img->steam_on);
 
   // Boiler level
   const char *refill_state = "unknown";

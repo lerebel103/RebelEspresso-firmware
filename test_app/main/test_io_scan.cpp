@@ -12,6 +12,7 @@
 
 #include "process_image.h"
 #include "io_scan_safety.h"
+#include "io_scan_modes.h"
 #include "boiler_refill_states.h"
 
 // Process image init, field-isolation, and seqlock tests live in
@@ -325,45 +326,25 @@ TEST_CASE("IO: Power state persists between scan cycles (no overwrite)", "[io_sc
 // SECTION 5: Brew Edge Detection via Process Image
 // ============================================================================
 
-TEST_CASE("IO: Descale not triggered by brief bounce (standby < 500ms)", "[io_scan]") {
-  // Simulates: machine is ON, switch bounces OFF then back ON quickly.
-  // The brief standby period (<500ms) must NOT trigger descale even if
-  // the brew switch is held.
-  process_image_init();
-  auto *img = process_image_get();
-
-  // Machine was running
-  img->power_on = true;
-  img->brew_on = true; // brew switch held (would trigger descale if allowed)
-
-  // Switch bounces OFF for a brief moment
-  img->power_on = false;
-  // Standby started "just now" — simulate < 500ms elapsed
-  // The io_scan logic checks (now - standby_since) > 500ms before allowing descale
-
-  // Switch bounces back ON immediately (< 500ms later)
-  img->power_on = true;
-
-  // Descale should NOT have activated (standby was too brief)
-  TEST_ASSERT_FALSE(img->descale_mode);
+TEST_CASE("IO: Descale entry follows the brew switch at power-on", "[io_scan]") {
+  // Descale is entered on a power-on edge iff the (debounced) brew switch is
+  // held. There is no standby-duration gate — the debounce filter alone rejects
+  // switch bounce (parity with master).
+  TEST_ASSERT_TRUE(io_scan_descale_on_power_up(true));
+  TEST_ASSERT_FALSE(io_scan_descale_on_power_up(false));
 }
 
-TEST_CASE("IO: Descale activates only after stable standby > 500ms", "[io_scan]") {
-  // The descale logic is inside the I/O scan's power transition handler.
-  // We can't easily simulate time in a unit test, but we CAN verify that
-  // the process image field is only set when the I/O scan decides it should be.
-  // This test verifies the invariant: descale_mode starts false and is only
-  // set by the I/O scan (not by any other path).
+TEST_CASE("IO: descale_mode is not a side effect of other inputs", "[io_scan]") {
+  // Single-writer discipline: only the I/O scan's power-on edge handler sets
+  // descale_mode. Setting power/brew inputs directly must not enter descale.
   process_image_init();
   auto *img = process_image_get();
 
-  // Initially false
   TEST_ASSERT_FALSE(img->descale_mode);
 
-  // Even with power on and brew held, descale is not set without the I/O scan
   img->power_on = true;
   img->brew_on = true;
-  TEST_ASSERT_FALSE(img->descale_mode); // Only I/O scan sets this
+  TEST_ASSERT_FALSE(img->descale_mode);
 }
 
 TEST_CASE("IO: Brew cannot start in standby", "[io_scan]") {

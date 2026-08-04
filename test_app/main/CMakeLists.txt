@@ -14,12 +14,15 @@ idf_component_register(
         "test_safety_interlocks.cpp"
         "test_io_scan.cpp"
         "test_process_image.cpp"
+        "test_descale.cpp"
         # Source files under test (pulled from the main project)
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/utils/pid.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/machine/boiler_temp.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/machine/boiler_refill_states.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/machine/setpoint_selector.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/process_image.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/io_scan_safety.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/io_scan_modes.cpp"
         # nvram_store.cpp has a dependency on HomeKit config for init — provide a
         # stripped version for tests that only includes the get/set functions.
         "nvram_store_test_shim.cpp"

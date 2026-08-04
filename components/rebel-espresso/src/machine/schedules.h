@@ -14,7 +14,7 @@ extern "C" const double SCHEDULES_DELTA_DEFAULT;
 extern "C" const double SCHEDULES_HYSTERESIS_DEFAULT;
 
 #define MAX_DAYS 7
-#define DAILY_SCHEDULES_MAX 1
+#define DAILY_SCHEDULES_MAX 4
 
 struct daily_schedule_t {
   bool active;
@@ -106,6 +106,12 @@ struct schedules_cfg_t {
       sprintf(buf, "%s" SCHEDULES_CFG_JSON_KEY "%s", base_key, days[i]);
       cJSON *array = cJSON_AddArrayToObject(config, buf);
       for (int j = 0; j < DAILY_SCHEDULES_MAX; j++) {
+        // Skip unused slots (inactive and all-zero) so the report only lists
+        // configured periods; unset days come back as empty arrays.
+        if (!times[i][j].active && times[i][j].start_hour == 0 && times[i][j].start_minute == 0 &&
+            times[i][j].stop_hour == 0 && times[i][j].stop_minute == 0) {
+          continue;
+        }
         cJSON *item = cJSON_CreateObject();
         cJSON_AddBoolToObject(item, "en", times[i][j].active);
         sprintf(buf, "%02d:%02d", times[i][j].start_hour, times[i][j].start_minute);

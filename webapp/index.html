@@ -147,6 +147,24 @@ nav .tab .tab-label { display: inline; }
 .cfg-tab:hover { color: var(--text); background: var(--card); }
 .cfg-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--card); }
 
+/* Schedule editor */
+.sched-master { padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; }
+.sched-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9em; color: var(--text); cursor: pointer; }
+.sched-toggle input { width: auto; }
+.sched-day { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.sched-day-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--card); }
+.sched-day-name { font-size: 0.85em; font-weight: 600; color: var(--text); }
+.sched-periods { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.sched-period { display: flex; align-items: center; gap: 8px; }
+.sched-period input[type=time] { flex: 1; padding: 6px 8px; background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.85em; }
+.sched-period input[type=time]:focus { outline: none; border-color: var(--primary); }
+.sched-period input[type=checkbox] { width: auto; flex: none; }
+.sched-arrow { color: var(--text-dim); font-size: 0.9em; }
+.sched-del { background: none; border: none; color: var(--text-dim); font-size: 1.3em; line-height: 1; cursor: pointer; padding: 0 4px; }
+.sched-del:hover { color: var(--error); }
+.sched-empty { font-size: 0.8em; color: var(--text-dim); font-style: italic; }
+.btn-sm { padding: 4px 10px; font-size: 0.75em; }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -621,6 +639,7 @@ async function loadConfig() {
     const data = await api('config/' + section);
     const fields = document.getElementById('cfg-fields');
     fields.innerHTML = '';
+    if (section === 'schedules') { renderSchedules(data); return; }
     const keys = Object.keys(data).sort();
     for (let i = 0; i < keys.length; i += 2) {
       const row = document.createElement('div');
@@ -646,16 +665,132 @@ async function loadConfig() {
   } catch (e) { toast('Failed to load config: ' + e.message, 'error'); }
 }
 
+// --- Schedule editor (schedules section) ---
+const SCHED_DAYS = [
+  ['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'],
+  ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']
+];
+
+function renderSchedules(data) {
+  const fields = document.getElementById('cfg-fields');
+
+  // Master enable toggle
+  const master = document.createElement('div');
+  master.className = 'sched-master';
+  const mlbl = document.createElement('label');
+  mlbl.className = 'sched-toggle';
+  const mchk = document.createElement('input');
+  mchk.type = 'checkbox'; mchk.id = 'sched-enabled'; mchk.checked = data.en !== false;
+  mlbl.appendChild(mchk);
+  mlbl.appendChild(document.createTextNode(' Scheduling enabled'));
+  master.appendChild(mlbl);
+  fields.appendChild(master);
+
+  const days = document.createElement('div');
+  days.id = 'sched-days';
+  SCHED_DAYS.forEach(([key, name]) => {
+    const periods = Array.isArray(data[key]) ? data[key] : [];
+    days.appendChild(_schedDay(key, name, periods));
+  });
+  fields.appendChild(days);
+}
+
+function _schedDay(key, name, periods) {
+  const day = document.createElement('div');
+  day.className = 'sched-day';
+  day.dataset.day = key;
+
+  const list = document.createElement('div');
+  list.className = 'sched-periods';
+
+  function refreshEmpty() {
+    let empty = list.querySelector('.sched-empty');
+    if (list.querySelectorAll('.sched-period').length === 0) {
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.className = 'sched-empty';
+        empty.textContent = 'Off all day';
+        list.appendChild(empty);
+      }
+    } else if (empty) { empty.remove(); }
+  }
+
+  function addPeriod(p) {
+    const row = document.createElement('div');
+    row.className = 'sched-period';
+
+    const en = document.createElement('input');
+    en.type = 'checkbox'; en.className = 'sched-period-en';
+    en.checked = p.en !== false; en.title = 'Enable this period';
+
+    const start = document.createElement('input');
+    start.type = 'time'; start.className = 'sched-period-start';
+    start.value = p.start || '07:00';
+
+    const arrow = document.createElement('span');
+    arrow.className = 'sched-arrow'; arrow.textContent = '\u2192';
+
+    const stop = document.createElement('input');
+    stop.type = 'time'; stop.className = 'sched-period-stop';
+    stop.value = p.stop || '09:00';
+
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'sched-del';
+    del.innerHTML = '&times;'; del.title = 'Remove period';
+    del.onclick = () => { row.remove(); refreshEmpty(); };
+
+    row.append(en, start, arrow, stop, del);
+    list.appendChild(row);
+  }
+
+  const head = document.createElement('div');
+  head.className = 'sched-day-head';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'sched-day-name'; nameEl.textContent = name;
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button'; addBtn.className = 'btn btn-secondary btn-sm';
+  addBtn.textContent = '+ Add period';
+  addBtn.onclick = () => { addPeriod({ en: true, start: '07:00', stop: '09:00' }); refreshEmpty(); };
+  head.append(nameEl, addBtn);
+
+  day.appendChild(head);
+  day.appendChild(list);
+
+  periods.forEach(addPeriod);
+  refreshEmpty();
+  return day;
+}
+
+function collectSchedules() {
+  const body = { en: document.getElementById('sched-enabled').checked };
+  document.querySelectorAll('#sched-days .sched-day').forEach(day => {
+    const periods = [];
+    day.querySelectorAll('.sched-period').forEach(row => {
+      periods.push({
+        en: row.querySelector('.sched-period-en').checked,
+        start: row.querySelector('.sched-period-start').value || '00:00',
+        stop: row.querySelector('.sched-period-stop').value || '00:00',
+      });
+    });
+    body[day.dataset.day] = periods;
+  });
+  return body;
+}
+
 async function saveConfig() {
   const section = currentConfigSection;
-  const inputs = document.querySelectorAll('#cfg-fields input');
-  const body = {};
-  inputs.forEach(inp => {
-    const k = inp.dataset.key;
-    if (inp.type === 'checkbox') body[k] = inp.checked;
-    else if (inp.type === 'number') body[k] = parseFloat(inp.value);
-    else body[k] = inp.value;
-  });
+  let body;
+  if (section === 'schedules') {
+    body = collectSchedules();
+  } else {
+    body = {};
+    document.querySelectorAll('#cfg-fields input').forEach(inp => {
+      const k = inp.dataset.key;
+      if (inp.type === 'checkbox') body[k] = inp.checked;
+      else if (inp.type === 'number') body[k] = parseFloat(inp.value);
+      else body[k] = inp.value;
+    });
+  }
   try {
     await api('config/' + section, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     toast('Config saved', 'success');

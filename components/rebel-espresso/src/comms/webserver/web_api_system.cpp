@@ -19,6 +19,7 @@
 #include "brew_temp.h"
 #include "boiler_refill.h"
 #include "schedules.h"
+#include "process_image.h"
 
 #define TAG "api_system"
 #define OTA_BUF_SIZE 4096
@@ -51,6 +52,9 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   auto brew_status = brew_get_status();
   cJSON_AddNumberToObject(root, "descale_count", brew_status.descale_count);
   cJSON_AddNumberToObject(root, "last_descale_time", (double)brew_status.last_descale_time);
+
+  // Water-probe diagnostic (median voltage) for corrosion monitoring
+  cJSON_AddNumberToObject(root, "water_probe_mv", process_image_get()->water_level_median_mv);
 
   const char *json = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");

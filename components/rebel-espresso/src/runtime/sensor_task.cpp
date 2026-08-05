@@ -3,6 +3,7 @@
 #include "rtds.h"
 #include "hw_specs.h"
 #include "boiler_refill.h"
+#include "water_probe.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -18,6 +19,9 @@
 
 static TaskHandle_t s_task_handle = nullptr;
 static bool s_running = false;
+
+// Rolling window of probe voltages for the glitch-robust diagnostic median.
+static water_probe_window_t s_probe_window;
 
 /**
  * Callback from rtds_update() — publishes each RTD reading into the process
@@ -52,6 +56,10 @@ static void _read_water_level(process_image_t *img) {
   gpio_set_level(PIN_WATER_LEVEL_ENABLE, WATER_LEVEL_SENSE_OFF);
 
   img->water_level_mv = voltage;
+
+  // Publish a glitch-robust median for diagnostics/corrosion monitoring.
+  water_probe_window_push(&s_probe_window, (uint16_t)voltage);
+  img->water_level_median_mv = water_probe_window_median(&s_probe_window);
 
   // Derive level OK from configured threshold.
   // Use the boiler refill config threshold for now.
@@ -100,6 +108,8 @@ extern "C" void sensor_task_init(void) {
 
   // Note: PIN_WATER_LEVEL_ENABLE GPIO is configured by boiler_refill_init().
   // When legacy refill code is removed, pin configuration moves here.
+
+  water_probe_window_reset(&s_probe_window);
 
   s_running = true;
   xTaskCreate(_sensor_task, "sensor_task", 3072, nullptr, 6, &s_task_handle);

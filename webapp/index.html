@@ -426,9 +426,10 @@ function navigateTo(page) {
   document.getElementById(page).classList.add('active');
   if (page === 'status') startPolling();
   else stopPolling();
+  if (page === 'system') startSysPolling();
+  else stopSysPolling();
   if (page === 'wifi') { loadWifiStatus(); wifiScan(); }
   if (page === 'config') loadConfig();
-  if (page === 'system') loadSystemInfo();
   if (page === 'auth') loadAuthStatus();
   closeMenu();
 }
@@ -634,8 +635,9 @@ async function adjustBrewTemp(delta) {
 function startPolling() { if (!statusInterval) statusInterval = setInterval(refreshStatus, 2000); refreshStatus(); }
 function stopPolling() { if (statusInterval) { clearInterval(statusInterval); statusInterval = null; } }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopPolling();
+  if (document.hidden) { stopPolling(); stopSysPolling(); }
   else if (document.querySelector('[data-page="status"].active')) startPolling();
+  else if (document.querySelector('[data-page="system"].active')) startSysPolling();
 });
 startPolling();
 
@@ -852,6 +854,7 @@ async function loadSystemInfo() {
       ['Boots', d.boot_count], ['Crashes', d.crash_count],
       ['Descales', d.descale_count || 0],
       ['Since Descale', d.last_descale_time > 0 ? _timeSince(d.last_descale_time) : 'Never'],
+      ['Probe Voltage', d.water_probe_mv != null ? d.water_probe_mv + ' mV' : '--'],
       ['Free Heap', (d.free_heap/1024).toFixed(0) + ' KB'],
       ['Min Heap', (d.min_free_heap/1024).toFixed(0) + ' KB'],
     ];
@@ -868,6 +871,10 @@ async function loadSystemInfo() {
     el.appendChild(tbl);
   } catch (e) { document.getElementById('sys-info').textContent = 'Error loading info'; }
 }
+
+let sysInterval = null;
+function startSysPolling() { if (!sysInterval) sysInterval = setInterval(loadSystemInfo, 3000); loadSystemInfo(); }
+function stopSysPolling() { if (sysInterval) { clearInterval(sysInterval); sysInterval = null; } }
 
 async function uploadOTA() {
   const file = document.getElementById('ota-file').files[0];

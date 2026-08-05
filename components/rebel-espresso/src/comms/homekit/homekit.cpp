@@ -16,8 +16,11 @@
 #include "rtds.h"
 #include "brew_temp.h"
 #include "boiler_temp.h"
+#include "homekit_config.h"
 
 static hap_serv_t *service;
+
+static bool s_running = false;
 
 static hap_char_t *hc_brew_temp = nullptr;
 static hap_char_t *hc_boiler_temp = nullptr;
@@ -365,8 +368,19 @@ static void espresso_thread_entry(void *arg) {
   /* Enable Hardware MFi authentication (applicable only for MFi variant of SDK) */
   hap_enable_mfi_auth(HAP_MFI_AUTH_HW);
 
+  // Firmware-owned pairing PIN so it is deterministic and shown in the web UI.
+  // Overrides any code derived from the factory keystore. Must precede hap_start().
+  {
+    const homekit_cfg_t& hkcfg = homekit_config_get();
+    if (homekit_setup_code_valid(hkcfg.setup_code)) {
+      hap_set_setup_code(hkcfg.setup_code);
+      ESP_LOGI(TAG, "HomeKit setup code applied from config");
+    }
+  }
+
   /* After all the initializations are done, start the HAP core */
   hap_start();
+  s_running = true;
 
   /* The task ends here. The read/write callbacks will be invoked by the HAP Framework */
   vTaskDelete(NULL);
@@ -410,9 +424,24 @@ void homekit_terminate() {
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, TICK, _tick_events));
 
   hap_stop();
+  s_running = false;
+}
+
+bool homekit_is_running() {
+  return s_running;
+}
+
+int homekit_paired_count() {
+  return s_running ? hap_get_paired_controller_count() : 0;
 }
 
 void homekit_init() {
+  homekit_config_load();
+  if (!homekit_config_get().enabled) {
+    ESP_LOGI(TAG, "HomeKit disabled by config");
+    return;
+  }
+
   // Register power events so we can send to home kit
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));

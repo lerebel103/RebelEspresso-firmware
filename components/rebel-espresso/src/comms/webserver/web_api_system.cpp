@@ -20,6 +20,9 @@
 #include "boiler_refill.h"
 #include "schedules.h"
 #include "process_image.h"
+#include "mqtt/mqtt_ha.h"
+#include "homekit/homekit.h"
+#include "homekit/homekit_config.h"
 
 #define TAG "api_system"
 #define OTA_BUF_SIZE 4096
@@ -411,6 +414,30 @@ static esp_err_t _probe_calibrate_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+// --- GET /api/comms/status (live MQTT + HomeKit connection state) ---
+
+static esp_err_t _comms_status_handler(httpd_req_t *req) {
+  cJSON *root = cJSON_CreateObject();
+
+  cJSON *mqtt = cJSON_AddObjectToObject(root, "mqtt");
+  cJSON_AddBoolToObject(mqtt, "enabled", mqtt_ha_is_enabled());
+  cJSON_AddBoolToObject(mqtt, "connected", mqtt_ha_is_connected());
+
+  cJSON *hk = cJSON_AddObjectToObject(root, "homekit");
+  const homekit_cfg_t& hkcfg = homekit_config_get();
+  cJSON_AddBoolToObject(hk, "enabled", hkcfg.enabled);
+  cJSON_AddBoolToObject(hk, "running", homekit_is_running());
+  cJSON_AddNumberToObject(hk, "paired", homekit_paired_count());
+
+  const char *resp = cJSON_PrintUnformatted(root);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, resp);
+  cJSON_free((void *)resp);
+  cJSON_Delete(root);
+  return ESP_OK;
+}
+
 void web_api_system_register(httpd_handle_t server) {
   const httpd_uri_t info_uri = {
       .uri = "/api/system/info",
@@ -467,6 +494,14 @@ void web_api_system_register(httpd_handle_t server) {
       .user_ctx = nullptr,
   };
   httpd_register_uri_handler(server, &probe_cal_uri);
+
+  const httpd_uri_t comms_status_uri = {
+      .uri = "/api/comms/status",
+      .method = HTTP_GET,
+      .handler = _comms_status_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &comms_status_uri);
 
   ESP_LOGI(TAG, "System API registered");
 }

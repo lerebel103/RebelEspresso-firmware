@@ -111,6 +111,24 @@ TEST_CASE("Corrosion: auto-clears after sustained recovery", "[water_probe]") {
   TEST_ASSERT_EQUAL(CORROSION_OK, corrosion_monitor_update(&m, 500, warn, fault, 2600, cons));
 }
 
+TEST_CASE("Corrosion: reset clears a latched fault immediately (calibrate UX)", "[water_probe]") {
+  corrosion_monitor_t m;
+  corrosion_monitor_reset(&m);
+  const uint16_t warn = 900, fault = 1300, cons = 1000;
+
+  // Drive into a committed FAULT.
+  corrosion_monitor_update(&m, 1400, warn, fault, 0, cons);
+  TEST_ASSERT_EQUAL(CORROSION_FAULT, corrosion_monitor_update(&m, 1400, warn, fault, 1000, cons));
+
+  // A calibrate resets the monitor -> immediately OK, no consistency wait.
+  corrosion_monitor_reset(&m);
+  TEST_ASSERT_EQUAL(CORROSION_OK, m.status);
+
+  // With fresh (higher) thresholds the same reading is now healthy and stays OK.
+  const uint16_t warn2 = 1600, fault2 = 2000;
+  TEST_ASSERT_EQUAL(CORROSION_OK, corrosion_monitor_update(&m, 1400, warn2, fault2, 2000, cons));
+}
+
 // ============================================================================
 // Trust-aware level classification
 // ============================================================================

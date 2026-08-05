@@ -10,6 +10,7 @@
 #include "boiler_refill.h"
 #include "schedules.h"
 #include "mqtt/mqtt_config.h"
+#include "homekit/homekit_config.h"
 
 #define TAG "api_config"
 #define MAX_BODY_SIZE 1024
@@ -88,6 +89,8 @@ static esp_err_t _config_get_handler(httpd_req_t *req) {
     cfg.to_json(json, "");
   } else if (strcmp(name, "mqtt") == 0) {
     mqtt_config_get().to_json(json, "");
+  } else if (strcmp(name, "homekit") == 0) {
+    homekit_config_get().to_json(json, "");
   } else {
     found = false;
   }
@@ -143,6 +146,8 @@ static esp_err_t _config_put_handler(httpd_req_t *req) {
     schedules_update_cfg(json);
   } else if (strcmp(name, "mqtt") == 0) {
     mqtt_config_update(json);
+  } else if (strcmp(name, "homekit") == 0) {
+    homekit_config_update(json);
   } else {
     found = false;
   }
@@ -183,6 +188,8 @@ static esp_err_t _config_reset_handler(httpd_req_t *req) {
     schedules_reset_cfg();
   } else if (strcmp(name, "mqtt") == 0) {
     mqtt_config_reset();
+  } else if (strcmp(name, "homekit") == 0) {
+    homekit_config_reset();
   } else {
     found = false;
   }

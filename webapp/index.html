@@ -350,7 +350,7 @@ nav .tab .tab-label { display: inline; }
         <button class="cfg-tab" data-cfg="brew_temp">Brew</button>
         <button class="cfg-tab" data-cfg="boiler_refill">Refill</button>
         <button class="cfg-tab" data-cfg="schedules">Schedules</button>
-        <button class="cfg-tab" data-cfg="mqtt">MQTT</button>
+        <button class="cfg-tab" data-cfg="comms">Comms</button>
       </div>
     </div>
     <div class="card" id="cfg-card">
@@ -457,6 +457,7 @@ function navigateTo(page) {
   else stopPolling();
   if (page === 'system') startSysPolling();
   else stopSysPolling();
+  if (page !== 'config') stopCommsPolling();
   if (page === 'wifi') { loadWifiStatus(); wifiScan(); }
   if (page === 'config') loadConfig();
   if (page === 'auth') loadAuthStatus();
@@ -664,7 +665,7 @@ async function adjustBrewTemp(delta) {
 function startPolling() { if (!statusInterval) statusInterval = setInterval(refreshStatus, 2000); refreshStatus(); }
 function stopPolling() { if (statusInterval) { clearInterval(statusInterval); statusInterval = null; } }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopPolling(); stopSysPolling(); }
+  if (document.hidden) { stopPolling(); stopSysPolling(); stopCommsPolling(); }
   else if (document.querySelector('[data-page="status"].active')) startPolling();
   else if (document.querySelector('[data-page="system"].active')) startSysPolling();
 });
@@ -685,15 +686,69 @@ document.querySelectorAll('.cfg-tab').forEach(tab => {
 
 async function loadConfig() {
   const section = currentConfigSection;
-  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules', mqtt:'MQTT'};
+  stopCommsPolling();
+  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules', comms:'Comms'};
   document.getElementById('cfg-title').textContent = titles[section] || section;
   try {
+    if (section === 'comms') { await renderComms(); return; }
     const data = await api('config/' + section);
     const fields = document.getElementById('cfg-fields');
     fields.innerHTML = '';
     if (section === 'schedules') { renderSchedules(data); return; }
     renderConfigForm(section, data);
   } catch (e) { toast('Failed to load config: ' + e.message, 'error'); }
+}
+
+// --- Comms tab: MQTT + Apple HomeKit sub-sections with live indicators ---
+let commsInterval = null;
+function stopCommsPolling() { if (commsInterval) { clearInterval(commsInterval); commsInterval = null; } }
+
+async function renderComms() {
+  const fields = document.getElementById('cfg-fields');
+  fields.innerHTML = '';
+  const [mqtt, hk] = await Promise.all([api('config/mqtt'), api('config/homekit')]);
+  fields.appendChild(_commsSection('mqtt', 'MQTT', CFG_SCHEMA.mqtt, mqtt, true));
+  fields.appendChild(_commsSection('homekit', 'Apple HomeKit', CFG_SCHEMA.homekit, hk, false));
+  loadCommsStatus();
+  commsInterval = setInterval(loadCommsStatus, 3000);
+}
+
+function _commsSection(cfgName, title, schema, data, first) {
+  const sec = document.createElement('div');
+  sec.className = first ? 'cfg-group' : 'cfg-subsection';
+  const h = document.createElement('h4');
+  h.innerHTML = '<span class="indicator" id="' + cfgName + '-ind"></span>' + title +
+    ' <span id="' + cfgName + '-ind-label" style="font-weight:400;font-size:0.8em;color:var(--text-dim)"></span>';
+  sec.appendChild(h);
+  if (schema.intro) { const p = document.createElement('p'); p.className = 'cfg-intro'; p.textContent = schema.intro; sec.appendChild(p); }
+  const meta = schema.fields || {};
+  schema.groups.flatMap(g => g.keys).filter(k => k in data).forEach(k => {
+    const item = _cfgItem(k, data[k], data, meta[k]);
+    item.querySelectorAll('input').forEach(inp => inp.dataset.cfg = cfgName);
+    sec.appendChild(item);
+  });
+  return sec;
+}
+
+function _setCommsInd(cfgName, cls, label) {
+  const dot = document.getElementById(cfgName + '-ind');
+  if (dot) {
+    dot.className = 'indicator' + (cls === 'off' ? '' : ' ' + cls);
+    dot.style.background = (cls === 'off') ? 'var(--text-dim)' : '';
+  }
+  const lb = document.getElementById(cfgName + '-ind-label');
+  if (lb) lb.textContent = label;
+}
+
+async function loadCommsStatus() {
+  try {
+    const s = await api('comms/status');
+    _setCommsInd('mqtt', !s.mqtt.enabled ? 'off' : (s.mqtt.connected ? 'ok' : 'error'),
+      !s.mqtt.enabled ? 'Disabled' : (s.mqtt.connected ? 'Connected' : 'Disconnected'));
+    const hk = s.homekit;
+    _setCommsInd('homekit', !hk.enabled ? 'off' : (hk.paired > 0 ? 'ok' : 'warn'),
+      !hk.enabled ? 'Disabled' : (hk.paired > 0 ? ('Paired (' + hk.paired + ')') : 'Not paired'));
+  } catch (e) { /* transient */ }
 }
 
 // Build the input control for a config key (shared by all renderers).
@@ -812,6 +867,16 @@ const CFG_SCHEMA = {
     },
     groups: [
       { title: 'Broker', keys: ['enabled', 'broker_uri', 'username', 'password', 'publish_interval_sec'] },
+    ],
+  },
+  homekit: {
+    intro: 'Control and view the machine from the Apple Home app and Siri.',
+    fields: {
+      'enabled': ['HomeKit enabled', 'Advertise the accessory for pairing and expose it in the Home app.'],
+      'setup_code': ['Pairing code', 'The PIN to enter when adding the accessory in the Home app (format xxx-xx-xxx). This is the default pairing code — changing it requires re-pairing any hubs.'],
+    },
+    groups: [
+      { title: 'HomeKit', keys: ['enabled', 'setup_code'] },
     ],
   },
 };
@@ -990,6 +1055,7 @@ function collectSchedules() {
 
 async function saveConfig() {
   const section = currentConfigSection;
+  if (section === 'comms') { return saveComms(); }
   let body;
   if (section === 'schedules') {
     body = collectSchedules();
@@ -1008,8 +1074,40 @@ async function saveConfig() {
   } catch (e) { toast('Save failed: ' + e.message, 'error'); }
 }
 
+// Collect the comms tab's two sub-sections (data-cfg tags each input) and save
+// them to their respective endpoints. Empty MQTT password is skipped (write-only).
+async function saveComms() {
+  const bodies = { mqtt: {}, homekit: {} };
+  document.querySelectorAll('#cfg-fields input').forEach(inp => {
+    const cfg = inp.dataset.cfg, k = inp.dataset.key;
+    if (!cfg || !k) return;
+    let v;
+    if (inp.type === 'checkbox') v = inp.checked;
+    else if (inp.type === 'number') v = parseFloat(inp.value);
+    else v = inp.value;
+    if (cfg === 'mqtt' && k === 'password' && v === '') return;
+    bodies[cfg][k] = v;
+  });
+  try {
+    await api('config/mqtt', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(bodies.mqtt) });
+    await api('config/homekit', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(bodies.homekit) });
+    toast('Config saved', 'success');
+    loadCommsStatus();
+  } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+}
+
 async function resetConfig() {
   const section = currentConfigSection;
+  if (section === 'comms') {
+    if (!confirm('Reset MQTT and HomeKit to factory defaults?')) return;
+    try {
+      await api('config/mqtt/reset', { method: 'POST' });
+      await api('config/homekit/reset', { method: 'POST' });
+      toast('Reset to defaults', 'success');
+      loadConfig();
+    } catch (e) { toast('Reset failed: ' + e.message, 'error'); }
+    return;
+  }
   if (!confirm('Reset ' + section + ' to factory defaults?')) return;
   try {
     await api('config/' + section + '/reset', { method: 'POST' });

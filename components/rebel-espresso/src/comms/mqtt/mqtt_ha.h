@@ -14,3 +14,9 @@ void mqtt_ha_service();
 
 /// Publish offline availability, stop and destroy the client.
 void mqtt_ha_stop();
+
+/// True when MQTT is enabled in config.
+bool mqtt_ha_is_enabled();
+
+/// True when the client currently has a live broker connection.
+bool mqtt_ha_is_connected();

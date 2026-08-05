@@ -289,3 +289,11 @@ void mqtt_ha_stop() {
   s_started = false;
   s_connected = false;
 }
+
+bool mqtt_ha_is_enabled() {
+  return mqtt_config_get().enabled;
+}
+
+bool mqtt_ha_is_connected() {
+  return s_connected;
+}

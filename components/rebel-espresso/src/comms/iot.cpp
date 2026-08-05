@@ -21,6 +21,7 @@
 #include "boiler_refill.h"
 #include "schedules.h"
 #include "webserver/web_server.h"
+#include "mqtt/mqtt_ha.h"
 
 #define TAG "iot"
 
@@ -89,6 +90,11 @@ void iot_process_events() {
     // OTA rollback self-test
     _check_rollback_validation();
 
+    // MQTT / Home Assistant — only attempt once STA WiFi is connected.
+    if (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) {
+      mqtt_ha_service();
+    }
+
     // Approximately every second...
     time_t now = esp_timer_get_time() / 1000;
     if (IOT_LOOP_PERIOD > (now - time_since_boot_millis)) {
@@ -99,4 +105,5 @@ void iot_process_events() {
 
 void iot_init() {
   homekit_init();
+  mqtt_ha_init();
 }

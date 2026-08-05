@@ -12,6 +12,7 @@ set(COMPONENT_SRCDIRS
         src/comms
         src/comms/webserver
         src/comms/homekit
+        src/comms/mqtt
         src/device
         )
 
@@ -35,6 +36,7 @@ set(COMPONENT_REQUIRES
         esp_wifi
         tft-driver
         esp-ssr-controller
+        espressif__mqtt
         )
 
 set(COMPONENT_ADD_INCLUDEDIRS
@@ -47,6 +49,7 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src/comms"
         "./src/comms/webserver"
         "./src/comms/homekit"
+        "./src/comms/mqtt"
         "./src/device"
         )
 

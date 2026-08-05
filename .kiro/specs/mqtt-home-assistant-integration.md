@@ -35,8 +35,9 @@ section pattern as the other config blocks.
 
 ### R1: MQTT client
 - Use the ESP-IDF built-in `mqtt` component (`esp-mqtt`) — no extra dependency.
-- Support plain TCP and **TLS** (`mqtts://`) endpoints; optional server-cert
-  verification (bundle already present) and username/password auth.
+- **Plain TCP only** (`mqtt://host:1883`) with **username/password (basic auth)**.
+  No TLS for now — the target broker is not TLS-configured and TLS adds notable
+  RAM/flash pressure. Revisit later if needed.
 - Automatic reconnect with backoff; all network work off the control path.
 - **Last Will & Testament (LWT)** on the availability topic so HA shows the
   device offline if it drops.
@@ -45,14 +46,13 @@ section pattern as the other config blocks.
 - New `mqtt` config block with `from_json`/`to_json`, stable NVS keys, `_DEFAULT`
   constants, and a dedicated NVS store (e.g. `cfg.mqtt`). Fields:
   - `enabled` (bool, default false)
-  - `broker_uri` (string, e.g. `mqtt://host:1883` or `mqtts://host:8883`)
+  - `broker_uri` (string, e.g. `mqtt://host:1883`)
   - `username` (string)
   - `password` (string, write-only over the API — never returned in `to_json`)
-  - `client_id` (string, default derived from thing id)
-  - `base_topic` (string prefix, default `rebelespresso`)
+  - `client_id` (string, default derived from the thing id)
+  - `base_topic` (string prefix, default derived from the thing id)
   - `discovery_prefix` (string, default `homeassistant`)
   - `publish_interval_sec` (uint, default e.g. 5)
-  - `tls_insecure` (bool, default false — allow self-signed without verify)
 - Surfaced as an **MQTT** section on the web Config page, dispatched in
   `web_api_config` exactly like `boiler_temp`/`schedules`.
 - Password handling mirrors the web-auth approach: accepted on write, stored in
@@ -74,43 +74,43 @@ section pattern as the other config blocks.
 ### R4: Entity set
 Grouped by HA component and `entity_category`:
 
+- **`climate`** (the thermostat, replicated from HomeKit — gives brew-setpoint
+  control "for free"):
+  - Brew head: `current_temperature` = brew-head temp, target temperature = brew
+    setpoint (adjustable, min/max/step matching the existing web control).
 - **`sensor`** (primary):
-  - Boiler temperature, brew-head temperature, boiler setpoint, brew setpoint,
-    boiler duty %, boiler water-level mV.
+  - Boiler temperature, boiler setpoint, brew-head temperature, boiler duty %,
+    boiler water-level mV.
 - **`binary_sensor`**:
   - Power active, brewing, steam, descale, refill active, refill error.
 - **`sensor` / `binary_sensor` (`entity_category: diagnostic`)**:
-  - **Probe voltage (median)** and **corrosion status** + wet baseline / margin
+  - **Probe voltage (median)** and **corrosion status** + baseline / thresholds
     (from the corrosion spec),
   - Boot count, crash count, free heap, min heap, uptime, WiFi RSSI,
     firmware version, IDF version, hardware revision.
 - **Controls**:
   - `switch` — machine power (on/off).
-  - `number` — brew setpoint (and optionally boiler setpoint), with min/max/step
-    matching the existing web control limits.
-  - `button` — reboot; probe **recalibrate / acknowledge corrosion fault**
-    (ties into the corrosion spec actions).
+  - Brew setpoint — provided by the `climate` target temperature (above).
+  - `button` — probe **Calibrate** (ties into the corrosion Calibrate action).
 
 ### R5: State publishing
-- Publish a compact **JSON state document** to a small number of state topics
-  (e.g. `<base_topic>/state` for fast-changing values, `<base_topic>/diag` for
-  diagnostics), with discovery `value_template`s selecting each field — this
-  minimises topic/message count vs one topic per entity.
+- Publish **one compact JSON state document** to a single state topic
+  (`<base_topic>/state`); every entity's discovery config selects its field via a
+  `value_template`. One publish covers all read entities — minimal broker chatter.
 - Cadence:
   - periodic on the Layer-4 poll / `TICK` at `publish_interval_sec`,
   - **plus on-change** for discrete events (power, brew, steam, descale, refill,
     corrosion status) driven off `MACHINE_EVENTS`.
-- QoS 0 for high-rate telemetry; QoS 1 + retain for availability and discrete
-  state that HA should recover on restart.
+- QoS 0 for the periodic state; QoS 1 + retain for availability.
 
 ### R6: Command handling
 - Subscribe to `<base_topic>/cmd/#` (or per-control command topics).
 - Map commands to the existing remote APIs:
   - power switch → `power_active()` / `power_standby()`,
-  - brew/boiler setpoint number → the same setter used by the web control API,
-  - reboot / recalibrate / ack-fault → the corresponding existing actions.
+  - brew setpoint (climate target) → the same setter used by the web control API,
+  - Calibrate button → the corrosion Calibrate action.
 - Validate/clamp all inputs at the boundary; publish the resulting state back so
-  HA reflects the accepted value (optimistic-off).
+  HA reflects the accepted value.
 
 ### R7: Availability / LWT
 - Retained availability topic `<base_topic>/availability` with `online` on
@@ -126,16 +126,16 @@ Grouped by HA component and `entity_category`:
   the process image snapshot and event notifications only.
 
 ### R9: Security
-- Support TLS with the existing CA bundle; `tls_insecure` opt-out for
-  self-signed/local brokers.
+- **Basic auth (username/password)** over plain TCP. No TLS for now (broker not
+  TLS-configured; TLS adds significant RAM/flash). May revisit later.
 - Credentials stored in NVS; **never** logged or returned by any API/export.
-- Note secrets live in NVS plaintext (same as existing WiFi/identity material);
-  document this and keep them out of telemetry.
+- Note secrets live in NVS plaintext (same as existing WiFi/identity material)
+  and travel in the clear on the LAN without TLS; keep them out of telemetry.
 
 ### R10: Flash / memory budget
-- `esp-mqtt` + TLS is already part of IDF; incremental app cost is the client
-  glue + discovery/state serialisation (cJSON already linked). Target a few tens
-  of KB.
+- `esp-mqtt` is already part of IDF; plain-TCP (no TLS) keeps RAM pressure low.
+  Incremental app cost is the client glue + discovery/state serialisation (cJSON
+  already linked). Target a few tens of KB.
 - No impact when disabled (default). Verify the firmware still fits the OTA
   partition (2000 KB) after integration.
 
@@ -149,10 +149,15 @@ Grouped by HA component and `entity_category`:
 
 - **Discovery-based, zero-config in HA.** Self-advertising avoids any HA YAML and
   keeps the device the single source of truth for its entities.
-- **Grouped JSON state topics + `value_template`** rather than one topic per
-  entity — fewer publishes, less broker chatter, still fully HA-native.
+- **One JSON state topic + `value_template`** rather than one topic per entity —
+  a single publish updates everything, minimal broker chatter, still HA-native.
+- **`climate` entity replicates the thermostat** and provides brew-setpoint
+  control for free (target temperature), so the only extra control is a Calibrate
+  button (plus the power switch).
 - **Reuse existing remote APIs for commands** so MQTT, web, and HomeKit share one
   command path and one precedence/safety model.
+- **Plain TCP + basic auth.** No TLS for now to keep RAM/flash low; the LAN broker
+  is not TLS-configured. Revisit if remote/off-LAN access is needed.
 - **Coexists with HomeKit.** MQTT is additive; HomeKit (port 80) and the web
   server (port 8080) are unchanged. Users can enable either/both.
 - **Config-block parity.** The `mqtt` section behaves like every other config
@@ -162,14 +167,9 @@ Grouped by HA component and `entity_category`:
   read-redacted, excluded from config export/import).
 
 ## Open Questions
-1. One consolidated JSON state topic vs a small set (`state` + `diag`) — preferred
-   split?
-2. Which controls to expose beyond power + brew setpoint (e.g. boiler setpoint,
-   descale trigger)?
-3. Client ID / base topic defaults — derive from `thing_id` (recommended) or make
-   fully user-set?
-4. TLS default posture for typical local brokers — verify with CA bundle by
-   default, or default `tls_insecure` on for LAN convenience?
+_All resolved for the initial implementation: one JSON state topic; controls =
+power switch + brew setpoint (via the climate entity) + Calibrate button;
+client-id/base-topic derived from `thing_id`; plain TCP + basic auth (no TLS)._
 
 ## Suggested Milestones
 - **M1** — `mqtt` config block (NVS + web section, redacted password) and client

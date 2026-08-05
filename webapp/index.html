@@ -334,6 +334,7 @@ nav .tab .tab-label { display: inline; }
         <button class="cfg-tab" data-cfg="brew_temp">Brew</button>
         <button class="cfg-tab" data-cfg="boiler_refill">Refill</button>
         <button class="cfg-tab" data-cfg="schedules">Schedules</button>
+        <button class="cfg-tab" data-cfg="mqtt">MQTT</button>
       </div>
     </div>
     <div class="card" id="cfg-card">
@@ -664,14 +665,14 @@ document.querySelectorAll('.cfg-tab').forEach(tab => {
 
 async function loadConfig() {
   const section = currentConfigSection;
-  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules'};
+  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules', mqtt:'MQTT'};
   document.getElementById('cfg-title').textContent = titles[section] || section;
   try {
     const data = await api('config/' + section);
     const fields = document.getElementById('cfg-fields');
     fields.innerHTML = '';
     if (section === 'schedules') { renderSchedules(data); return; }
-    const keys = Object.keys(data).sort();
+    const keys = Object.keys(data).sort().filter(k => k !== 'has_password');
     for (let i = 0; i < keys.length; i += 2) {
       const row = document.createElement('div');
       row.className = 'form-row';
@@ -686,6 +687,7 @@ async function loadConfig() {
         inp.dataset.key = k;
         if (typeof v === 'boolean') { inp.type = 'checkbox'; inp.checked = v; }
         else if (typeof v === 'number') { inp.type = 'number'; inp.step = 'any'; inp.value = v; }
+        else if (k === 'password') { inp.type = 'password'; inp.value = ''; inp.placeholder = data.has_password ? '\u2022\u2022\u2022\u2022 (unchanged)' : 'not set'; }
         else { inp.type = 'text'; inp.value = v; }
         grp.appendChild(lbl);
         grp.appendChild(inp);

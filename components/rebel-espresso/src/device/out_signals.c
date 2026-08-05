@@ -15,32 +15,45 @@
 static i2c_master_dev_handle_t dev_handle;
 
 void out_signals_set_level(enum out_signals_t slot, uint8_t level) {
-  // Read current state, so we can or the desired pin output state
+  // Read current state so we can OR in the desired pin. On any I2C error, log
+  // and bail rather than abort — the I/O scan re-drives every output each 20ms
+  // cycle, so a transient bus timeout must never panic the machine.
   uint8_t state[] = {REGISTER_IN, 0x0};
-  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, state, 1, state + 1, 1, 1000));
+  esp_err_t err = i2c_master_transmit_receive(dev_handle, state, 1, state + 1, 1, 1000);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "IO expander read failed: %s", esp_err_to_name(err));
+    return;
+  }
 
+  uint8_t mask;
   if (slot == OUT_SIGNALS_RELAY1) {
-    uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x01u : state[1] & ~0x1u)};
-    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000));
+    mask = 0x01u;
   } else if (slot == OUT_SIGNALS_RELAY2) {
-    uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x02u : state[1] & ~0x2u)};
-    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000));
+    mask = 0x02u;
   } else if (slot == OUT_SIGNALS_RELAY3) {
-    uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x04u : state[1] & ~0x4u)};
-    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000));
+    mask = 0x04u;
   } else if (slot == OUT_SIGNALS_AUX) {
-    uint8_t set_output_cmd[] = {REGISTER_OUT, (level ? state[1] | 0x08u : state[1] & ~0x8u)};
-    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000));
+    mask = 0x08u;
   } else {
-    // Unsupported
     ESP_LOGE(TAG, "Slot %d not supported", slot);
+    return;
+  }
+
+  uint8_t set_output_cmd[] = {REGISTER_OUT, (uint8_t)(level ? state[1] | mask : state[1] & ~mask)};
+  err = i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "IO expander write failed: %s", esp_err_to_name(err));
   }
 }
 
 uint8_t out_signals_get_level(enum out_signals_t slot) {
-  // Read current state, so we can or the desired pin output state
+  // Read current state so we can extract the desired pin.
   uint8_t state[] = {REGISTER_IN, 0x0};
-  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, state, 1, state + 1, 1, 1000));
+  esp_err_t err = i2c_master_transmit_receive(dev_handle, state, 1, state + 1, 1, 1000);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "IO expander read failed: %s", esp_err_to_name(err));
+    return 0;
+  }
 
   uint8_t val = 0;
 
@@ -73,12 +86,19 @@ void out_signals_init() {
   ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle));
   ESP_LOGI(TAG, "Added IO Expander device to I2C bus");
 
-  // Configure pins as output, all of them
+  // Configure pins as output, all of them. Log-and-continue on a transient bus
+  // error (e.g. warm-reboot recovery) — the I/O scan re-drives outputs every 20ms.
   uint8_t init_output_cmd[] = {REGISTER_CFG, 0x0};
-  ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, init_output_cmd, 2, 1000));
+  esp_err_t err = i2c_master_transmit(dev_handle, init_output_cmd, 2, 1000);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "IO expander config failed: %s", esp_err_to_name(err));
+  }
 
   // Force all pins to low level
   uint8_t set_output_cmd[] = {REGISTER_OUT, 0x0};
-  ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000));
+  err = i2c_master_transmit(dev_handle, set_output_cmd, 2, 1000);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "IO expander clear failed: %s", esp_err_to_name(err));
+  }
   ESP_LOGI(TAG, "IO Expander initialised");
 }

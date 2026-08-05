@@ -234,6 +234,11 @@ static void apply_outputs(process_image_t *img) {
 static void io_scan_task(void *) {
   ESP_LOGI(TAG, "I/O scan task started (interval=%dms)", IO_SCAN_INTERVAL_MS);
 
+  // Enroll in the task WDT from within the task, before the loop's first reset,
+  // to avoid a "task not found" race with io_scan_init (the high-priority task
+  // starts before the init caller reaches esp_task_wdt_add).
+  esp_task_wdt_add(NULL);
+
   // Seed debounce with current GPIO state so we don't need two full cycles
   // to detect the initial power state at boot.
   bool power_initial = gpio_get_level(PIN_IN_SYS_EN) == 0;
@@ -300,6 +305,7 @@ static void io_scan_task(void *) {
   }
 
   ESP_LOGI(TAG, "I/O scan task stopped");
+  esp_task_wdt_delete(NULL);
   s_task_handle = nullptr;
   vTaskDelete(nullptr);
 }
@@ -333,9 +339,8 @@ extern "C" void io_scan_init(void) {
   s_running = true;
   xTaskCreate(io_scan_task, "io_scan", 2048, nullptr, 8, &s_task_handle);
 
-  // Enroll in existing task WDT (shared with control loop, 2s timeout).
-  // If the I/O scan stalls for >2s, the system panics and restarts.
-  esp_task_wdt_add(s_task_handle);
+  // The task enrolls itself in the shared 2s task WDT at startup (see
+  // io_scan_task) to avoid a registration race with its own reset calls.
 
   ESP_LOGI(TAG, "Initialised");
 }

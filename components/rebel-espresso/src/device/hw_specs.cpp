@@ -67,6 +67,14 @@ void hw_specs_init() {
   ESP_ERROR_CHECK(i2c_new_master_bus(&conf, &s_i2c_handle));
   ESP_LOGI(TAG, "I2C bus created");
 
+  // A warm reboot (e.g. OTA) does not power-cycle the IO expander; if the bus
+  // was mid-transaction it can leave a device holding SDA low. Reset the bus
+  // once up front so recovery is deterministic instead of a first-transfer timeout.
+  esp_err_t bus_rst = i2c_master_bus_reset(s_i2c_handle);
+  if (bus_rst != ESP_OK) {
+    ESP_LOGW(TAG, "I2C bus reset returned %s", esp_err_to_name(bus_rst));
+  }
+
   // Now can init I2C-dependent peripherals
   out_signals_init();
 

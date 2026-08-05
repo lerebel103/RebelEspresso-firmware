@@ -13,7 +13,9 @@
 #include "web_auth.h"
 
 #define TAG "webserver"
-#define MAX_CONNECTIONS 5
+// Browsers open up to ~6 persistent connections per origin; give one spare so a
+// new request never LRU-purges an active one. Budget: 7+3 internal < LWIP 16.
+#define MAX_CONNECTIONS 7
 
 static httpd_handle_t s_server = nullptr;
 static bool s_running = false;
@@ -32,6 +34,14 @@ esp_err_t web_server_start() {
   config.uri_match_fn = httpd_uri_match_wildcard;
   config.lru_purge_enable = true;
   config.stack_size = 8192;
+
+  // Reap dead/half-open keep-alive connections so idle browser sockets are
+  // released instead of lingering until an LRU purge kicks an active request
+  // ("server unexpectedly closed the connection"). Drops after ~20 s of silence.
+  config.keep_alive_enable = true;
+  config.keep_alive_idle = 5;
+  config.keep_alive_interval = 5;
+  config.keep_alive_count = 3;
 
   esp_err_t err = httpd_start(&s_server, &config);
   if (err != ESP_OK) {

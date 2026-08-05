@@ -78,6 +78,16 @@ typedef enum {
 /// Classify the level from a trust flag and whether the probe reads submerged.
 level_status_t water_level_classify(bool trusted, bool submerged);
 
+/**
+ * Whether a probe reading may be trusted for level/heater decisions.
+ * `adc_ok` is false on a genuine ADC/sensor fault and is ALWAYS untrusted.
+ * When `guard_enabled`, a CORROSION_FAULT also makes the reading untrusted;
+ * when the guard is disabled the corrosion threshold algorithm is ignored for
+ * control (voltage/status are still monitored and reported) so the machine
+ * behaves as it did before corrosion monitoring existed.
+ */
+bool water_level_trusted(bool adc_ok, corrosion_status_t status, bool guard_enabled);
+
 #ifdef __cplusplus
 }
 #endif

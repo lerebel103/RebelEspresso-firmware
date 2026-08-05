@@ -84,3 +84,13 @@ level_status_t water_level_classify(bool trusted, bool submerged) {
   }
   return submerged ? LEVEL_OK : LEVEL_LOW_CONFIRMED;
 }
+
+bool water_level_trusted(bool adc_ok, corrosion_status_t status, bool guard_enabled) {
+  if (!adc_ok) {
+    return false; // genuine ADC/sensor fault — never trust, regardless of guard
+  }
+  if (guard_enabled && status == CORROSION_FAULT) {
+    return false; // corrosion interlock (toggleable for testing)
+  }
+  return true;
+}

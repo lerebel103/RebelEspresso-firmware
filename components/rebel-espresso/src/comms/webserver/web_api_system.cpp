@@ -59,6 +59,7 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   cJSON_AddNumberToObject(root, "water_probe_mv", pi->water_level_median_mv);
   cJSON_AddNumberToObject(root, "corrosion_status", pi->corrosion_status);
   cJSON_AddBoolToObject(root, "corrosion_enabled", refill_cfg.corrosion_enabled != 0);
+  cJSON_AddBoolToObject(root, "corrosion_guard_enabled", refill_cfg.corrosion_guard_enabled != 0);
   cJSON_AddNumberToObject(root, "corrosion_baseline_mv", refill_cfg.corrosion_baseline_mv);
   cJSON_AddNumberToObject(root, "corrosion_warn_mv", refill_cfg.corrosion_warn_threshold_mv);
   cJSON_AddNumberToObject(root, "corrosion_fault_mv", refill_cfg.corrosion_fault_threshold_mv);

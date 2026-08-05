@@ -17,6 +17,7 @@ typedef bool (*check_level_fn)();
 #define KEY_level_low_hysteresis_ms "level_low_ms"
 #define KEY_level_ok_hysteresis_ms "level_ok_ms"
 #define KEY_corrosion_enabled "cor_en"
+#define KEY_corrosion_guard_enabled "cor_guard"
 #define KEY_corrosion_baseline_mv "cor_base_mv"
 #define KEY_corrosion_warn_margin_mv "cor_warn_m"
 #define KEY_corrosion_fault_margin_mv "cor_flt_m"
@@ -32,6 +33,7 @@ extern "C" const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_CORROSION_ENABLED_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_GUARD_ENABLED_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_CORROSION_BASELINE_MV_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_CORROSION_WARN_MARGIN_MV_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_CORROSION_FAULT_MARGIN_MV_DEFAULT;
@@ -78,6 +80,7 @@ struct boiler_refill_cfg_t {
 
   // --- Probe corrosion monitoring (predictive maintenance) ---
   uint16_t corrosion_enabled;            ///< 0/1 — inert until calibrated
+  uint16_t corrosion_guard_enabled;      ///< 0/1 — let a corrosion fault gate heater/refill
   uint16_t corrosion_baseline_mv;        ///< healthy wet reading captured at calibration
   uint16_t corrosion_warn_margin_mv;     ///< added to baseline -> warn threshold
   uint16_t corrosion_fault_margin_mv;    ///< added to baseline -> fault threshold
@@ -107,6 +110,8 @@ struct boiler_refill_cfg_t {
         level_ok_hysteresis_ms = item->valueint;
       } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_enabled")) {
         corrosion_enabled = cJSON_IsTrue(item) ? 1 : (uint16_t)item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_guard_enabled")) {
+        corrosion_guard_enabled = cJSON_IsTrue(item) ? 1 : (uint16_t)item->valueint;
       } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_baseline_mv")) {
         corrosion_baseline_mv = item->valueint;
       } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_warn_margin_mv")) {
@@ -153,6 +158,9 @@ struct boiler_refill_cfg_t {
 
     sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_enabled", base_key);
     cJSON_AddBoolToObject(config, buf, corrosion_enabled != 0);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_guard_enabled", base_key);
+    cJSON_AddBoolToObject(config, buf, corrosion_guard_enabled != 0);
 
     sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_baseline_mv", base_key);
     cJSON_AddNumberToObject(config, buf, corrosion_baseline_mv);

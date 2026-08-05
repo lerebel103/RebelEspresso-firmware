@@ -356,10 +356,14 @@ nav .tab .tab-label { display: inline; }
     <div class="card">
       <h3>Water Probe</h3>
       <div id="probe-info" style="font-size:0.9em;">Loading...</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.85em;">
+        <input type="checkbox" id="probe-guard" onchange="setProbeGuard(this.checked)">
+        Corrosion guard (cut heater / hold refill on a faulty probe)
+      </label>
       <div class="btn-group">
         <button class="btn btn-secondary" onclick="calibrateProbe()">Calibrate Probe</button>
       </div>
-      <div style="margin-top:6px;font-size:0.75em;color:var(--text-dim);">Calibrate with a clean probe and the boiler full.</div>
+      <div style="margin-top:6px;font-size:0.75em;color:var(--text-dim);">Calibrate with a clean probe and the boiler full. Turn the guard off to keep the machine on its prior behaviour while still tracking the probe voltage.</div>
     </div>
     <div class="card">
       <h3>Firmware Update (OTA)</h3>
@@ -894,7 +898,17 @@ async function loadSystemInfo() {
       }
       probeEl.innerHTML = html;
     }
+    const guardEl = document.getElementById('probe-guard');
+    if (guardEl && d.corrosion_guard_enabled != null) guardEl.checked = !!d.corrosion_guard_enabled;
   } catch (e) { document.getElementById('sys-info').textContent = 'Error loading info'; }
+}
+
+async function setProbeGuard(on) {
+  try {
+    await api('config/boiler_refill', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ corrosion_guard_enabled: on }) });
+    toast('Corrosion guard ' + (on ? 'enabled' : 'disabled'), 'success');
+    loadSystemInfo();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); loadSystemInfo(); }
 }
 
 async function calibrateProbe() {

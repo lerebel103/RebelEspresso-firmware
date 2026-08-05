@@ -108,6 +108,12 @@ consistently, **error out and do not refill**.
   - `LEVEL_LOW_CONFIRMED` — confirmed exposed (and probe trusted) → refill.
   - `LEVEL_UNKNOWN` — ADC `status != 0`, out-of-range voltage, or `CORRODED_FAULT`
     → **do not refill**, hold safe, raise error.
+- The corrosion contribution to `LEVEL_UNKNOWN` is gated by `corrosion_guard_enabled`
+  (R8). With the guard **off**, a `CORRODED_FAULT` no longer flips the level to
+  untrusted, so the machine keeps its pre-corrosion behaviour (heater/refill
+  unaffected) while voltage and status are still measured and reported — useful
+  for field testing. A genuine ADC fault (`status != 0`) is **always** untrusted
+  regardless of the guard.
 - This is the acute backstop; corrosion trending (R2) is the predictive layer.
   They are complementary — a probe can also fail suddenly with no slow trend.
 
@@ -137,6 +143,9 @@ consistently, **error out and do not refill**.
 - Corrosion parameters belong to the water-probe/refill domain. Extend the
   existing `boiler_refill` config block (shared probe) with:
   - `corrosion_enabled` (bool)
+  - `corrosion_guard_enabled` (bool) — when set, a `CORRODED_FAULT` gates the
+    heater and refill (default on). Clear it to restore pre-corrosion machine
+    behaviour while still monitoring/reporting the probe voltage and status.
   - `corrosion_baseline_mv` (uint16) — captured at calibration
   - `corrosion_warn_margin_mv` (uint16) — added to baseline → warn threshold
   - `corrosion_fault_margin_mv` (uint16) — added to baseline → fault threshold

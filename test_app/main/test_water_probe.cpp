@@ -122,3 +122,18 @@ TEST_CASE("Level: trusted+submerged=OK, trusted+exposed=LOW, untrusted=UNKNOWN",
   TEST_ASSERT_EQUAL(LEVEL_UNKNOWN, water_level_classify(false, false));
 }
 
+TEST_CASE("Trust: ADC fault always untrusted, corrosion gated by guard", "[water_probe]") {
+  // ADC fault: never trusted, whatever the guard or corrosion status is.
+  TEST_ASSERT_FALSE(water_level_trusted(false, CORROSION_OK, true));
+  TEST_ASSERT_FALSE(water_level_trusted(false, CORROSION_OK, false));
+
+  // Guard ON: a corrosion fault makes the reading untrusted; OK/soon stay trusted.
+  TEST_ASSERT_TRUE(water_level_trusted(true, CORROSION_OK, true));
+  TEST_ASSERT_TRUE(water_level_trusted(true, CORROSION_SERVICE_SOON, true));
+  TEST_ASSERT_FALSE(water_level_trusted(true, CORROSION_FAULT, true));
+
+  // Guard OFF: corrosion status is ignored for control (prior behaviour) — a
+  // fault reading is still trusted so the machine is unaffected.
+  TEST_ASSERT_TRUE(water_level_trusted(true, CORROSION_FAULT, false));
+}
+

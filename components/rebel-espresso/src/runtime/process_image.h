@@ -63,7 +63,8 @@ struct process_image_t {
   measure_t temperatures[PROCESS_IMAGE_MAX_SENSORS]; ///< @owner Sensor task. Per-channel temp + fault
   double water_level_mv;                             ///< @owner Sensor task. Raw water level ADC voltage
   uint16_t water_level_median_mv;                    ///< @owner Sensor task. Rolling-median probe voltage (diagnostic)
-  bool water_level_ok;                               ///< @owner Sensor task. Derived: mv <= threshold
+  uint8_t corrosion_status; ///< @owner Sensor task. corrosion_status_t (0 OK / 1 service / 2 fault)
+  bool water_level_ok;      ///< @owner Sensor task. Derived: mv <= threshold
 
   // ─── DESIRED OUTPUTS (what each owner requests, BEFORE the safety gate) ──
   //   ssr_boiler_duty is the DESIRED duty written by the Control Loop (PID).

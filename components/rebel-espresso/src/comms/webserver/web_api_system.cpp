@@ -53,8 +53,15 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   cJSON_AddNumberToObject(root, "descale_count", brew_status.descale_count);
   cJSON_AddNumberToObject(root, "last_descale_time", (double)brew_status.last_descale_time);
 
-  // Water-probe diagnostic (median voltage) for corrosion monitoring
-  cJSON_AddNumberToObject(root, "water_probe_mv", process_image_get()->water_level_median_mv);
+  // Water-probe diagnostic (median voltage) + corrosion monitoring
+  const process_image_t *pi = process_image_get();
+  auto& refill_cfg = boiler_refill_get_cfg();
+  cJSON_AddNumberToObject(root, "water_probe_mv", pi->water_level_median_mv);
+  cJSON_AddNumberToObject(root, "corrosion_status", pi->corrosion_status);
+  cJSON_AddBoolToObject(root, "corrosion_enabled", refill_cfg.corrosion_enabled != 0);
+  cJSON_AddNumberToObject(root, "corrosion_baseline_mv", refill_cfg.corrosion_baseline_mv);
+  cJSON_AddNumberToObject(root, "corrosion_warn_mv", refill_cfg.corrosion_warn_threshold_mv);
+  cJSON_AddNumberToObject(root, "corrosion_fault_mv", refill_cfg.corrosion_fault_threshold_mv);
 
   const char *json = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");
@@ -369,6 +376,33 @@ static esp_err_t _factory_reset_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+// --- POST /api/system/probe-calibrate ---
+
+static esp_err_t _probe_calibrate_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  // Capture the current (assumed healthy/submerged) median as the baseline.
+  uint16_t median = process_image_get()->water_level_median_mv;
+  boiler_refill_calibrate_probe(median);
+  auto& cfg = boiler_refill_get_cfg();
+
+  cJSON *root = cJSON_CreateObject();
+  cJSON_AddStringToObject(root, "status", "ok");
+  cJSON_AddNumberToObject(root, "baseline_mv", cfg.corrosion_baseline_mv);
+  cJSON_AddNumberToObject(root, "warn_mv", cfg.corrosion_warn_threshold_mv);
+  cJSON_AddNumberToObject(root, "fault_mv", cfg.corrosion_fault_threshold_mv);
+
+  const char *resp = cJSON_PrintUnformatted(root);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, resp);
+
+  cJSON_free((void *)resp);
+  cJSON_Delete(root);
+  return ESP_OK;
+}
+
 void web_api_system_register(httpd_handle_t server) {
   const httpd_uri_t info_uri = {
       .uri = "/api/system/info",
@@ -417,6 +451,14 @@ void web_api_system_register(httpd_handle_t server) {
       .user_ctx = nullptr,
   };
   httpd_register_uri_handler(server, &factory_reset_uri);
+
+  const httpd_uri_t probe_cal_uri = {
+      .uri = "/api/system/probe-calibrate",
+      .method = HTTP_POST,
+      .handler = _probe_calibrate_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &probe_cal_uri);
 
   ESP_LOGI(TAG, "System API registered");
 }

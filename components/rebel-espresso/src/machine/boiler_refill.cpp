@@ -27,6 +27,13 @@ const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT = 2400;
 const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT = 15000;
 const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT = 750;
 const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT = 1000;
+const uint16_t BOILER_REFILL_CORROSION_ENABLED_DEFAULT = 0; // inert until calibrated
+const uint16_t BOILER_REFILL_CORROSION_BASELINE_MV_DEFAULT = 0;
+const uint16_t BOILER_REFILL_CORROSION_WARN_MARGIN_MV_DEFAULT = 400;  // guessed, tune in field
+const uint16_t BOILER_REFILL_CORROSION_FAULT_MARGIN_MV_DEFAULT = 800; // guessed, tune in field
+const uint16_t BOILER_REFILL_CORROSION_WARN_THRESHOLD_MV_DEFAULT = 0;
+const uint16_t BOILER_REFILL_CORROSION_FAULT_THRESHOLD_MV_DEFAULT = 0;
+const uint16_t BOILER_REFILL_CORROSION_CONSISTENCY_MS_DEFAULT = 30000;
 
 static boiler_refill_cfg_t s_cfg;
 static boiler_refill_status_t s_status;
@@ -116,6 +123,20 @@ static void _load_nvram() {
                       (void *)&BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT);
   nvram_store_get_u16(my_handle, KEY_level_ok_hysteresis_ms, (uint16_t *)&s_cfg.level_ok_hysteresis_ms,
                       (void *)&BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_corrosion_enabled, (uint16_t *)&s_cfg.corrosion_enabled,
+                      (void *)&BOILER_REFILL_CORROSION_ENABLED_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_corrosion_baseline_mv, (uint16_t *)&s_cfg.corrosion_baseline_mv,
+                      (void *)&BOILER_REFILL_CORROSION_BASELINE_MV_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_corrosion_warn_margin_mv, (uint16_t *)&s_cfg.corrosion_warn_margin_mv,
+                      (void *)&BOILER_REFILL_CORROSION_WARN_MARGIN_MV_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_corrosion_fault_margin_mv, (uint16_t *)&s_cfg.corrosion_fault_margin_mv,
+                      (void *)&BOILER_REFILL_CORROSION_FAULT_MARGIN_MV_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_corrosion_warn_threshold_mv, (uint16_t *)&s_cfg.corrosion_warn_threshold_mv,
+                      (void *)&BOILER_REFILL_CORROSION_WARN_THRESHOLD_MV_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_corrosion_fault_threshold_mv, (uint16_t *)&s_cfg.corrosion_fault_threshold_mv,
+                      (void *)&BOILER_REFILL_CORROSION_FAULT_THRESHOLD_MV_DEFAULT);
+  nvram_store_get_u16(my_handle, KEY_corrosion_consistency_ms, (uint16_t *)&s_cfg.corrosion_consistency_ms,
+                      (void *)&BOILER_REFILL_CORROSION_CONSISTENCY_MS_DEFAULT);
 
   nvs_close(my_handle);
 }
@@ -131,6 +152,13 @@ static void _save_nvram() {
   nvram_store_set_u16(my_handle, KEY_max_refill_time_ms, &s_cfg.max_refill_time_ms);
   nvram_store_set_u16(my_handle, KEY_level_low_hysteresis_ms, &s_cfg.level_low_hysteresis_ms);
   nvram_store_set_u16(my_handle, KEY_level_ok_hysteresis_ms, &s_cfg.level_ok_hysteresis_ms);
+  nvram_store_set_u16(my_handle, KEY_corrosion_enabled, &s_cfg.corrosion_enabled);
+  nvram_store_set_u16(my_handle, KEY_corrosion_baseline_mv, &s_cfg.corrosion_baseline_mv);
+  nvram_store_set_u16(my_handle, KEY_corrosion_warn_margin_mv, &s_cfg.corrosion_warn_margin_mv);
+  nvram_store_set_u16(my_handle, KEY_corrosion_fault_margin_mv, &s_cfg.corrosion_fault_margin_mv);
+  nvram_store_set_u16(my_handle, KEY_corrosion_warn_threshold_mv, &s_cfg.corrosion_warn_threshold_mv);
+  nvram_store_set_u16(my_handle, KEY_corrosion_fault_threshold_mv, &s_cfg.corrosion_fault_threshold_mv);
+  nvram_store_set_u16(my_handle, KEY_corrosion_consistency_ms, &s_cfg.corrosion_consistency_ms);
 
   nvs_close(my_handle);
 }
@@ -188,6 +216,27 @@ void boiler_refill_set_cfg(boiler_refill_cfg_t config) {
     ESP_LOGE(TAG, "level_ok_hysteresis_ms is out of bounds: %d, ignoring.", config.level_ok_hysteresis_ms);
   }
 
+  // Corrosion monitoring (loosely validated — mV range 0..3100, margins editable).
+  s_cfg.corrosion_enabled = config.corrosion_enabled ? 1 : 0;
+  if (config.corrosion_baseline_mv <= 3100) {
+    s_cfg.corrosion_baseline_mv = config.corrosion_baseline_mv;
+  }
+  if (config.corrosion_warn_margin_mv <= 3100) {
+    s_cfg.corrosion_warn_margin_mv = config.corrosion_warn_margin_mv;
+  }
+  if (config.corrosion_fault_margin_mv <= 3100) {
+    s_cfg.corrosion_fault_margin_mv = config.corrosion_fault_margin_mv;
+  }
+  if (config.corrosion_warn_threshold_mv <= 3100) {
+    s_cfg.corrosion_warn_threshold_mv = config.corrosion_warn_threshold_mv;
+  }
+  if (config.corrosion_fault_threshold_mv <= 3100) {
+    s_cfg.corrosion_fault_threshold_mv = config.corrosion_fault_threshold_mv;
+  }
+  if (config.corrosion_consistency_ms >= 1000) {
+    s_cfg.corrosion_consistency_ms = config.corrosion_consistency_ms;
+  }
+
   // Save what we can then
   _save_nvram();
 }
@@ -207,4 +256,19 @@ const boiler_refill_status_t& boiler_refill_get_status() {
 
 void boiler_refill_reset_stats() {
   s_status.refill_error_count = 0;
+}
+
+void boiler_refill_calibrate_probe(uint16_t median_mv) {
+  s_cfg.corrosion_baseline_mv = median_mv;
+
+  uint32_t warn = (uint32_t)median_mv + s_cfg.corrosion_warn_margin_mv;
+  uint32_t fault = (uint32_t)median_mv + s_cfg.corrosion_fault_margin_mv;
+  s_cfg.corrosion_warn_threshold_mv = (uint16_t)(warn > 3100 ? 3100 : warn);
+  s_cfg.corrosion_fault_threshold_mv = (uint16_t)(fault > 3100 ? 3100 : fault);
+  s_cfg.corrosion_enabled = 1;
+
+  ESP_LOGI(TAG, "Probe calibrated: baseline=%u warn=%u fault=%u mV", s_cfg.corrosion_baseline_mv,
+           s_cfg.corrosion_warn_threshold_mv, s_cfg.corrosion_fault_threshold_mv);
+
+  _save_nvram();
 }

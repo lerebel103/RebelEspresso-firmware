@@ -353,6 +353,14 @@ nav .tab .tab-label { display: inline; }
       <div id="sys-info">Loading...</div>
     </div>
     <div class="card">
+      <h3>Water Probe</h3>
+      <div id="probe-info" style="font-size:0.9em;">Loading...</div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="calibrateProbe()">Calibrate Probe</button>
+      </div>
+      <div style="margin-top:6px;font-size:0.75em;color:var(--text-dim);">Calibrate with a clean probe and the boiler full.</div>
+    </div>
+    <div class="card">
       <h3>Firmware Update (OTA)</h3>
       <div class="form-group">
         <input type="file" id="ota-file" accept=".bin">
@@ -869,7 +877,30 @@ async function loadSystemInfo() {
       tbl.appendChild(tr);
     });
     el.appendChild(tbl);
+
+    const probeEl = document.getElementById('probe-info');
+    if (probeEl) {
+      const statusMap = {0:['OK','var(--success)'],1:['Service soon','#ff9800'],2:['Fault \u2014 service','var(--error)']};
+      const cs = statusMap[d.corrosion_status] || ['--','var(--text-dim)'];
+      const volt = d.water_probe_mv != null ? d.water_probe_mv + ' mV' : '--';
+      let html = '<div>Voltage: <b>' + volt + '</b></div>' +
+        '<div>Status: <b style="color:' + cs[1] + '">' + (d.corrosion_enabled ? cs[0] : 'Not calibrated') + '</b></div>';
+      if (d.corrosion_enabled) {
+        html += '<div style="color:var(--text-dim);margin-top:2px;">Baseline ' + d.corrosion_baseline_mv +
+          ' mV \u00b7 warn ' + d.corrosion_warn_mv + ' \u00b7 fault ' + d.corrosion_fault_mv + ' mV</div>';
+      }
+      probeEl.innerHTML = html;
+    }
   } catch (e) { document.getElementById('sys-info').textContent = 'Error loading info'; }
+}
+
+async function calibrateProbe() {
+  if (!confirm('Calibrate the water probe now?\n\nUse a clean probe with the boiler full. This captures the current voltage as the healthy baseline and sets the service/fault thresholds.')) return;
+  try {
+    const r = await api('system/probe-calibrate', { method: 'POST' });
+    toast('Probe calibrated (baseline ' + r.baseline_mv + ' mV)', 'success');
+    loadSystemInfo();
+  } catch (e) { toast('Calibrate failed: ' + e.message, 'error'); }
 }
 
 let sysInterval = null;

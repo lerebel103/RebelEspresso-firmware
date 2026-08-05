@@ -23,6 +23,9 @@ static bool s_running = false;
 // Rolling window of probe voltages for the glitch-robust diagnostic median.
 static water_probe_window_t s_probe_window;
 
+// Debounced corrosion status tracker (advisory in M2).
+static corrosion_monitor_t s_corrosion;
+
 /**
  * Callback from rtds_update() — publishes each RTD reading into the process
  * image via the seqlock. The 1 Hz control loop reads these values later and
@@ -65,6 +68,20 @@ static void _read_water_level(process_image_t *img) {
   // Use the boiler refill config threshold for now.
   auto& refill_cfg = boiler_refill_get_cfg();
   img->water_level_ok = (status == 0) && (voltage <= refill_cfg.refill_mv_threshold);
+
+  // Corrosion status is only meaningful on a *wet* reading (an empty boiler
+  // legitimately reads high). Evaluate the debounced status only when submerged
+  // and monitoring is enabled; hold the last status otherwise.
+  if (refill_cfg.corrosion_enabled && img->water_level_ok) {
+    uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
+    corrosion_status_t st =
+        corrosion_monitor_update(&s_corrosion, img->water_level_median_mv, refill_cfg.corrosion_warn_threshold_mv,
+                                 refill_cfg.corrosion_fault_threshold_mv, now_ms, refill_cfg.corrosion_consistency_ms);
+    img->corrosion_status = (uint8_t)st;
+  } else if (!refill_cfg.corrosion_enabled) {
+    corrosion_monitor_reset(&s_corrosion);
+    img->corrosion_status = (uint8_t)CORROSION_OK;
+  }
 }
 
 static void _sensor_task(void *) {
@@ -110,6 +127,7 @@ extern "C" void sensor_task_init(void) {
   // When legacy refill code is removed, pin configuration moves here.
 
   water_probe_window_reset(&s_probe_window);
+  corrosion_monitor_reset(&s_corrosion);
 
   s_running = true;
   xTaskCreate(_sensor_task, "sensor_task", 3072, nullptr, 6, &s_task_handle);

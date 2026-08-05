@@ -43,3 +43,37 @@ uint16_t water_probe_window_median(const water_probe_window_t *w) {
   }
   return (uint16_t)(((uint32_t)tmp[mid - 1] + tmp[mid]) / 2);
 }
+
+corrosion_status_t corrosion_classify(uint16_t reading_mv, uint16_t warn_mv, uint16_t fault_mv) {
+  if (fault_mv > 0 && reading_mv >= fault_mv) {
+    return CORROSION_FAULT;
+  }
+  if (warn_mv > 0 && reading_mv >= warn_mv) {
+    return CORROSION_SERVICE_SOON;
+  }
+  return CORROSION_OK;
+}
+
+void corrosion_monitor_reset(corrosion_monitor_t *m) {
+  m->status = CORROSION_OK;
+  m->pending = CORROSION_OK;
+  m->pending_since_ms = 0;
+}
+
+corrosion_status_t corrosion_monitor_update(corrosion_monitor_t *m, uint16_t reading_mv, uint16_t warn_mv,
+                                            uint16_t fault_mv, uint32_t now_ms, uint32_t consistency_ms) {
+  corrosion_status_t target = corrosion_classify(reading_mv, warn_mv, fault_mv);
+
+  if (target == m->status) {
+    m->pending = m->status;
+    m->pending_since_ms = now_ms;
+  } else if (target != m->pending) {
+    m->pending = target;
+    m->pending_since_ms = now_ms;
+  } else if ((now_ms - m->pending_since_ms) >= consistency_ms) {
+    m->status = target;
+    m->pending_since_ms = now_ms;
+  }
+
+  return m->status;
+}

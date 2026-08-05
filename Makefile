@@ -97,7 +97,7 @@ flash-app:
 
 ## Serial monitor
 monitor:
-	python3 -m serial.tools.miniterm $(PORT) 115200
+	python3 -m serial.tools.miniterm --raw $(PORT) 115200
 
 ###############################################################################
 # Web UI (development only — production UI is embedded in firmware)

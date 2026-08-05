@@ -10,7 +10,7 @@
 #include <unity.h>
 #include <nvs_flash.h>
 #include <nvs.h>
-#include "sys/nvram_store.h"
+#include "utils/nvram_store.h"
 
 #define TEST_NVS_NAMESPACE "test_nvs"
 

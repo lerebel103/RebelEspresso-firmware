@@ -79,11 +79,7 @@ done
 
 # If no files specified, find all project C/C++ source files
 if [ ${#FILES[@]} -eq 0 ]; then
-    FILES=($(find "${PROJ_ROOT}/components/rebel-espresso/src/hw/base" \
-                  "${PROJ_ROOT}/components/rebel-espresso/src/hw/r2/src" \
-                  "${PROJ_ROOT}/components/rebel-espresso/src/utils" \
-                  "${PROJ_ROOT}/components/rebel-espresso/src/sys" \
-                  "${PROJ_ROOT}/components/rebel-espresso/src/homekit" \
+    FILES=($(find "${PROJ_ROOT}/components/rebel-espresso/src" \
                   "${PROJ_ROOT}/components/esp-connectivity/src/common" \
                   "${PROJ_ROOT}/components/esp-connectivity/src/wifi" \
                   "${PROJ_ROOT}/components/esp-connectivity/src/sntp" \

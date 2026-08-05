@@ -23,10 +23,10 @@
 #include <nvs.h>
 
 #include "utils/pid.h"
-#include "hw/base/boiler_temp.h"
-#include "hw/base/brew_temp.h"
-#include "hw/base/boiler_refill.h"
-#include "hw/base/schedules.h"
+#include "machine/boiler_temp.h"
+#include "machine/brew_temp.h"
+#include "machine/boiler_refill.h"
+#include "machine/schedules.h"
 
 // ============================================================================
 // Boiler Temp Config

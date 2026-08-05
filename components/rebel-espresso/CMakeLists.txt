@@ -7,12 +7,12 @@ ENDIF()
 set(COMPONENT_SRCDIRS
         src/
         src/utils
-        src/sys
-        src/hw/base
-        src/hw/r2/src
-        src/hw/r2/src/display
-        src/hw/r2/src/webserver
-        src/homekit
+        src/runtime
+        src/machine
+        src/comms
+        src/comms/webserver
+        src/comms/homekit
+        src/device
         )
 
 set(COMPONENT_REQUIRES
@@ -33,7 +33,6 @@ set(COMPONENT_REQUIRES
         esp_http_server
         mbedtls
         esp_wifi
-        ESP32-MAX31865
         tft-driver
         esp-ssr-controller
         )
@@ -43,8 +42,12 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src"
         "./src/utils"
         "./_generated/"
-        "./src/hw/base/"
-        "./src/hw/r2/src"
+        "./src/runtime"
+        "./src/machine"
+        "./src/comms"
+        "./src/comms/webserver"
+        "./src/comms/homekit"
+        "./src/device"
         )
 
 # The web UI is pre-gzipped (webapp/index.html.gz) and embedded in the firmware binary.

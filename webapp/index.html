@@ -147,6 +147,30 @@ nav .tab .tab-label { display: inline; }
 .cfg-tab:hover { color: var(--text); background: var(--card); }
 .cfg-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--card); }
 
+/* Schedule editor */
+.sched-master { padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; }
+.sched-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9em; color: var(--text); cursor: pointer; }
+.sched-toggle input { width: auto; }
+.sched-day { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.sched-day-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--card); }
+.sched-day-name { font-size: 0.85em; font-weight: 600; color: var(--text); }
+.sched-periods { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.sched-period { display: flex; align-items: center; gap: 8px; }
+.sched-period input[type=time] { flex: 1; padding: 6px 8px; background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.85em; }
+.sched-period input[type=time]:focus { outline: none; border-color: var(--primary); }
+.sched-period input[type=checkbox] { width: auto; flex: none; }
+.sched-arrow { color: var(--text-dim); font-size: 0.9em; }
+.sched-del { background: none; border: none; color: var(--text-dim); font-size: 1.3em; line-height: 1; cursor: pointer; padding: 0 4px; }
+.sched-del:hover { color: var(--error); }
+.sched-empty { font-size: 0.8em; color: var(--text-dim); font-style: italic; }
+.btn-sm { padding: 4px 10px; font-size: 0.75em; }
+
+/* Mode badges */
+.mode-badge { font-size: 0.7em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); }
+.mode-badge.descale { color: #ff9800; border-color: #ff9800; background: rgba(255,152,0,0.1); }
+.mode-badge.brewing { color: var(--primary); border-color: var(--primary); background: rgba(33,150,243,0.1); }
+.mode-badge.steam { color: #e91e63; border-color: #e91e63; background: rgba(233,30,99,0.1); }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -232,7 +256,8 @@ nav .tab .tab-label { display: inline; }
   <!-- STATUS PAGE -->
   <div id="status" class="page active">
     <!-- Power toggle -->
-    <div class="card" style="text-align:center;padding:20px;">
+    <div class="card" style="text-align:center;padding:20px;position:relative;">
+      <div id="mode-badges" style="position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;"></div>
       <button class="power-btn" id="power-btn" onclick="togglePower()">
         <svg viewBox="0 0 24 24" width="36" height="36"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/></svg>
       </button>
@@ -274,6 +299,7 @@ nav .tab .tab-label { display: inline; }
       <div class="stat-grid">
         <div class="stat"><div class="value" id="s-duty">--<span class="unit">%</span></div><div class="label">Duty</div></div>
         <div class="stat"><div class="value" id="s-level">--</div><div class="label">Level</div></div>
+        <div class="stat"><div class="value" id="s-brews">--</div><div class="label">Brews</div></div>
         <div class="stat"><div class="value" id="s-wifi">--</div><div class="label">Signal</div></div>
         <div class="stat"><div class="value" id="s-uptime">--</div><div class="label">Uptime</div></div>
       </div>
@@ -483,11 +509,38 @@ let _currentBrewSetpoint = 0;
 async function refreshStatus() {
   try {
     const d = await api('status');
-    // Temperatures
+    // Temperatures (show error state when sensor is faulted)
     const brewTemp = d.temperatures?.brew_head;
+    const brewFault = d.temperatures?.brew_head_fault;
     const boilerTemp = d.temperatures?.boiler;
-    document.getElementById('s-brew').textContent = brewTemp != null ? brewTemp.toFixed(1) + '\u00B0' : '--';
-    document.getElementById('s-boiler').textContent = boilerTemp != null ? boilerTemp.toFixed(1) + '\u00B0' : '--';
+    const boilerFault = d.temperatures?.boiler_fault;
+    const faultNames = {0:'OK',2:'Voltage',3:'RTD In Low',4:'Ref Low',5:'Ref High',6:'RTD Low',7:'RTD High'};
+    if (boilerFault) {
+      document.getElementById('s-boiler').textContent = faultNames[boilerFault] || ('Fault ' + boilerFault);
+      document.getElementById('s-boiler').style.color = 'var(--error)';
+    } else {
+      document.getElementById('s-boiler').textContent = boilerTemp != null ? boilerTemp.toFixed(1) + '\u00B0' : '--';
+      document.getElementById('s-boiler').style.color = '';
+    }
+    if (brewFault) {
+      document.getElementById('s-brew').textContent = faultNames[brewFault] || ('Fault ' + brewFault);
+      document.getElementById('s-brew').style.color = 'var(--error)';
+    } else {
+      document.getElementById('s-brew').textContent = brewTemp != null ? brewTemp.toFixed(1) + '\u00B0' : '--';
+      // Color-code brew temp relative to setpoint (matches TFT display logic)
+      const brewSp = d.temperatures?.brew_head_setpoint;
+      if (brewTemp != null && brewSp != null) {
+        if (Math.abs(brewTemp - brewSp) < 1.5) {
+          document.getElementById('s-brew').style.color = 'var(--success)'; // green — at target
+        } else if (brewTemp > brewSp) {
+          document.getElementById('s-brew').style.color = 'var(--error)'; // red — too hot
+        } else {
+          document.getElementById('s-brew').style.color = '#00bcd4'; // cyan — heating up
+        }
+      } else {
+        document.getElementById('s-brew').style.color = '';
+      }
+    }
     document.getElementById('s-brew-sp').textContent = d.temperatures?.brew_head_setpoint?.toFixed(1) || '--';
     document.getElementById('s-setpoint').textContent = d.temperatures?.boiler_setpoint?.toFixed(1) || '--';
 
@@ -512,9 +565,38 @@ async function refreshStatus() {
       label.style.color = 'var(--text-dim)';
     }
 
+    // Machine mode badges (descale / brewing / steam)
+    const badges = document.getElementById('mode-badges');
+    badges.innerHTML = '';
+    const modes = [];
+    if (d.descale) modes.push(['descale', 'Descale']);
+    if (d.brewing) modes.push(['brewing', 'Brewing']);
+    if (d.steam) modes.push(['steam', 'Steam']);
+    modes.forEach(([cls, text]) => {
+      const b = document.createElement('span');
+      b.className = 'mode-badge ' + cls;
+      b.textContent = text;
+      badges.appendChild(b);
+    });
+
     // Stats
     document.getElementById('s-duty').innerHTML = (d.temperatures?.boiler_duty || '0') + '<span class="unit">%</span>';
-    document.getElementById('s-level').textContent = d.boiler_level || '--';
+
+    // Boiler level with full state context and color
+    const levelEl = document.getElementById('s-level');
+    const level = d.boiler_level || 'unknown';
+    const levelLabels = {ok:'OK', refilling:'Refilling', error:'Error', starting:'Starting', unknown:'--'};
+    levelEl.textContent = levelLabels[level] || level;
+    if (level === 'error') {
+      levelEl.style.color = 'var(--error)';
+    } else if (level === 'refilling') {
+      levelEl.style.color = 'var(--warning, #ff9800)';
+    } else {
+      levelEl.style.color = '';
+    }
+
+    // Brew count
+    document.getElementById('s-brews').textContent = d.brew_count != null ? d.brew_count : '--';
     document.getElementById('s-wifi').textContent = (d.wifi?.rssi || '--') + ' dBm';
     const up = Math.floor(d.uptime_sec || 0);
     const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
@@ -578,6 +660,7 @@ async function loadConfig() {
     const data = await api('config/' + section);
     const fields = document.getElementById('cfg-fields');
     fields.innerHTML = '';
+    if (section === 'schedules') { renderSchedules(data); return; }
     const keys = Object.keys(data).sort();
     for (let i = 0; i < keys.length; i += 2) {
       const row = document.createElement('div');
@@ -603,16 +686,132 @@ async function loadConfig() {
   } catch (e) { toast('Failed to load config: ' + e.message, 'error'); }
 }
 
+// --- Schedule editor (schedules section) ---
+const SCHED_DAYS = [
+  ['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'],
+  ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']
+];
+
+function renderSchedules(data) {
+  const fields = document.getElementById('cfg-fields');
+
+  // Master enable toggle
+  const master = document.createElement('div');
+  master.className = 'sched-master';
+  const mlbl = document.createElement('label');
+  mlbl.className = 'sched-toggle';
+  const mchk = document.createElement('input');
+  mchk.type = 'checkbox'; mchk.id = 'sched-enabled'; mchk.checked = data.en !== false;
+  mlbl.appendChild(mchk);
+  mlbl.appendChild(document.createTextNode(' Scheduling enabled'));
+  master.appendChild(mlbl);
+  fields.appendChild(master);
+
+  const days = document.createElement('div');
+  days.id = 'sched-days';
+  SCHED_DAYS.forEach(([key, name]) => {
+    const periods = Array.isArray(data[key]) ? data[key] : [];
+    days.appendChild(_schedDay(key, name, periods));
+  });
+  fields.appendChild(days);
+}
+
+function _schedDay(key, name, periods) {
+  const day = document.createElement('div');
+  day.className = 'sched-day';
+  day.dataset.day = key;
+
+  const list = document.createElement('div');
+  list.className = 'sched-periods';
+
+  function refreshEmpty() {
+    let empty = list.querySelector('.sched-empty');
+    if (list.querySelectorAll('.sched-period').length === 0) {
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.className = 'sched-empty';
+        empty.textContent = 'Off all day';
+        list.appendChild(empty);
+      }
+    } else if (empty) { empty.remove(); }
+  }
+
+  function addPeriod(p) {
+    const row = document.createElement('div');
+    row.className = 'sched-period';
+
+    const en = document.createElement('input');
+    en.type = 'checkbox'; en.className = 'sched-period-en';
+    en.checked = p.en !== false; en.title = 'Enable this period';
+
+    const start = document.createElement('input');
+    start.type = 'time'; start.className = 'sched-period-start';
+    start.value = p.start || '07:00';
+
+    const arrow = document.createElement('span');
+    arrow.className = 'sched-arrow'; arrow.textContent = '\u2192';
+
+    const stop = document.createElement('input');
+    stop.type = 'time'; stop.className = 'sched-period-stop';
+    stop.value = p.stop || '09:00';
+
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'sched-del';
+    del.innerHTML = '&times;'; del.title = 'Remove period';
+    del.onclick = () => { row.remove(); refreshEmpty(); };
+
+    row.append(en, start, arrow, stop, del);
+    list.appendChild(row);
+  }
+
+  const head = document.createElement('div');
+  head.className = 'sched-day-head';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'sched-day-name'; nameEl.textContent = name;
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button'; addBtn.className = 'btn btn-secondary btn-sm';
+  addBtn.textContent = '+ Add period';
+  addBtn.onclick = () => { addPeriod({ en: true, start: '07:00', stop: '09:00' }); refreshEmpty(); };
+  head.append(nameEl, addBtn);
+
+  day.appendChild(head);
+  day.appendChild(list);
+
+  periods.forEach(addPeriod);
+  refreshEmpty();
+  return day;
+}
+
+function collectSchedules() {
+  const body = { en: document.getElementById('sched-enabled').checked };
+  document.querySelectorAll('#sched-days .sched-day').forEach(day => {
+    const periods = [];
+    day.querySelectorAll('.sched-period').forEach(row => {
+      periods.push({
+        en: row.querySelector('.sched-period-en').checked,
+        start: row.querySelector('.sched-period-start').value || '00:00',
+        stop: row.querySelector('.sched-period-stop').value || '00:00',
+      });
+    });
+    body[day.dataset.day] = periods;
+  });
+  return body;
+}
+
 async function saveConfig() {
   const section = currentConfigSection;
-  const inputs = document.querySelectorAll('#cfg-fields input');
-  const body = {};
-  inputs.forEach(inp => {
-    const k = inp.dataset.key;
-    if (inp.type === 'checkbox') body[k] = inp.checked;
-    else if (inp.type === 'number') body[k] = parseFloat(inp.value);
-    else body[k] = inp.value;
-  });
+  let body;
+  if (section === 'schedules') {
+    body = collectSchedules();
+  } else {
+    body = {};
+    document.querySelectorAll('#cfg-fields input').forEach(inp => {
+      const k = inp.dataset.key;
+      if (inp.type === 'checkbox') body[k] = inp.checked;
+      else if (inp.type === 'number') body[k] = parseFloat(inp.value);
+      else body[k] = inp.value;
+    });
+  }
   try {
     await api('config/' + section, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     toast('Config saved', 'success');
@@ -630,6 +829,15 @@ async function resetConfig() {
 }
 
 // SYSTEM
+function _timeSince(epochSec) {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - epochSec;
+  if (diff < 60) return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
 async function loadSystemInfo() {
   try {
     const d = await api('system/info');
@@ -642,6 +850,8 @@ async function loadSystemInfo() {
       ['IDF', d.idf_version], ['Build', d.build_date + ' ' + d.build_time],
       ['Hardware', 'r' + d.hardware_rev], ['Thing ID', d.thing_id],
       ['Boots', d.boot_count], ['Crashes', d.crash_count],
+      ['Descales', d.descale_count || 0],
+      ['Since Descale', d.last_descale_time > 0 ? _timeSince(d.last_descale_time) : 'Never'],
       ['Free Heap', (d.free_heap/1024).toFixed(0) + ' KB'],
       ['Min Heap', (d.min_free_heap/1024).toFixed(0) + ' KB'],
     ];

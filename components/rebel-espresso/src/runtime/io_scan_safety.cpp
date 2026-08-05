@@ -1,5 +1,6 @@
 #include "io_scan_safety.h"
 #include "boiler_refill_states.h"
+#include "water_probe.h"
 #include <hw_config.h>
 
 io_scan_outputs_t io_scan_apply_safety(const process_image_t *img) {
@@ -29,6 +30,10 @@ io_scan_outputs_t io_scan_apply_safety(const process_image_t *img) {
     out.ssr_duty = 0;
   }
   if (img->descale_mode) {
+    out.ssr_duty = 0;
+  }
+  if (img->level_status == LEVEL_UNKNOWN) {
+    // Untrusted level (ADC fault / out-of-range / corroded probe): heater safe.
     out.ssr_duty = 0;
   }
 

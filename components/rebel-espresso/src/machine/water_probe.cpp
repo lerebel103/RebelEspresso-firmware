@@ -77,3 +77,10 @@ corrosion_status_t corrosion_monitor_update(corrosion_monitor_t *m, uint16_t rea
 
   return m->status;
 }
+
+level_status_t water_level_classify(bool trusted, bool submerged) {
+  if (!trusted) {
+    return LEVEL_UNKNOWN;
+  }
+  return submerged ? LEVEL_OK : LEVEL_LOW_CONFIRMED;
+}

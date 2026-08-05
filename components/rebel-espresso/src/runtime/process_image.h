@@ -64,6 +64,7 @@ struct process_image_t {
   double water_level_mv;                             ///< @owner Sensor task. Raw water level ADC voltage
   uint16_t water_level_median_mv;                    ///< @owner Sensor task. Rolling-median probe voltage (diagnostic)
   uint8_t corrosion_status; ///< @owner Sensor task. corrosion_status_t (0 OK / 1 service / 2 fault)
+  uint8_t level_status;     ///< @owner Sensor task. level_status_t (0 OK / 1 low / 2 unknown)
   bool water_level_ok;      ///< @owner Sensor task. Derived: mv <= threshold
 
   // ─── DESIRED OUTPUTS (what each owner requests, BEFORE the safety gate) ──

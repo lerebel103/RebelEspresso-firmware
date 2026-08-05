@@ -82,6 +82,12 @@ static void _read_water_level(process_image_t *img) {
     corrosion_monitor_reset(&s_corrosion);
     img->corrosion_status = (uint8_t)CORROSION_OK;
   }
+
+  // Trust-aware level classification: a fault or corroded probe is untrusted and
+  // must never drive a refill (nor allow the heater to run).
+  bool submerged = (voltage <= refill_cfg.refill_mv_threshold);
+  bool trusted = (status == 0) && (img->corrosion_status != CORROSION_FAULT);
+  img->level_status = (uint8_t)water_level_classify(trusted, submerged);
 }
 
 static void _sensor_task(void *) {

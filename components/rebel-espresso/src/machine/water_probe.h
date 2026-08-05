@@ -63,6 +63,21 @@ void corrosion_monitor_reset(corrosion_monitor_t *m);
 corrosion_status_t corrosion_monitor_update(corrosion_monitor_t *m, uint16_t reading_mv, uint16_t warn_mv,
                                             uint16_t fault_mv, uint32_t now_ms, uint32_t consistency_ms);
 
+/**
+ * Trust-aware water level classification. `trusted` is false when the reading
+ * cannot be believed (ADC fault, out-of-range, or a corroded probe). Refill
+ * runs only on LEVEL_LOW_CONFIRMED; UNKNOWN never drives a refill and keeps the
+ * heater safe.
+ */
+typedef enum {
+  LEVEL_OK = 0,            ///< trusted and submerged (full) — no refill
+  LEVEL_LOW_CONFIRMED = 1, ///< trusted and exposed — refill
+  LEVEL_UNKNOWN = 2,       ///< untrusted reading — do not refill, hold safe
+} level_status_t;
+
+/// Classify the level from a trust flag and whether the probe reads submerged.
+level_status_t water_level_classify(bool trusted, bool submerged);
+
 #ifdef __cplusplus
 }
 #endif

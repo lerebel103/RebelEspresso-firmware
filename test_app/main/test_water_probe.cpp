@@ -111,3 +111,14 @@ TEST_CASE("Corrosion: auto-clears after sustained recovery", "[water_probe]") {
   TEST_ASSERT_EQUAL(CORROSION_OK, corrosion_monitor_update(&m, 500, warn, fault, 2600, cons));
 }
 
+// ============================================================================
+// Trust-aware level classification
+// ============================================================================
+
+TEST_CASE("Level: trusted+submerged=OK, trusted+exposed=LOW, untrusted=UNKNOWN", "[water_probe]") {
+  TEST_ASSERT_EQUAL(LEVEL_OK, water_level_classify(true, true));
+  TEST_ASSERT_EQUAL(LEVEL_LOW_CONFIRMED, water_level_classify(true, false));
+  TEST_ASSERT_EQUAL(LEVEL_UNKNOWN, water_level_classify(false, true));
+  TEST_ASSERT_EQUAL(LEVEL_UNKNOWN, water_level_classify(false, false));
+}
+

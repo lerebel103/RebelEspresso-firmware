@@ -38,6 +38,31 @@ TEST_CASE("PI: init sets all inputs inactive", "[process_image]") {
   TEST_ASSERT_FALSE(img->descale_mode);
 }
 
+TEST_CASE("PI: enter_standby clears all latched actuation and machine state", "[process_image]") {
+  process_image_init();
+  auto *img = process_image_get();
+
+  // Simulate a running machine mid-brew / mid-descale with outputs engaged.
+  img->power_on = true;
+  img->descale_mode = true;
+  img->brew_active = true;
+  img->pump_on = true;
+  img->three_way_on = true;
+  img->refill_solenoid_on = true;
+  img->aux_on = true;
+  img->refill_state = REFILL_STATE_ACTIVE;
+
+  process_image_enter_standby(img);
+
+  TEST_ASSERT_FALSE(img->descale_mode);
+  TEST_ASSERT_FALSE(img->brew_active);
+  TEST_ASSERT_FALSE(img->pump_on);
+  TEST_ASSERT_FALSE(img->three_way_on);
+  TEST_ASSERT_FALSE(img->refill_solenoid_on);
+  TEST_ASSERT_FALSE(img->aux_on);
+  TEST_ASSERT_EQUAL(REFILL_STATE_UNKNOWN, img->refill_state);
+}
+
 TEST_CASE("PI: init marks sensors faulted (heater inhibited until valid read)", "[process_image]") {
   process_image_init();
   auto *img = process_image_get();

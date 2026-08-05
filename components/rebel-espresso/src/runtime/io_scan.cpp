@@ -118,13 +118,19 @@ static void scan_inputs(process_image_t *img) {
       ESP_LOGI(TAG, "Power ON%s%s", power_changed ? " (switch)" : " (remote)", img->descale_mode ? " [DESCALE]" : "");
       esp_event_post(MACHINE_EVENTS, POWER_ACTIVE, nullptr, 0, 0);
     } else {
-      img->descale_mode = false;
+      // Close out an in-progress normal brew so its stats are recorded (descale
+      // pumping is not a brew). Done before clearing state, and only when not
+      // descaling so the brew-stats handler can never miscount a descale cycle.
+      if (img->brew_active && !img->descale_mode) {
+        auto now_us = esp_timer_get_time();
+        esp_event_post(MACHINE_EVENTS, BREW_STOPPED, (void *)&now_us, sizeof(now_us), 0);
+      }
+      // Standby: clear ALL latched machine state so nothing leaks into the next
+      // power cycle (e.g. stale brew_active corrupting descale entry). The
+      // safety gate independently forces the physical outputs OFF every scan.
+      process_image_enter_standby(img);
       s_descale_brew_lockout = false;
-      // Stop refill on power-off
       boiler_refill_states_power_standby();
-      img->refill_state = REFILL_STATE_UNKNOWN;
-      img->refill_solenoid_on = false;
-      img->aux_on = false;
       s_prev_refill_state = REFILL_STATE_UNKNOWN;
       ESP_LOGI(TAG, "Power OFF%s", power_changed ? " (switch)" : " (remote)");
       esp_event_post(MACHINE_EVENTS, POWER_STANDBY, nullptr, 0, 0);

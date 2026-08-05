@@ -108,6 +108,14 @@ process_image_t *process_image_get(void);
 void process_image_init(void);
 
 /**
+ * Clear all latched I/O-scan actuation + machine-state fields for standby.
+ * Physical outputs are still forced OFF every cycle by the safety gate; this
+ * keeps the DESIRED state consistent so no stale value (e.g. brew_active) leaks
+ * into the next power cycle. Only the I/O Scan (the owner) should call this.
+ */
+void process_image_enter_standby(process_image_t *img);
+
+/**
  * Write a temperature channel using a seqlock so readers never observe a torn
  * (value, fault) pair. Only the Sensor task (the owner) should call this.
  */

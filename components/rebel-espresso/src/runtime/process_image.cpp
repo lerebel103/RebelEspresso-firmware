@@ -39,6 +39,20 @@ extern "C" void process_image_init(void) {
   s_image.last_scan_time_us = 0;
 }
 
+extern "C" void process_image_enter_standby(process_image_t *img) {
+  // Latched actuation + machine-state fields owned by the I/O scan. Sensor and
+  // control-loop fields (temperatures, water level, ssr_boiler_duty) are left to
+  // their owners; the safety gate forces the physical SSR/relays OFF while
+  // power_on is false regardless.
+  img->descale_mode = false;
+  img->brew_active = false;
+  img->pump_on = false;
+  img->three_way_on = false;
+  img->refill_solenoid_on = false;
+  img->aux_on = false;
+  img->refill_state = REFILL_STATE_UNKNOWN;
+}
+
 extern "C" void process_image_write_temp(uint8_t idx, measure_t data) {
   if (idx >= PROCESS_IMAGE_MAX_SENSORS) {
     return;

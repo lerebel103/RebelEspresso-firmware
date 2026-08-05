@@ -29,7 +29,7 @@ certRotationTemplateName = '/iot/rebelthings/coffee-drivah/cert-rotation-templat
 provisioningCertKeyPair = '/iot/rebelthings/coffee-drivah/prov-cert-keys/*'
 provisioningCertificates = '/iot/rebelthings/coffee-drivah/provisioning-certificates'
 provisioningTemplateName = '/iot/rebelthings/coffee-drivah/prov-template-name'
-thingType = 'coffee-drivah'
+thingType = 'rebel-espresso'
 
 ROOT_CERT_URL = 'https://www.amazontrust.com/repository/AmazonRootCA1.pem'
 NVRAM_IN_FILE = 'nvram.in'

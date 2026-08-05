@@ -10,7 +10,7 @@ ENDIF()
 MESSAGE(STATUS "${CMAKE_BUILD_TYPE} build selected")
 
 IF (NOT THING_TYPE)
-    set(THING_TYPE "coffee-drivah" CACHE INTERNAL "" FORCE)
+    set(THING_TYPE "rebel-espresso" CACHE INTERNAL "" FORCE)
 ENDIF()
 
 IF (NOT BUILD_STAGE)

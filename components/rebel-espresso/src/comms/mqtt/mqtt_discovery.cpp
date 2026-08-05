@@ -22,9 +22,11 @@ static const mqtt_entity_t s_entities[] = {
      "running", nullptr},
     {"binary_sensor", "refill_error", "Refill Error", "{{ 'ON' if value_json.refill_error else 'OFF' }}", nullptr,
      "problem", nullptr},
-    // Diagnostics (probe health + water level)
-    {"sensor", "probe_voltage", "Probe Voltage", "{{ value_json.probe_mv }}", "mV", "voltage", "diagnostic"},
-    {"sensor", "water_level", "Water Level", "{{ value_json.water_level_mv }}", "mV", "voltage", "diagnostic"},
+    // Diagnostics: the probe is a single electrode pair; both sensors are its
+    // voltage in mV. "Water Level Voltage" is the live reading that drives
+    // refill; "Probe Health Voltage" is the smoothed median that feeds corrosion.
+    {"sensor", "water_level", "Water Level Voltage", "{{ value_json.water_level_mv }}", "mV", "voltage", "diagnostic"},
+    {"sensor", "probe_voltage", "Probe Health Voltage", "{{ value_json.probe_mv }}", "mV", "voltage", "diagnostic"},
     {"sensor", "corrosion_status", "Probe Corrosion",
      "{{ ['OK','Service soon','Fault'][value_json.corrosion_status] }}", nullptr, nullptr, "diagnostic"},
 };

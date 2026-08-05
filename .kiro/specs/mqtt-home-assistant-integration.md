@@ -90,8 +90,9 @@ Grouped by HA component and `entity_category`:
 - **`binary_sensor`**:
   - Power active, brewing, steam, descale, refill active, refill error.
 - **`sensor` / `binary_sensor` (`entity_category: diagnostic`)**:
-  - **Probe voltage (median)** and **corrosion status** + baseline / thresholds
-    (from the corrosion spec),
+  - **Water Level Voltage** (live probe mV, drives refill) and **Probe Health
+    Voltage** (median probe mV, feeds corrosion) plus **Probe Corrosion** status
+    + baseline / thresholds (from the corrosion spec),
   - Boot count, crash count, free heap, min heap, uptime, WiFi RSSI,
     firmware version, IDF version, hardware revision.
 - **Controls**:

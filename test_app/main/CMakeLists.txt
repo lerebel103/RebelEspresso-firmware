@@ -17,6 +17,7 @@ idf_component_register(
         "test_descale.cpp"
         "test_water_probe.cpp"
         "test_mqtt_config.cpp"
+        "test_mqtt_discovery.cpp"
         # Source files under test (pulled from the main project)
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/utils/pid.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/machine/boiler_temp.cpp"
@@ -24,6 +25,7 @@ idf_component_register(
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/machine/setpoint_selector.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/machine/water_probe.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/comms/mqtt/mqtt_config.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/comms/mqtt/mqtt_discovery.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/process_image.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/io_scan_safety.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/io_scan_modes.cpp"

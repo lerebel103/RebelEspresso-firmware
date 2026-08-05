@@ -29,6 +29,7 @@ static char s_base[80];
 static char s_avail_topic[96];
 static char s_disc_prefix[32];
 static char s_node_id[80];
+static char s_client_id[48];
 static char s_dev_name[48];
 static char s_model[24];
 static int64_t s_last_state_us = 0;
@@ -44,17 +45,19 @@ static void _sanitise(char *dst, size_t size, const char *src) {
 }
 
 static void _resolve_topics() {
-  const mqtt_cfg_t& cfg = mqtt_config_get();
-  if (cfg.base_topic[0] != '\0') {
-    snprintf(s_base, sizeof(s_base), "%s", cfg.base_topic);
-  } else {
-    snprintf(s_base, sizeof(s_base), "rebelespresso/%s", identity_thing_id());
-  }
-  snprintf(s_avail_topic, sizeof(s_avail_topic), "%s/availability", s_base);
+  // HA best practice: a base topic unique per device, derived from the device
+  // identity (thing type + id). The discovery prefix is the fixed HA namespace,
+  // and the client id is derived from the thing id.
+  char ttype[32];
+  char tid[40];
+  _sanitise(ttype, sizeof(ttype), identity_get()->thing_type);
+  _sanitise(tid, sizeof(tid), identity_thing_id());
 
-  snprintf(s_disc_prefix, sizeof(s_disc_prefix), "%s",
-           cfg.discovery_prefix[0] != '\0' ? cfg.discovery_prefix : "homeassistant");
-  _sanitise(s_node_id, sizeof(s_node_id), identity_thing_id());
+  snprintf(s_base, sizeof(s_base), "%s/%s", ttype, tid);
+  snprintf(s_avail_topic, sizeof(s_avail_topic), "%s/availability", s_base);
+  snprintf(s_disc_prefix, sizeof(s_disc_prefix), "homeassistant");
+  snprintf(s_node_id, sizeof(s_node_id), "%s", tid);
+  snprintf(s_client_id, sizeof(s_client_id), "%s", tid);
   snprintf(s_dev_name, sizeof(s_dev_name), "RebelEspresso");
   snprintf(s_model, sizeof(s_model), "rebel-espresso");
 }
@@ -230,9 +233,7 @@ void mqtt_ha_service() {
   if (cfg.password[0] != '\0') {
     mcfg.credentials.authentication.password = cfg.password;
   }
-  if (cfg.client_id[0] != '\0') {
-    mcfg.credentials.client_id = cfg.client_id;
-  }
+  mcfg.credentials.client_id = s_client_id; // derived from thing id
   mcfg.session.last_will.topic = s_avail_topic;
   mcfg.session.last_will.msg = "offline";
   mcfg.session.last_will.qos = 1;

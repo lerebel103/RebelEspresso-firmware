@@ -36,12 +36,6 @@ void mqtt_cfg_t::from_json(const cJSON *config) {
       if (pw[0] != '\0') {
         _copy_str(password, sizeof(password), pw);
       }
-    } else if (strcmp(item->string, "client_id") == 0) {
-      _copy_str(client_id, sizeof(client_id), _get_str(item));
-    } else if (strcmp(item->string, "base_topic") == 0) {
-      _copy_str(base_topic, sizeof(base_topic), _get_str(item));
-    } else if (strcmp(item->string, "discovery_prefix") == 0) {
-      _copy_str(discovery_prefix, sizeof(discovery_prefix), _get_str(item));
     } else if (strcmp(item->string, "publish_interval_sec") == 0) {
       publish_interval_sec = (uint16_t)item->valueint;
     }
@@ -51,14 +45,12 @@ void mqtt_cfg_t::from_json(const cJSON *config) {
 
 void mqtt_cfg_t::to_json(cJSON *config, const char *base_key) const {
   (void)base_key;
+  // Web form order: enabled, endpoint, username, password, then others.
   cJSON_AddBoolToObject(config, "enabled", enabled);
   cJSON_AddStringToObject(config, "broker_uri", broker_uri);
   cJSON_AddStringToObject(config, "username", username);
   cJSON_AddStringToObject(config, "password", ""); // redacted
   cJSON_AddBoolToObject(config, "has_password", password[0] != '\0');
-  cJSON_AddStringToObject(config, "client_id", client_id);
-  cJSON_AddStringToObject(config, "base_topic", base_topic);
-  cJSON_AddStringToObject(config, "discovery_prefix", discovery_prefix);
   cJSON_AddNumberToObject(config, "publish_interval_sec", publish_interval_sec);
 }
 

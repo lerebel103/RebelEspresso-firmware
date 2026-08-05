@@ -44,15 +44,18 @@ section pattern as the other config blocks.
 
 ### R2: Connection configuration (NVS-backed, follows existing pattern)
 - New `mqtt` config block with `from_json`/`to_json`, stable NVS keys, `_DEFAULT`
-  constants, and a dedicated NVS store (e.g. `cfg.mqtt`). Fields:
+  constants, and a dedicated NVS store (e.g. `cfg.mqtt`). Fields (web form order):
   - `enabled` (bool, default false)
-  - `broker_uri` (string, e.g. `mqtt://host:1883`)
+  - `broker_uri` (endpoint, e.g. `mqtt://host:1883`)
   - `username` (string)
   - `password` (string, write-only over the API — never returned in `to_json`)
-  - `client_id` (string, default derived from the thing id)
-  - `base_topic` (string prefix, default derived from the thing id)
-  - `discovery_prefix` (string, default `homeassistant`)
-  - `publish_interval_sec` (uint, default e.g. 5)
+  - `publish_interval_sec` (uint, default 5)
+- **Derived, not configured** (removed from NVS + the config page): the MQTT
+  `client_id`, the `base_topic`, and the `discovery_prefix`. Per HA best practice
+  these come from the device identity + the fixed HA namespace:
+  - `client_id`   = sanitised thing id
+  - `base_topic`  = `<thing_type>/<thing_id>` (unique per device)
+  - `discovery_prefix` = `homeassistant` (the fixed HA discovery namespace)
 - Surfaced as an **MQTT** section on the web Config page, dispatched in
   `web_api_config` exactly like `boiler_temp`/`schedules`.
 - Password handling mirrors the web-auth approach: accepted on write, stored in

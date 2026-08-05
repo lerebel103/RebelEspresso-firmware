@@ -13,7 +13,6 @@ TEST_CASE("MQTT config: JSON round-trip preserves fields", "[mqtt]") {
   strcpy(a.broker_uri, "mqtt://192.168.1.10:1883");
   strcpy(a.username, "espresso");
   strcpy(a.password, "s3cret");
-  strcpy(a.base_topic, "rebel/abc");
   a.publish_interval_sec = 10;
 
   cJSON *j = cJSON_CreateObject();
@@ -25,7 +24,6 @@ TEST_CASE("MQTT config: JSON round-trip preserves fields", "[mqtt]") {
   TEST_ASSERT_TRUE(b.enabled);
   TEST_ASSERT_EQUAL_STRING("mqtt://192.168.1.10:1883", b.broker_uri);
   TEST_ASSERT_EQUAL_STRING("espresso", b.username);
-  TEST_ASSERT_EQUAL_STRING("rebel/abc", b.base_topic);
   TEST_ASSERT_EQUAL_UINT16(10, b.publish_interval_sec);
   cJSON_Delete(j);
 }

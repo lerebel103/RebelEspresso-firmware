@@ -147,6 +147,22 @@ nav .tab .tab-label { display: inline; }
 .cfg-tab:hover { color: var(--text); background: var(--card); }
 .cfg-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--card); }
 
+/* Config sub-sections (grouped fields with inline help) */
+.cfg-group { margin-top: 4px; }
+.cfg-subsection { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cfg-group h4, .cfg-subsection h4 { margin: 0 0 4px; font-size: 0.95em; color: var(--text); }
+.cfg-intro { margin: 0 0 12px; font-size: 0.8em; color: var(--text-dim); line-height: 1.4; }
+.cfg-item { margin-bottom: 12px; }
+.cfg-item > label { display: block; font-size: 0.85em; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.cfg-item input[type=number], .cfg-item input[type=text], .cfg-item input[type=password] {
+  width: 100%; padding: 8px 12px; background: var(--input-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 0.9em;
+}
+.cfg-item input:focus { outline: none; border-color: var(--primary); }
+.cfg-item.cfg-bool > label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.cfg-item.cfg-bool input { width: auto; }
+.cfg-help { font-size: 0.75em; color: var(--text-dim); line-height: 1.4; margin-top: 3px; }
+
 /* Schedule editor */
 .sched-master { padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; }
 .sched-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9em; color: var(--text); cursor: pointer; }
@@ -676,31 +692,188 @@ async function loadConfig() {
     const fields = document.getElementById('cfg-fields');
     fields.innerHTML = '';
     if (section === 'schedules') { renderSchedules(data); return; }
-    // MQTT keeps its emitted order (enabled, endpoint, user, password, ...); others sort.
-    const keys = (section === 'mqtt' ? Object.keys(data) : Object.keys(data).sort()).filter(k => k !== 'has_password');
-    for (let i = 0; i < keys.length; i += 2) {
-      const row = document.createElement('div');
-      row.className = 'form-row';
-      for (let j = i; j < Math.min(i + 2, keys.length); j++) {
-        const k = keys[j];
-        const v = data[k];
-        const grp = document.createElement('div');
-        grp.className = 'form-group';
-        const lbl = document.createElement('label');
-        lbl.textContent = k;
-        const inp = document.createElement('input');
-        inp.dataset.key = k;
-        if (typeof v === 'boolean') { inp.type = 'checkbox'; inp.checked = v; }
-        else if (typeof v === 'number') { inp.type = 'number'; inp.step = 'any'; inp.value = v; }
-        else if (k === 'password') { inp.type = 'password'; inp.value = ''; inp.placeholder = data.has_password ? '\u2022\u2022\u2022\u2022 (unchanged)' : 'not set'; }
-        else { inp.type = 'text'; inp.value = v; }
-        grp.appendChild(lbl);
-        grp.appendChild(inp);
-        row.appendChild(grp);
-      }
-      fields.appendChild(row);
-    }
+    renderConfigForm(section, data);
   } catch (e) { toast('Failed to load config: ' + e.message, 'error'); }
+}
+
+// Build the input control for a config key (shared by all renderers).
+function _cfgInput(k, v, data) {
+  const inp = document.createElement('input');
+  inp.dataset.key = k;
+  if (typeof v === 'boolean') { inp.type = 'checkbox'; inp.checked = v; }
+  else if (typeof v === 'number') { inp.type = 'number'; inp.step = 'any'; inp.value = v; }
+  else if (k === 'password') { inp.type = 'password'; inp.value = ''; inp.placeholder = data.has_password ? '\u2022\u2022\u2022\u2022 (unchanged)' : 'not set'; }
+  else { inp.type = 'text'; inp.value = v; }
+  return inp;
+}
+
+// One labelled field with optional help text. meta = [label, help] or null.
+function _cfgItem(k, v, data, meta) {
+  const label = meta ? meta[0] : k;
+  const help = meta ? meta[1] : null;
+  const item = document.createElement('div');
+  const isBool = typeof v === 'boolean';
+  item.className = 'cfg-item' + (isBool ? ' cfg-bool' : '');
+  const lbl = document.createElement('label');
+  const inp = _cfgInput(k, v, data);
+  if (isBool) {
+    lbl.appendChild(inp);
+    lbl.appendChild(document.createTextNode(' ' + label));
+    item.appendChild(lbl);
+  } else {
+    lbl.textContent = label;
+    item.appendChild(lbl);
+    item.appendChild(inp);
+  }
+  if (help) {
+    const helpEl = document.createElement('div');
+    helpEl.className = 'cfg-help';
+    helpEl.textContent = help;
+    item.appendChild(helpEl);
+  }
+  return item;
+}
+
+// Shared PID field descriptions (used by the boiler + brew sections).
+const PID_FIELDS = {
+  'pid.P': ['Proportional gain (P)', 'Reacts to the current error (setpoint \u2212 temperature). Larger = a stronger immediate push toward the setpoint, but too large overshoots.'],
+  'pid.I': ['Integral gain (I)', 'Accumulates past error to remove any steady-state offset. Too high causes slow oscillation/overshoot.'],
+  'pid.D': ['Derivative gain (D)', 'Reacts to how fast the temperature is changing, damping overshoot.'],
+  'pid.I_reset_temp': ['Integral reset band (\u00b0C)', 'The accumulated integral term is discarded whenever the temperature is more than this many degrees from the setpoint, preventing wind-up after big changes.'],
+  'pid.over_setpoint_perc': ['Over-setpoint cutoff (%)', 'How far above the setpoint (as a % of it) the temperature may rise before the heater is cut and the PID disabled \u2014 an over-temperature backstop.'],
+};
+
+// Per-section field metadata + grouping. Sections not listed fall back to a
+// plain sorted grid. Keys must match those emitted by each config's to_json().
+const CFG_SCHEMA = {
+  boiler_temp: {
+    intro: 'Controls the main boiler heater with a PID loop, plus its safety limits.',
+    fields: Object.assign({}, PID_FIELDS, {
+      'pid.setpoint0': ['Brew setpoint (\u00b0C)', 'Target boiler temperature for normal brewing.'],
+      'pid.setpoint1': ['Steam setpoint (\u00b0C)', 'Target boiler temperature when steam mode is selected.'],
+      'full_duty_pid_error_threshold': ['Full-power band (\u00b0C)', 'When the temperature is more than this far below the setpoint, the heater runs at 100% until it gets close, for a faster warm-up.'],
+      'mains_hz': ['Mains frequency (Hz)', 'Your AC line frequency (50 or 60). Times the zero-cross SSR pulses \u2014 must match your region.'],
+      'temp_error_restart_time_sec': ['Sensor-fault restart (s)', 'If the boiler sensor keeps faulting for this long, the controller restarts to a known-safe state. 0 disables.'],
+    }),
+    groups: [
+      { title: 'Setpoints', keys: ['pid.setpoint0', 'pid.setpoint1', 'pid.over_setpoint_perc'] },
+      { title: 'PID Tuning', help: 'The heater PID blends these terms to hold the setpoint without overshoot.', keys: ['pid.P', 'pid.I', 'pid.D', 'pid.I_reset_temp', 'full_duty_pid_error_threshold'] },
+      { title: 'Safety & Mains', keys: ['mains_hz', 'temp_error_restart_time_sec'] },
+    ],
+  },
+  brew_temp: {
+    intro: 'Optional trim that uses the brew-head sensor to nudge the boiler so the group holds a steadier temperature.',
+    fields: Object.assign({}, PID_FIELDS, {
+      'enabled': ['Brew-head trim enabled', 'Use the brew-head sensor to fine-tune (dampen) the boiler setpoint.'],
+      'pid.setpoint0': ['Brew-head target (\u00b0C)', 'Desired temperature at the brew head; the trim nudges the boiler toward it.'],
+      'pid.setpoint1': ['Secondary target (\u00b0C)', 'Alternate brew-head target for the second setpoint slot.'],
+      'max_damping_perc': ['Max trim (% of setpoint)', 'Caps how far the trim may move the boiler setpoint, as a percentage \u2014 keeps the correction gentle.'],
+      'boiler_setpoint_hold_sec': ['Post-brew hold (s)', 'After a shot finishes, pause trimming for this long so the boiler can recover before adjusting again.'],
+    }),
+    groups: [
+      { title: 'Brew-head Trim', keys: ['enabled', 'pid.setpoint0', 'pid.setpoint1', 'max_damping_perc', 'boiler_setpoint_hold_sec'] },
+      { title: 'PID Tuning', help: 'Tuning for the trim loop that drives the boiler nudge.', keys: ['pid.P', 'pid.I', 'pid.D', 'pid.I_reset_temp', 'pid.over_setpoint_perc'] },
+    ],
+  },
+  boiler_refill: {
+    intro: 'Keeps the boiler topped up using the water-level probe.',
+    fields: {
+      'refill_mv_threshold': ['Empty threshold (mV)', 'Probe voltage above which the boiler is considered low and needs a refill. A higher reading means less water bridging the electrodes.'],
+      'max_refill_time_ms': ['Max refill time (ms)', 'If a single refill runs longer than this it is aborted and a Refill Error is latched \u2014 protects against a stuck valve or an empty tank.'],
+      'level_low_hysteresis_ms': ['Low debounce (ms)', 'The level must read low for this long before a refill starts \u2014 filters out sloshing.'],
+      'level_ok_hysteresis_ms': ['Full debounce (ms)', 'The level must read full for this long before a refill stops.'],
+      'start_delay_ms': ['Start-up delay (ms)', 'Ignore probe readings for this long after power-on while the board settles (boot readings are unreliable).'],
+      'stabilise_ms': ['Settle time (ms)', 'Wait after energising the probe before sampling, so the reading can stabilise.'],
+      'adc_num_readings': ['Samples per read', 'How many ADC samples are averaged for each level measurement \u2014 more is smoother but slower.'],
+      'corrosion_enabled': ['Corrosion monitoring', 'Measure and classify probe health so a worn probe can be spotted before it fails. Set automatically when you calibrate. When off the status reads \u201cNot calibrated\u201d and never touches the machine \u2014 the raw voltage is still shown.'],
+      'corrosion_guard_enabled': ['Corrosion guard (safety interlock)', 'When a Fault is detected, cut the heater and hold the refill until the probe reads healthy again (auto-clears). Turn this off to keep the machine on its prior behaviour while you watch how the algorithm behaves \u2014 voltage and status are still reported. A genuine ADC/sensor fault always stays safe regardless of this switch.'],
+      'corrosion_baseline_mv': ['Healthy baseline (mV)', 'The probe voltage of a clean probe in a full boiler, captured at calibration. Higher voltage = more contact resistance = more corrosion.'],
+      'corrosion_warn_margin_mv': ['Warn margin (mV)', 'Added to the baseline to compute the \u201cService soon\u201d threshold when you calibrate.'],
+      'corrosion_fault_margin_mv': ['Fault margin (mV)', 'Added to the baseline to compute the \u201cFault\u201d threshold when you calibrate.'],
+      'corrosion_warn_threshold_mv': ['Warn threshold (mV)', 'At or above this reading the probe reports \u201cService soon\u201d (advisory only). Derived at calibration (baseline + warn margin); editable here to fine-tune.'],
+      'corrosion_fault_threshold_mv': ['Fault threshold (mV)', 'At or above this reading the probe reports \u201cFault\u201d and is treated as untrusted. Derived at calibration (baseline + fault margin); editable here. This is the level the guard acts on.'],
+      'corrosion_consistency_ms': ['Debounce time (ms)', 'A reading must persist this long before the status changes, in either direction (escalating to a fault or clearing back to OK). Filters out momentary spikes.'],
+    },
+    groups: [
+      { title: 'Refill Control', keys: ['refill_mv_threshold', 'max_refill_time_ms', 'level_low_hysteresis_ms', 'level_ok_hysteresis_ms'] },
+      { title: 'Probe Sampling', keys: ['start_delay_ms', 'stabilise_ms', 'adc_num_readings'] },
+      { title: 'Probe Corrosion Monitoring', help: 'The water-level probe wears out over time (electrolysis raises its contact resistance, so its voltage drifts up). These settings watch that trend. Calibrate with a clean probe and a full boiler to capture the baseline and thresholds \u2014 monitoring detects a worn probe; the guard lets it protect the machine.',
+        keys: ['corrosion_enabled', 'corrosion_guard_enabled', 'corrosion_consistency_ms', 'corrosion_baseline_mv', 'corrosion_warn_margin_mv', 'corrosion_fault_margin_mv', 'corrosion_warn_threshold_mv', 'corrosion_fault_threshold_mv'] },
+    ],
+  },
+  mqtt: {
+    intro: 'Publishes state and accepts commands over MQTT for Home Assistant auto-discovery.',
+    fields: {
+      'enabled': ['MQTT enabled', 'Connect to the broker and publish discovery + state.'],
+      'broker_uri': ['Broker URL', 'e.g. mqtt://192.168.1.10:1883 (use mqtts:// for TLS).'],
+      'username': ['Username', 'MQTT username, if your broker requires authentication.'],
+      'password': ['Password', 'MQTT password. Leave blank to keep the stored one unchanged.'],
+      'publish_interval_sec': ['Publish interval (s)', 'How often the device pushes its state to the broker.'],
+    },
+    groups: [
+      { title: 'Broker', keys: ['enabled', 'broker_uri', 'username', 'password', 'publish_interval_sec'] },
+    ],
+  },
+};
+
+// Render a config form from CFG_SCHEMA, grouping fields with friendly labels +
+// help. Unknown sections fall back to a plain sorted grid. Any keys absent from
+// the schema are still shown under an "Other" group so nothing is ever hidden.
+function renderConfigForm(section, data) {
+  const fields = document.getElementById('cfg-fields');
+  const schema = CFG_SCHEMA[section];
+  if (!schema) { renderGenericConfig(data); return; }
+
+  const meta = schema.fields || {};
+  const used = new Set();
+
+  schema.groups.forEach((group, gi) => {
+    const groupKeys = group.keys.filter(k => k in data);
+    if (groupKeys.length === 0) return;
+    const sec = document.createElement('div');
+    sec.className = gi === 0 ? 'cfg-group' : 'cfg-subsection';
+    const h = document.createElement('h4');
+    h.textContent = group.title;
+    sec.appendChild(h);
+    if (gi === 0 && schema.intro) {
+      const p = document.createElement('p'); p.className = 'cfg-intro'; p.textContent = schema.intro; sec.appendChild(p);
+    }
+    if (group.help) {
+      const p = document.createElement('p'); p.className = 'cfg-intro'; p.textContent = group.help; sec.appendChild(p);
+    }
+    groupKeys.forEach(k => { used.add(k); sec.appendChild(_cfgItem(k, data[k], data, meta[k])); });
+    fields.appendChild(sec);
+  });
+
+  const leftover = Object.keys(data).filter(k => k !== 'has_password' && !used.has(k));
+  if (leftover.length) {
+    const sec = document.createElement('div');
+    sec.className = 'cfg-subsection';
+    const h = document.createElement('h4'); h.textContent = 'Other'; sec.appendChild(h);
+    leftover.forEach(k => sec.appendChild(_cfgItem(k, data[k], data, meta[k])));
+    fields.appendChild(sec);
+  }
+}
+
+// Fallback: plain two-per-row grid using raw keys (for any unschematised section).
+function renderGenericConfig(data) {
+  const fields = document.getElementById('cfg-fields');
+  const keys = Object.keys(data).sort().filter(k => k !== 'has_password');
+  for (let i = 0; i < keys.length; i += 2) {
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    for (let j = i; j < Math.min(i + 2, keys.length); j++) {
+      const k = keys[j];
+      const grp = document.createElement('div');
+      grp.className = 'form-group';
+      const lbl = document.createElement('label');
+      lbl.textContent = k;
+      grp.appendChild(lbl);
+      grp.appendChild(_cfgInput(k, data[k], data));
+      row.appendChild(grp);
+    }
+    fields.appendChild(row);
+  }
 }
 
 // --- Schedule editor (schedules section) ---

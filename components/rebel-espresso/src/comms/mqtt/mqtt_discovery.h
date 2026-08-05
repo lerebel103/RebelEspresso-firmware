@@ -47,3 +47,11 @@ char *mqtt_build_state_json(const mqtt_state_t *s);
 /// Build one entity's HA discovery config. Returns a malloc'd string.
 char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, const char *avail_topic,
                                 const char *uid_prefix, const char *dev_name, const char *model, const char *fw);
+
+/// Control discovery builders (write). Command topics are <base_topic>/cmd/<x>.
+char *mqtt_build_power_switch_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
+                                   const char *dev_name, const char *model, const char *fw);
+char *mqtt_build_brew_climate_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
+                                   const char *dev_name, const char *model, const char *fw);
+char *mqtt_build_calibrate_button_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
+                                       const char *dev_name, const char *model, const char *fw);

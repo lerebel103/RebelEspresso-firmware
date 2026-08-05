@@ -78,3 +78,49 @@ TEST_CASE("MQTT discovery: binary_sensor renders ON/OFF template", "[mqtt]") {
   TEST_ASSERT_NOT_NULL(strstr(power->value_template, "'ON'"));
   TEST_ASSERT_NOT_NULL(strstr(power->value_template, "'OFF'"));
 }
+
+TEST_CASE("MQTT discovery: probe voltage is a diagnostic entity", "[mqtt]") {
+  size_t n = 0;
+  const mqtt_entity_t *ents = mqtt_entities(&n);
+  const mqtt_entity_t *probe = nullptr;
+  for (size_t i = 0; i < n; i++) {
+    if (strcmp(ents[i].object_id, "probe_voltage") == 0) {
+      probe = &ents[i];
+    }
+  }
+  TEST_ASSERT_NOT_NULL(probe);
+  TEST_ASSERT_EQUAL_STRING("diagnostic", probe->entity_category);
+  TEST_ASSERT_EQUAL_STRING("mV", probe->unit);
+}
+
+TEST_CASE("MQTT controls: power switch has command topic + on/off template", "[mqtt]") {
+  char *json = mqtt_build_power_switch_json("rebel/abc", "rebel/abc/availability", "rebel_abc", "Rebel", "r2", "1.0");
+  cJSON *root = cJSON_Parse(json);
+  TEST_ASSERT_NOT_NULL(root);
+  TEST_ASSERT_EQUAL_STRING("rebel/abc/cmd/power", cJSON_GetObjectItem(root, "command_topic")->valuestring);
+  TEST_ASSERT_EQUAL_STRING("rebel_abc_power", cJSON_GetObjectItem(root, "unique_id")->valuestring);
+  cJSON_Delete(root);
+  free(json);
+}
+
+TEST_CASE("MQTT controls: brew climate exposes current + target with command", "[mqtt]") {
+  char *json = mqtt_build_brew_climate_json("rebel/abc", "rebel/abc/availability", "rebel_abc", "Rebel", "r2", "1.0");
+  cJSON *root = cJSON_Parse(json);
+  TEST_ASSERT_NOT_NULL(root);
+  TEST_ASSERT_NOT_NULL(cJSON_GetObjectItem(root, "current_temperature_template"));
+  TEST_ASSERT_EQUAL_STRING("rebel/abc/cmd/brew_setpoint",
+                           cJSON_GetObjectItem(root, "temperature_command_topic")->valuestring);
+  cJSON_Delete(root);
+  free(json);
+}
+
+TEST_CASE("MQTT controls: calibrate button issues a press command", "[mqtt]") {
+  char *json =
+      mqtt_build_calibrate_button_json("rebel/abc", "rebel/abc/availability", "rebel_abc", "Rebel", "r2", "1.0");
+  cJSON *root = cJSON_Parse(json);
+  TEST_ASSERT_NOT_NULL(root);
+  TEST_ASSERT_EQUAL_STRING("rebel/abc/cmd/calibrate", cJSON_GetObjectItem(root, "command_topic")->valuestring);
+  TEST_ASSERT_EQUAL_STRING("PRESS", cJSON_GetObjectItem(root, "payload_press")->valuestring);
+  cJSON_Delete(root);
+  free(json);
+}

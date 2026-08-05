@@ -8,6 +8,7 @@
 #include <esp_timer.h>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <cctype>
 #include "common/identity.h"
 #include "process_image.h"
@@ -115,7 +116,45 @@ static void _publish_discovery() {
     esp_mqtt_client_publish(s_client, topic, cfg, 0, 1, 1); // retained
     free(cfg);
   }
+
+  // Control entities (write): power switch, brew climate, calibrate button.
+  char ctopic[192];
+  char *j;
+  j = mqtt_build_power_switch_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
+  snprintf(ctopic, sizeof(ctopic), "%s/switch/%s/power/config", s_disc_prefix, s_node_id);
+  esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
+  free(j);
+  j = mqtt_build_brew_climate_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
+  snprintf(ctopic, sizeof(ctopic), "%s/climate/%s/brew/config", s_disc_prefix, s_node_id);
+  esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
+  free(j);
+  j = mqtt_build_calibrate_button_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
+  snprintf(ctopic, sizeof(ctopic), "%s/button/%s/calibrate/config", s_disc_prefix, s_node_id);
+  esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
+  free(j);
+
   ESP_LOGI(TAG, "Published discovery for %u entities", (unsigned)n);
+}
+
+// Map an inbound command topic + payload onto the existing remote APIs.
+static void _handle_command(const char *topic, const char *payload) {
+  if (strstr(topic, "/cmd/power") != nullptr) {
+    if (strcmp(payload, "ON") == 0) {
+      power_active();
+    } else if (strcmp(payload, "OFF") == 0) {
+      power_standby();
+    }
+  } else if (strstr(topic, "/cmd/brew_setpoint") != nullptr) {
+    double v = atof(payload);
+    if (v >= 80.0 && v <= 105.0) {
+      brew_temp_set_setpoint(v);
+    }
+  } else if (strstr(topic, "/cmd/calibrate") != nullptr) {
+    boiler_refill_calibrate_probe(process_image_get()->water_level_median_mv);
+  } else {
+    return;
+  }
+  _publish_state(); // reflect the accepted change immediately
 }
 
 static void _event_handler([[maybe_unused]] void *args, [[maybe_unused]] esp_event_base_t base, int32_t id,
@@ -127,7 +166,25 @@ static void _event_handler([[maybe_unused]] void *args, [[maybe_unused]] esp_eve
       esp_mqtt_client_publish(s_client, s_avail_topic, "online", 0, 1, 1);
       _publish_discovery();
       _publish_state();
+      {
+        char sub[128];
+        snprintf(sub, sizeof(sub), "%s/cmd/#", s_base);
+        esp_mqtt_client_subscribe(s_client, sub, 1);
+      }
       break;
+    case MQTT_EVENT_DATA: {
+      esp_mqtt_event_handle_t ev = (esp_mqtt_event_handle_t)data;
+      char topic[128];
+      char payload[64];
+      int tl = ev->topic_len < (int)sizeof(topic) - 1 ? ev->topic_len : (int)sizeof(topic) - 1;
+      int pl = ev->data_len < (int)sizeof(payload) - 1 ? ev->data_len : (int)sizeof(payload) - 1;
+      memcpy(topic, ev->topic, tl);
+      topic[tl] = '\0';
+      memcpy(payload, ev->data, pl);
+      payload[pl] = '\0';
+      _handle_command(topic, payload);
+      break;
+    }
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGW(TAG, "Disconnected");
       s_connected = false;

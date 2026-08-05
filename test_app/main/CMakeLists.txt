@@ -26,6 +26,7 @@ idf_component_register(
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/machine/water_probe.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/comms/mqtt/mqtt_config.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/comms/mqtt/mqtt_discovery.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/comms/homekit/homekit_config.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/process_image.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/io_scan_safety.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../components/rebel-espresso/src/runtime/io_scan_modes.cpp"

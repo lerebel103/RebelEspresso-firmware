@@ -21,6 +21,7 @@
 #include "schedules.h"
 #include "process_image.h"
 #include "mqtt/mqtt_ha.h"
+#include "mqtt/mqtt_config.h"
 #include "homekit/homekit.h"
 #include "homekit/homekit_config.h"
 
@@ -263,6 +264,28 @@ static esp_err_t _config_export_handler(httpd_req_t *req) {
     cJSON_free(s);
     cJSON_Delete(obj);
   }
+  // mqtt (password is redacted by to_json — secrets are never exported)
+  {
+    const char *key = ",\"mqtt\":";
+    httpd_resp_send_chunk(req, key, strlen(key));
+    cJSON *obj = cJSON_CreateObject();
+    mqtt_config_get().to_json(obj, "");
+    char *s = cJSON_PrintUnformatted(obj);
+    httpd_resp_send_chunk(req, s, strlen(s));
+    cJSON_free(s);
+    cJSON_Delete(obj);
+  }
+  // homekit
+  {
+    const char *key = ",\"homekit\":";
+    httpd_resp_send_chunk(req, key, strlen(key));
+    cJSON *obj = cJSON_CreateObject();
+    homekit_config_get().to_json(obj, "");
+    char *s = cJSON_PrintUnformatted(obj);
+    httpd_resp_send_chunk(req, s, strlen(s));
+    cJSON_free(s);
+    cJSON_Delete(obj);
+  }
 
   httpd_resp_send_chunk(req, "}", 1);
   httpd_resp_send_chunk(req, NULL, 0); // end chunked transfer
@@ -334,6 +357,18 @@ static esp_err_t _config_import_handler(httpd_req_t *req) {
   section = cJSON_GetObjectItem(root, "schedules");
   if (section) {
     schedules_update_cfg(section);
+    applied++;
+  }
+
+  section = cJSON_GetObjectItem(root, "mqtt");
+  if (section) {
+    mqtt_config_update(section);
+    applied++;
+  }
+
+  section = cJSON_GetObjectItem(root, "homekit");
+  if (section) {
+    homekit_config_update(section);
     applied++;
   }
 

@@ -67,8 +67,9 @@ section pattern as the other config blocks.
 - Every entity carries:
   - a stable `unique_id` (derived from thing id + object),
   - a shared **`device` block** (identifiers, name, model = `rebel-espresso`,
-    manufacturer, sw_version, hw_version) so all entities group under one HA
-    device,
+    manufacturer, sw_version, hw_version, and `configuration_url` =
+    `http://<sta-ip>:8080` so HA links to the on-device web UI from the device
+    info page) so all entities group under one HA device,
   - an **availability** topic reference (R7),
   - `state_topic` / `command_topic` / `value_template` as appropriate.
 - Discovery is republished on reconnect; entities are removed by publishing an

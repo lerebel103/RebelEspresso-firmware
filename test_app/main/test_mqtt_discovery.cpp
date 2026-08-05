@@ -64,6 +64,29 @@ TEST_CASE("MQTT discovery: sensor config has topics, template, uid and device", 
   free(json);
 }
 
+TEST_CASE("MQTT discovery: device advertises configuration_url when provided", "[mqtt]") {
+  size_t n = 0;
+  const mqtt_entity_t *ents = mqtt_entities(&n);
+  const mqtt_entity_t *e = &ents[0];
+
+  // With a URL: the device block carries configuration_url so HA links to the UI.
+  char *json = mqtt_build_discovery_json(e, "rebel/abc", "rebel/abc/availability", "rebel_abc", "Rebel", "r2", "1.0",
+                                         "http://192.168.1.5:8080");
+  cJSON *root = cJSON_Parse(json);
+  cJSON *device = cJSON_GetObjectItem(root, "device");
+  TEST_ASSERT_EQUAL_STRING("http://192.168.1.5:8080", cJSON_GetObjectItem(device, "configuration_url")->valuestring);
+  cJSON_Delete(root);
+  free(json);
+
+  // Without a URL (nullptr default): the key is omitted.
+  json = mqtt_build_discovery_json(e, "rebel/abc", "rebel/abc/availability", "rebel_abc", "Rebel", "r2", "1.0");
+  root = cJSON_Parse(json);
+  device = cJSON_GetObjectItem(root, "device");
+  TEST_ASSERT_NULL(cJSON_GetObjectItem(device, "configuration_url"));
+  cJSON_Delete(root);
+  free(json);
+}
+
 TEST_CASE("MQTT discovery: binary_sensor renders ON/OFF template", "[mqtt]") {
   size_t n = 0;
   const mqtt_entity_t *ents = mqtt_entities(&n);

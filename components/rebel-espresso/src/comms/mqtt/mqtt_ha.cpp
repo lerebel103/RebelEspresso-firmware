@@ -18,6 +18,7 @@
 #include "boiler_refill_states.h"
 #include "rtds.h"
 #include "power.h"
+#include "wifi/wifi_manager.h"
 #include <hw_config.h>
 
 #define TAG "mqtt_ha"
@@ -105,11 +106,20 @@ static void _publish_state() {
 
 static void _publish_discovery() {
   const esp_app_desc_t *app = esp_app_get_description();
+
+  // Advertise the on-device web UI so HA shows a "Visit device" link (device
+  // info page). Recomputed here so it always reflects the current STA IP.
+  char config_url[40] = "";
+  wifi_metrics_t wm = wifi_manager_get_metrics();
+  if (wm.ip_addr[0] != '\0') {
+    snprintf(config_url, sizeof(config_url), "http://%s:8080", wm.ip_addr);
+  }
+
   size_t n = 0;
   const mqtt_entity_t *ents = mqtt_entities(&n);
   for (size_t i = 0; i < n; i++) {
-    char *cfg =
-        mqtt_build_discovery_json(&ents[i], s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
+    char *cfg = mqtt_build_discovery_json(&ents[i], s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version,
+                                          config_url);
     if (!cfg) {
       continue;
     }
@@ -124,11 +134,11 @@ static void _publish_discovery() {
   // calibrate button.
   char ctopic[192];
   char *j;
-  j = mqtt_build_brew_climate_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
+  j = mqtt_build_brew_climate_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version, config_url);
   snprintf(ctopic, sizeof(ctopic), "%s/climate/%s/brew/config", s_disc_prefix, s_node_id);
   esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
   free(j);
-  j = mqtt_build_calibrate_button_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
+  j = mqtt_build_calibrate_button_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version, config_url);
   snprintf(ctopic, sizeof(ctopic), "%s/button/%s/calibrate/config", s_disc_prefix, s_node_id);
   esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
   free(j);

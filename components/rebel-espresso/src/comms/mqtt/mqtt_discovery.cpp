@@ -34,7 +34,8 @@ const mqtt_entity_t *mqtt_entities(size_t *count) {
   return s_entities;
 }
 
-static void _add_device(cJSON *root, const char *uid_prefix, const char *dev_name, const char *model, const char *fw) {
+static void _add_device(cJSON *root, const char *uid_prefix, const char *dev_name, const char *model, const char *fw,
+                        const char *config_url) {
   cJSON *device = cJSON_AddObjectToObject(root, "device");
   cJSON *ids = cJSON_AddArrayToObject(device, "identifiers");
   cJSON_AddItemToArray(ids, cJSON_CreateString(uid_prefix));
@@ -42,6 +43,9 @@ static void _add_device(cJSON *root, const char *uid_prefix, const char *dev_nam
   cJSON_AddStringToObject(device, "model", model);
   cJSON_AddStringToObject(device, "manufacturer", "RebelEspresso");
   cJSON_AddStringToObject(device, "sw_version", fw);
+  if (config_url && config_url[0] != '\0') {
+    cJSON_AddStringToObject(device, "configuration_url", config_url);
+  }
 }
 
 char *mqtt_build_state_json(const mqtt_state_t *s) {
@@ -67,7 +71,8 @@ char *mqtt_build_state_json(const mqtt_state_t *s) {
 }
 
 char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, const char *avail_topic,
-                                const char *uid_prefix, const char *dev_name, const char *model, const char *fw) {
+                                const char *uid_prefix, const char *dev_name, const char *model, const char *fw,
+                                const char *config_url) {
   cJSON *root = cJSON_CreateObject();
 
   cJSON_AddStringToObject(root, "name", e->name);
@@ -100,6 +105,9 @@ char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, 
   cJSON_AddStringToObject(device, "model", model);
   cJSON_AddStringToObject(device, "manufacturer", "RebelEspresso");
   cJSON_AddStringToObject(device, "sw_version", fw);
+  if (config_url && config_url[0] != '\0') {
+    cJSON_AddStringToObject(device, "configuration_url", config_url);
+  }
 
   char *out = cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
@@ -107,7 +115,7 @@ char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, 
 }
 
 char *mqtt_build_brew_climate_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
-                                   const char *dev_name, const char *model, const char *fw) {
+                                   const char *dev_name, const char *model, const char *fw, const char *config_url) {
   cJSON *root = cJSON_CreateObject();
   cJSON_AddStringToObject(root, "name", "Brew");
 
@@ -143,7 +151,7 @@ char *mqtt_build_brew_climate_json(const char *base_topic, const char *avail_top
   cJSON_AddStringToObject(root, "mode_command_topic", mcmd);
 
   cJSON_AddStringToObject(root, "availability_topic", avail_topic);
-  _add_device(root, uid_prefix, dev_name, model, fw);
+  _add_device(root, uid_prefix, dev_name, model, fw, config_url);
 
   char *out = cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
@@ -151,7 +159,8 @@ char *mqtt_build_brew_climate_json(const char *base_topic, const char *avail_top
 }
 
 char *mqtt_build_calibrate_button_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
-                                       const char *dev_name, const char *model, const char *fw) {
+                                       const char *dev_name, const char *model, const char *fw,
+                                       const char *config_url) {
   cJSON *root = cJSON_CreateObject();
   cJSON_AddStringToObject(root, "name", "Calibrate Probe");
 
@@ -165,7 +174,7 @@ char *mqtt_build_calibrate_button_json(const char *base_topic, const char *avail
   cJSON_AddStringToObject(root, "payload_press", "PRESS");
   cJSON_AddStringToObject(root, "availability_topic", avail_topic);
   cJSON_AddStringToObject(root, "entity_category", "config");
-  _add_device(root, uid_prefix, dev_name, model, fw);
+  _add_device(root, uid_prefix, dev_name, model, fw, config_url);
 
   char *out = cJSON_PrintUnformatted(root);
   cJSON_Delete(root);

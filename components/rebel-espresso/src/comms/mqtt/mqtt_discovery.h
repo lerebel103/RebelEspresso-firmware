@@ -45,12 +45,17 @@ const mqtt_entity_t *mqtt_entities(size_t *count);
 char *mqtt_build_state_json(const mqtt_state_t *s);
 
 /// Build one entity's HA discovery config. Returns a malloc'd string.
+/// `config_url` (e.g. "http://192.168.1.5:8080") is advertised on the device so
+/// HA shows a "Visit device" link in the device info page; pass nullptr to omit.
 char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, const char *avail_topic,
-                                const char *uid_prefix, const char *dev_name, const char *model, const char *fw);
+                                const char *uid_prefix, const char *dev_name, const char *model, const char *fw,
+                                const char *config_url = nullptr);
 
 /// Control discovery builders (write). Command topics are <base_topic>/cmd/<x>.
 /// The brew climate carries power via its off/heat mode (no separate switch).
 char *mqtt_build_brew_climate_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
-                                   const char *dev_name, const char *model, const char *fw);
+                                   const char *dev_name, const char *model, const char *fw,
+                                   const char *config_url = nullptr);
 char *mqtt_build_calibrate_button_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
-                                       const char *dev_name, const char *model, const char *fw);
+                                       const char *dev_name, const char *model, const char *fw,
+                                       const char *config_url = nullptr);

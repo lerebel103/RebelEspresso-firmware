@@ -12,6 +12,8 @@
 #include <version.h>
 #include <src/machine/power.h>
 #include <src/machine/boiler_refill_states.h>
+#include <src/runtime/process_image.h>
+#include <src/machine/water_probe.h>
 #include <cmath>
 #include "hw_specs.h"
 
@@ -289,6 +291,13 @@ static void _draw_refill_water_tank(FontxFile *fx) {
   lcdDrawString(&dev, fx, x, y, (uint8_t *)"Refill Tank", RED);
 }
 
+static void _draw_probe_service(FontxFile *fx) {
+  int x = 12;
+  int y = 108 + 24;
+
+  lcdDrawString(&dev, fx, x, y, (uint8_t *)"Service Water Probe", RED);
+}
+
 static void _draw_brew_counter(FontxFile *fx1, FontxFile *fx2) {
   char buf[80];
   int seconds = (int)(pdTICKS_TO_MS(xTaskGetTickCount()) / 1000 - s_brew_start_time);
@@ -365,6 +374,13 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
         last_state = state;
       }
       _draw_descale_mode(fx24M);
+    } else if (process_image_get()->corrosion_status == CORROSION_FAULT) {
+      state = 6;
+      if (state != last_state) {
+        lcdFillScreen(&dev, BLACK);
+        last_state = state;
+      }
+      _draw_probe_service(fx24M);
     } else if (hw_specs_is_aux_in_activated()) {
       state = 3;
       if (state != last_state) {

@@ -69,6 +69,19 @@ static void _read_water_level(process_image_t *img) {
   auto& refill_cfg = boiler_refill_get_cfg();
   img->water_level_ok = (status == 0) && (voltage <= refill_cfg.refill_mv_threshold);
 
+  // Reset the debounced monitor whenever the thresholds change (e.g. after a
+  // calibrate) so a fresh baseline clears any prior fault immediately instead of
+  // holding it for up to corrosion_consistency_ms.
+  static uint16_t s_last_warn_mv = 0;
+  static uint16_t s_last_fault_mv = 0;
+  if (refill_cfg.corrosion_warn_threshold_mv != s_last_warn_mv ||
+      refill_cfg.corrosion_fault_threshold_mv != s_last_fault_mv) {
+    corrosion_monitor_reset(&s_corrosion);
+    img->corrosion_status = (uint8_t)CORROSION_OK;
+    s_last_warn_mv = refill_cfg.corrosion_warn_threshold_mv;
+    s_last_fault_mv = refill_cfg.corrosion_fault_threshold_mv;
+  }
+
   // Corrosion status is only meaningful on a *wet* reading (an empty boiler
   // legitimately reads high). Evaluate the debounced status only when submerged
   // and monitoring is enabled; hold the last status otherwise.

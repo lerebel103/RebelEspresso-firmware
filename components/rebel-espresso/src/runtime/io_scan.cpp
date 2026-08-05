@@ -173,28 +173,24 @@ static void scan_refill(process_image_t *img) {
     return;
   }
 
-  // Untrusted level reading (ADC fault / out-of-range / corroded probe): never
-  // refill — a bad probe must not overfill the boiler. Hold the solenoid off and
-  // leave the fill state machine idle; this releases automatically once the
-  // level is trustworthy again (corrosion status auto-clears).
-  if (img->level_status == LEVEL_UNKNOWN) {
-    img->refill_solenoid_on = false;
-    if (!img->brew_active) {
-      img->pump_on = false;
-    }
-    return;
-  }
+  // Untrusted level reading (ADC fault / out-of-range / corroded probe): a bad
+  // probe must never open the solenoid. Instead of skipping the state machine
+  // (which would strand it in ACTIVE and later trip a spurious max-refill ERROR
+  // once trust returns), drive it as if the boiler were full so it winds down to
+  // idle, and force the solenoid off below. Releases automatically when the level
+  // is trustworthy again (corrosion status auto-clears).
+  bool untrusted = (img->level_status == LEVEL_UNKNOWN);
 
   // Drive the state machine with current water level from process image.
-  // LEVEL_OK => full (no refill); LEVEL_LOW_CONFIRMED => needs refill.
+  // LEVEL_OK (or untrusted) => full (no refill); LEVEL_LOW_CONFIRMED => refill.
   uint64_t now_ms = esp_timer_get_time() / 1000;
-  boiler_refill_states_process(now_ms, img->level_status == LEVEL_OK, false);
+  boiler_refill_states_process(now_ms, untrusted || img->level_status == LEVEL_OK, false);
 
   RefillState_t state = boiler_refill_state();
   img->refill_state = state;
 
   // Set outputs based on state
-  if (state == REFILL_STATE_ACTIVE) {
+  if (state == REFILL_STATE_ACTIVE && !untrusted) {
     img->refill_solenoid_on = true;
     // Pump on for refill (additive with brew)
     img->pump_on = true;

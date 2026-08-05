@@ -383,8 +383,15 @@ static esp_err_t _probe_calibrate_handler(httpd_req_t *req) {
   if (!web_auth_check(req))
     return ESP_FAIL;
 
-  // Capture the current (assumed healthy/submerged) median as the baseline.
-  uint16_t median = process_image_get()->water_level_median_mv;
+  // Only calibrate against a trusted, submerged reading — otherwise (empty
+  // boiler, ADC fault or startup) we would store a bogus baseline and silently
+  // disable corrosion protection until re-calibrated.
+  const process_image_t *pi = process_image_get();
+  if (!pi->water_level_ok) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Probe calibration requires a trusted, submerged probe reading");
+    return ESP_FAIL;
+  }
+  uint16_t median = pi->water_level_median_mv;
   boiler_refill_calibrate_probe(median);
   auto& cfg = boiler_refill_get_cfg();
 

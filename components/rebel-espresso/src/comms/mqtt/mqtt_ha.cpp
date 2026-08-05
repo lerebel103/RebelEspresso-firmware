@@ -151,21 +151,31 @@ static void _publish_discovery() {
   ESP_LOGI(TAG, "Published discovery for %u entities", (unsigned)n);
 }
 
+// True when `topic` ends with `suffix` (exact command match, not a substring).
+static bool _topic_ends(const char *topic, const char *suffix) {
+  size_t tl = strlen(topic), sl = strlen(suffix);
+  return tl >= sl && strcmp(topic + tl - sl, suffix) == 0;
+}
+
 // Map an inbound command topic + payload onto the existing remote APIs.
 static void _handle_command(const char *topic, const char *payload) {
-  if (strstr(topic, "/cmd/mode") != nullptr) {
+  if (_topic_ends(topic, "/cmd/mode")) {
     // Climate mode carries power: heat = active, off = standby.
     if (strcmp(payload, "heat") == 0) {
       power_active();
     } else if (strcmp(payload, "off") == 0) {
       power_standby();
     }
-  } else if (strstr(topic, "/cmd/brew_setpoint") != nullptr) {
+  } else if (_topic_ends(topic, "/cmd/brew_setpoint")) {
     double v = atof(payload);
     if (v >= 80.0 && v <= 105.0) {
       brew_temp_set_setpoint(v);
     }
-  } else if (strstr(topic, "/cmd/calibrate") != nullptr) {
+  } else if (_topic_ends(topic, "/cmd/calibrate")) {
+    // HA button sends "PRESS"; only calibrate against a trusted submerged read.
+    if (strcmp(payload, "PRESS") != 0 || !process_image_get()->water_level_ok) {
+      return;
+    }
     boiler_refill_calibrate_probe(process_image_get()->water_level_median_mv);
   } else {
     return;

@@ -100,16 +100,7 @@ char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, 
   }
 
   // Shared device block so all entities group under one HA device.
-  cJSON *device = cJSON_AddObjectToObject(root, "device");
-  cJSON *ids = cJSON_AddArrayToObject(device, "identifiers");
-  cJSON_AddItemToArray(ids, cJSON_CreateString(uid_prefix));
-  cJSON_AddStringToObject(device, "name", dev_name);
-  cJSON_AddStringToObject(device, "model", model);
-  cJSON_AddStringToObject(device, "manufacturer", "RebelEspresso");
-  cJSON_AddStringToObject(device, "sw_version", fw);
-  if (config_url && config_url[0] != '\0') {
-    cJSON_AddStringToObject(device, "configuration_url", config_url);
-  }
+  _add_device(root, uid_prefix, dev_name, model, fw, config_url);
 
   char *out = cJSON_PrintUnformatted(root);
   cJSON_Delete(root);

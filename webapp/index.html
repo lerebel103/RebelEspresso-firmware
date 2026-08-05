@@ -805,7 +805,7 @@ const CFG_SCHEMA = {
     intro: 'Publishes state and accepts commands over MQTT for Home Assistant auto-discovery.',
     fields: {
       'enabled': ['MQTT enabled', 'Connect to the broker and publish discovery + state.'],
-      'broker_uri': ['Broker URL', 'e.g. mqtt://192.168.1.10:1883 (use mqtts:// for TLS).'],
+      'broker_uri': ['Broker URL', 'e.g. mqtt://192.168.1.10:1883 (plain TCP; TLS not supported yet).'],
       'username': ['Username', 'MQTT username, if your broker requires authentication.'],
       'password': ['Password', 'MQTT password. Leave blank to keep the stored one unchanged.'],
       'publish_interval_sec': ['Publish interval (s)', 'How often the device pushes its state to the broker.'],

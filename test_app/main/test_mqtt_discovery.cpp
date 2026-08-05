@@ -93,23 +93,19 @@ TEST_CASE("MQTT discovery: probe voltage is a diagnostic entity", "[mqtt]") {
   TEST_ASSERT_EQUAL_STRING("mV", probe->unit);
 }
 
-TEST_CASE("MQTT controls: power switch has command topic + on/off template", "[mqtt]") {
-  char *json = mqtt_build_power_switch_json("rebel/abc", "rebel/abc/availability", "rebel_abc", "Rebel", "r2", "1.0");
-  cJSON *root = cJSON_Parse(json);
-  TEST_ASSERT_NOT_NULL(root);
-  TEST_ASSERT_EQUAL_STRING("rebel/abc/cmd/power", cJSON_GetObjectItem(root, "command_topic")->valuestring);
-  TEST_ASSERT_EQUAL_STRING("rebel_abc_power", cJSON_GetObjectItem(root, "unique_id")->valuestring);
-  cJSON_Delete(root);
-  free(json);
-}
-
-TEST_CASE("MQTT controls: brew climate exposes current + target with command", "[mqtt]") {
+TEST_CASE("MQTT controls: brew climate carries power via off/heat mode", "[mqtt]") {
   char *json = mqtt_build_brew_climate_json("rebel/abc", "rebel/abc/availability", "rebel_abc", "Rebel", "r2", "1.0");
   cJSON *root = cJSON_Parse(json);
   TEST_ASSERT_NOT_NULL(root);
   TEST_ASSERT_NOT_NULL(cJSON_GetObjectItem(root, "current_temperature_template"));
   TEST_ASSERT_EQUAL_STRING("rebel/abc/cmd/brew_setpoint",
                            cJSON_GetObjectItem(root, "temperature_command_topic")->valuestring);
+  TEST_ASSERT_EQUAL_STRING("rebel/abc/cmd/mode", cJSON_GetObjectItem(root, "mode_command_topic")->valuestring);
+
+  cJSON *modes = cJSON_GetObjectItem(root, "modes");
+  TEST_ASSERT_EQUAL_INT(2, cJSON_GetArraySize(modes));
+  TEST_ASSERT_EQUAL_STRING("off", cJSON_GetArrayItem(modes, 0)->valuestring);
+  TEST_ASSERT_EQUAL_STRING("heat", cJSON_GetArrayItem(modes, 1)->valuestring);
   cJSON_Delete(root);
   free(json);
 }

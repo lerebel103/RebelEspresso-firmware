@@ -120,13 +120,10 @@ static void _publish_discovery() {
     free(cfg);
   }
 
-  // Control entities (write): power switch, brew climate, calibrate button.
+  // Control entities (write): brew climate (carries power via off/heat mode) +
+  // calibrate button.
   char ctopic[192];
   char *j;
-  j = mqtt_build_power_switch_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
-  snprintf(ctopic, sizeof(ctopic), "%s/switch/%s/power/config", s_disc_prefix, s_node_id);
-  esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
-  free(j);
   j = mqtt_build_brew_climate_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version);
   snprintf(ctopic, sizeof(ctopic), "%s/climate/%s/brew/config", s_disc_prefix, s_node_id);
   esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
@@ -136,15 +133,21 @@ static void _publish_discovery() {
   esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
   free(j);
 
+  // Remove the deprecated standalone power switch (folded into the climate mode):
+  // an empty retained payload deletes a previously-discovered entity.
+  snprintf(ctopic, sizeof(ctopic), "%s/switch/%s/power/config", s_disc_prefix, s_node_id);
+  esp_mqtt_client_publish(s_client, ctopic, "", 0, 1, 1);
+
   ESP_LOGI(TAG, "Published discovery for %u entities", (unsigned)n);
 }
 
 // Map an inbound command topic + payload onto the existing remote APIs.
 static void _handle_command(const char *topic, const char *payload) {
-  if (strstr(topic, "/cmd/power") != nullptr) {
-    if (strcmp(payload, "ON") == 0) {
+  if (strstr(topic, "/cmd/mode") != nullptr) {
+    // Climate mode carries power: heat = active, off = standby.
+    if (strcmp(payload, "heat") == 0) {
       power_active();
-    } else if (strcmp(payload, "OFF") == 0) {
+    } else if (strcmp(payload, "off") == 0) {
       power_standby();
     }
   } else if (strstr(topic, "/cmd/brew_setpoint") != nullptr) {

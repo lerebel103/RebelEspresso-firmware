@@ -77,10 +77,12 @@ section pattern as the other config blocks.
 ### R4: Entity set
 Grouped by HA component and `entity_category`:
 
-- **`climate`** (the thermostat, replicated from HomeKit — gives brew-setpoint
-  control "for free"):
+- **`climate`** (the thermostat, replicated from HomeKit — carries both power and
+  brew-setpoint control):
   - Brew head: `current_temperature` = brew-head temp, target temperature = brew
     setpoint (adjustable, min/max/step matching the existing web control).
+  - Modes **off / heat** carry machine power: `off` = standby, `heat` = active.
+    There is no separate power switch — it would be redundant.
 - **`sensor`** (primary):
   - Boiler temperature, boiler setpoint, brew-head temperature, boiler duty %,
     boiler water-level mV.
@@ -92,8 +94,8 @@ Grouped by HA component and `entity_category`:
   - Boot count, crash count, free heap, min heap, uptime, WiFi RSSI,
     firmware version, IDF version, hardware revision.
 - **Controls**:
-  - `switch` — machine power (on/off).
-  - Brew setpoint — provided by the `climate` target temperature (above).
+  - Power + brew setpoint — both provided by the `climate` entity (off/heat mode
+    and target temperature). No standalone power switch.
   - `button` — probe **Calibrate** (ties into the corrosion Calibrate action).
 
 ### R5: State publishing
@@ -109,7 +111,7 @@ Grouped by HA component and `entity_category`:
 ### R6: Command handling
 - Subscribe to `<base_topic>/cmd/#` (or per-control command topics).
 - Map commands to the existing remote APIs:
-  - power switch → `power_active()` / `power_standby()`,
+  - climate mode (off/heat) → `power_standby()` / `power_active()`,
   - brew setpoint (climate target) → the same setter used by the web control API,
   - Calibrate button → the corrosion Calibrate action.
 - Validate/clamp all inputs at the boundary; publish the resulting state back so

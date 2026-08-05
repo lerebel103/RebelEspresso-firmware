@@ -106,30 +106,6 @@ char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, 
   return out;
 }
 
-char *mqtt_build_power_switch_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
-                                   const char *dev_name, const char *model, const char *fw) {
-  cJSON *root = cJSON_CreateObject();
-  cJSON_AddStringToObject(root, "name", "Power");
-
-  char uid[96];
-  snprintf(uid, sizeof(uid), "%s_power", uid_prefix);
-  cJSON_AddStringToObject(root, "unique_id", uid);
-
-  char t[160];
-  snprintf(t, sizeof(t), "%s/state", base_topic);
-  cJSON_AddStringToObject(root, "state_topic", t);
-  cJSON_AddStringToObject(root, "value_template", "{{ 'ON' if value_json.power else 'OFF' }}");
-  snprintf(t, sizeof(t), "%s/cmd/power", base_topic);
-  cJSON_AddStringToObject(root, "command_topic", t);
-  cJSON_AddStringToObject(root, "availability_topic", avail_topic);
-  cJSON_AddStringToObject(root, "device_class", "outlet");
-  _add_device(root, uid_prefix, dev_name, model, fw);
-
-  char *out = cJSON_PrintUnformatted(root);
-  cJSON_Delete(root);
-  return out;
-}
-
 char *mqtt_build_brew_climate_json(const char *base_topic, const char *avail_topic, const char *uid_prefix,
                                    const char *dev_name, const char *model, const char *fw) {
   cJSON *root = cJSON_CreateObject();
@@ -155,11 +131,16 @@ char *mqtt_build_brew_climate_json(const char *base_topic, const char *avail_top
   cJSON_AddNumberToObject(root, "temp_step", 0.5);
   cJSON_AddStringToObject(root, "temperature_unit", "C");
 
-  // Fixed single mode so HA presents a working thermostat.
+  // Power is combined into the thermostat: off = standby, heat = active.
   cJSON *modes = cJSON_AddArrayToObject(root, "modes");
+  cJSON_AddItemToArray(modes, cJSON_CreateString("off"));
   cJSON_AddItemToArray(modes, cJSON_CreateString("heat"));
   cJSON_AddStringToObject(root, "mode_state_topic", state);
-  cJSON_AddStringToObject(root, "mode_state_template", "heat");
+  cJSON_AddStringToObject(root, "mode_state_template", "{{ 'heat' if value_json.power else 'off' }}");
+
+  char mcmd[160];
+  snprintf(mcmd, sizeof(mcmd), "%s/cmd/mode", base_topic);
+  cJSON_AddStringToObject(root, "mode_command_topic", mcmd);
 
   cJSON_AddStringToObject(root, "availability_topic", avail_topic);
   _add_device(root, uid_prefix, dev_name, model, fw);

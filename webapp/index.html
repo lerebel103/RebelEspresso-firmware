@@ -704,13 +704,17 @@ let commsInterval = null;
 function stopCommsPolling() { if (commsInterval) { clearInterval(commsInterval); commsInterval = null; } }
 
 async function renderComms() {
+  stopCommsPolling(); // clear any prior/racing interval before (re)rendering
   const fields = document.getElementById('cfg-fields');
   fields.innerHTML = '';
   const [mqtt, hk] = await Promise.all([api('config/mqtt'), api('config/homekit')]);
+  // Bail if the user navigated away or switched section while awaiting, so we
+  // don't start a poller that outlives the Comms tab (socket leak).
+  if (currentConfigSection !== 'comms' || !document.getElementById('config').classList.contains('active')) return;
   fields.appendChild(_commsSection('mqtt', 'MQTT', CFG_SCHEMA.mqtt, mqtt, true));
   fields.appendChild(_commsSection('homekit', 'Apple HomeKit', CFG_SCHEMA.homekit, hk, false));
   loadCommsStatus();
-  commsInterval = setInterval(loadCommsStatus, 3000);
+  if (!commsInterval) commsInterval = setInterval(loadCommsStatus, 3000);
 }
 
 function _commsSection(cfgName, title, schema, data, first) {

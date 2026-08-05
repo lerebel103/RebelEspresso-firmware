@@ -93,6 +93,8 @@ Grouped by HA component and `entity_category`:
   - **Water Level Voltage** (live probe mV, drives refill) and **Probe Health
     Voltage** (median probe mV, feeds corrosion) plus **Probe Corrosion** status
     + baseline / thresholds (from the corrosion spec),
+  - **Brew Count**, **Descale Count**, and **Last Descale** (maintenance
+    counters; last-descale is only recorded once system time is SNTP-synced),
   - Boot count, crash count, free heap, min heap, uptime, WiFi RSSI,
     firmware version, IDF version, hardware revision.
 - **Controls**:

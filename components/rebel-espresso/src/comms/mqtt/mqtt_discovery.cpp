@@ -29,6 +29,10 @@ static const mqtt_entity_t s_entities[] = {
     {"sensor", "probe_voltage", "Probe Health Voltage", "{{ value_json.probe_mv }}", "mV", "voltage", "diagnostic"},
     {"sensor", "corrosion_status", "Probe Corrosion",
      "{{ ['OK','Service soon','Fault'][value_json.corrosion_status] }}", nullptr, nullptr, "diagnostic"},
+    // Maintenance counters
+    {"sensor", "brew_count", "Brew Count", "{{ value_json.brew_count }}", nullptr, nullptr, "diagnostic"},
+    {"sensor", "descale_count", "Descale Count", "{{ value_json.descale_count }}", nullptr, nullptr, "diagnostic"},
+    {"sensor", "last_descale", "Last Descale", "{{ value_json.last_descale }}", nullptr, nullptr, "diagnostic"},
 };
 
 const mqtt_entity_t *mqtt_entities(size_t *count) {
@@ -60,6 +64,9 @@ char *mqtt_build_state_json(const mqtt_state_t *s) {
   cJSON_AddNumberToObject(root, "water_level_mv", s->water_level_mv);
   cJSON_AddNumberToObject(root, "probe_mv", s->probe_mv);
   cJSON_AddNumberToObject(root, "corrosion_status", s->corrosion_status);
+  cJSON_AddNumberToObject(root, "brew_count", s->brew_count);
+  cJSON_AddNumberToObject(root, "descale_count", s->descale_count);
+  cJSON_AddStringToObject(root, "last_descale", s->last_descale);
   cJSON_AddBoolToObject(root, "power", s->power);
   cJSON_AddBoolToObject(root, "brewing", s->brewing);
   cJSON_AddBoolToObject(root, "steam", s->steam);

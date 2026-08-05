@@ -83,6 +83,12 @@ static void _power_events([[maybe_unused]] void *handler_args, [[maybe_unused]] 
   if (id == POWER_ACTIVE) {
     auto *img = process_image_get();
     if (img->descale_mode) {
+      // Don't record a descale before SNTP has synced — the timestamp would be
+      // wrong and would persist in NVS.
+      if (!(xEventGroupGetBits(status_event_group) & SNTP_TIME_SYNCED_BIT)) {
+        ESP_LOGW(TAG, "Descale not recorded: system time not synced yet");
+        return;
+      }
       s_status.descale_count++;
       s_status.last_descale_time = time(nullptr);
       _save_nvram();

@@ -10,12 +10,14 @@
 #include <cstring>
 #include <cstdlib>
 #include <cctype>
+#include <ctime>
 #include "common/identity.h"
 #include "process_image.h"
 #include "boiler_temp.h"
 #include "brew_temp.h"
 #include "boiler_refill.h"
 #include "boiler_refill_states.h"
+#include "brew.h"
 #include "rtds.h"
 #include "power.h"
 #include "wifi/wifi_manager.h"
@@ -86,6 +88,17 @@ static void _build_state(mqtt_state_t *s) {
   RefillState_t rs = boiler_refill_state();
   s->refill_active = (rs == REFILL_STATE_ACTIVE);
   s->refill_error = (rs == REFILL_STATE_ERROR);
+
+  brew_status_t bs = brew_get_status();
+  s->brew_count = (int)bs.brew_count;
+  s->descale_count = (int)bs.descale_count;
+  if (bs.last_descale_time > 0) {
+    struct tm tmv;
+    localtime_r(&bs.last_descale_time, &tmv);
+    strftime(s->last_descale, sizeof(s->last_descale), "%Y-%m-%d %H:%M", &tmv);
+  } else {
+    snprintf(s->last_descale, sizeof(s->last_descale), "Never");
+  }
 }
 
 static void _publish_state() {

@@ -18,6 +18,9 @@ typedef struct {
   int water_level_mv;
   int probe_mv;
   int corrosion_status; ///< 0 OK / 1 service / 2 fault
+  int brew_count;
+  int descale_count;
+  char last_descale[24]; ///< local "YYYY-MM-DD HH:MM" or "Never"
   bool power;
   bool brewing;
   bool steam;

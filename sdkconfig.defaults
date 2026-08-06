@@ -67,9 +67,11 @@ CONFIG_HAP_HTTP_MAX_OPEN_SOCKETS=5
 CONFIG_HAP_HTTP_MAX_URI_HANDLERS=16
 
 # Web server HTTP header buffer — the default 512 B is too small once the
-# Authorization: Bearer <token> header is added on top of normal browser
-# headers, which caused authenticated requests to fail with 431.
-CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+# Authorization: Bearer <token> header is added on top of a full set of browser
+# headers (User-Agent, sec-ch-ua, Referer, Origin, ...), which caused
+# authenticated requests to fail with 431. The httpd scratch buffer is
+# MAX(MAX_REQ_HDR_LEN, MAX_URI_LEN) and must hold the entire header block.
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048
 
 # System
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=3584

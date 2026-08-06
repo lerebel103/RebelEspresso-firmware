@@ -13,9 +13,16 @@
 #include "web_auth.h"
 
 #define TAG "webserver"
-// Browsers open up to ~6 persistent connections per origin; give one spare so a
-// new request never LRU-purges an active one. Budget: 7+3 internal < LWIP 16.
-#define MAX_CONNECTIONS 7
+// LWIP has a fixed pool of CONFIG_LWIP_MAX_SOCKETS (16, the ESP-IDF max) shared
+// by everything. Budget so accept() never hits ENFILE while HomeKit hubs hold
+// persistent connections:
+//   HAP  5 accept + 1 listen = 6
+//   web  4 accept + 1 listen = 5   (this value)
+//   MQTT 1 + SNTP 1 + mDNS 2       = 4
+//   ----------------------------------> 15 of 16, one spare
+// Idle keep-alive connections are reaped below so a browser's spare sockets are
+// released quickly instead of squatting the budget.
+#define MAX_CONNECTIONS 4
 
 static httpd_handle_t s_server = nullptr;
 static bool s_running = false;

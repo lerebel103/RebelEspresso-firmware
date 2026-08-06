@@ -21,6 +21,10 @@
 static hap_serv_t *service;
 
 static bool s_running = false;
+// Set once the HAP core + accessory database have been built this boot. The SDK
+// cannot cleanly re-init, so a re-enable after a disable reuses the existing
+// accessory and only restarts the network services.
+static bool s_hap_inited = false;
 
 static hap_char_t *hc_brew_temp = nullptr;
 static hap_char_t *hc_boiler_temp = nullptr;
@@ -381,6 +385,7 @@ static void espresso_thread_entry(void *arg) {
   /* After all the initializations are done, start the HAP core */
   hap_start();
   s_running = true;
+  s_hap_inited = true;
 
   /* The task ends here. The read/write callbacks will be invoked by the HAP Framework */
   vTaskDelete(NULL);
@@ -435,6 +440,49 @@ int homekit_paired_count() {
   return s_running ? hap_get_paired_controller_count() : 0;
 }
 
+bool homekit_reset_pairings() {
+  if (!s_running) {
+    ESP_LOGW(TAG, "Reset pairings requested but HomeKit is not running");
+    return false;
+  }
+  ESP_LOGW(TAG, "Erasing all HomeKit pairings — accessory will reboot");
+  hap_reset_pairings();
+  return true;
+}
+
+// Register the machine events the accessory reacts to (idempotent per start).
+static void _register_events() {
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
+}
+
+// Restart only the HAP network services for a re-enable (accessory DB already
+// built earlier this boot; the SDK cannot be fully re-initialised).
+static void _hap_restart_task(void *arg) {
+  hap_start();
+  s_running = true;
+  vTaskDelete(NULL);
+}
+
+void homekit_apply_config() {
+  const bool desired = homekit_config_get().enabled;
+
+  if (desired && !s_running) {
+    _register_events();
+    if (!s_hap_inited) {
+      xTaskCreate(espresso_thread_entry, HK_TASK_NAME, HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
+    } else {
+      // Accessory already exists; just bring the network services back up.
+      xTaskCreate(_hap_restart_task, "hk_restart", HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
+    }
+    ESP_LOGI(TAG, "HomeKit enabled at runtime");
+  } else if (!desired && s_running) {
+    homekit_terminate();
+    ESP_LOGI(TAG, "HomeKit disabled at runtime");
+  }
+}
+
 void homekit_init() {
   homekit_config_load();
   if (!homekit_config_get().enabled) {
@@ -442,10 +490,6 @@ void homekit_init() {
     return;
   }
 
-  // Register power events so we can send to home kit
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
-
+  _register_events();
   xTaskCreate(espresso_thread_entry, HK_TASK_NAME, HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
 }

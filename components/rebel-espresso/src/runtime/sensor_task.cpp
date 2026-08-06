@@ -61,7 +61,11 @@ static void _read_water_level(process_image_t *img) {
   img->water_level_mv = voltage;
 
   // Publish a glitch-robust median for diagnostics/corrosion monitoring.
-  water_probe_window_push(&s_probe_window, (uint16_t)voltage);
+  // Only feed valid samples into the window: a faulted ADC read would pollute
+  // the rolling median and keep it wrong for several cycles after recovery.
+  if (status == 0) {
+    water_probe_window_push(&s_probe_window, (uint16_t)voltage);
+  }
   img->water_level_median_mv = water_probe_window_median(&s_probe_window);
 
   // Derive level OK from configured threshold.

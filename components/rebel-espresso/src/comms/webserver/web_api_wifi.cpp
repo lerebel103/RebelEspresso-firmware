@@ -179,6 +179,88 @@ static esp_err_t _wifi_connect_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+// --- GET /api/wifi/hostname ---
+
+static esp_err_t _wifi_hostname_get_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  char hostname[64];
+  wifi_manager_get_hostname(hostname, sizeof(hostname));
+
+  cJSON *root = cJSON_CreateObject();
+  cJSON_AddStringToObject(root, "hostname", hostname);
+
+  const char *json = cJSON_PrintUnformatted(root);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, json);
+
+  cJSON_free((void *)json);
+  cJSON_Delete(root);
+  return ESP_OK;
+}
+
+// --- POST /api/wifi/hostname ---
+
+static esp_err_t _wifi_hostname_set_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  char body[128];
+  int len = req->content_len;
+  if (len <= 0 || len >= (int)sizeof(body)) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid body");
+    return ESP_FAIL;
+  }
+
+  int received = 0;
+  while (received < len) {
+    int ret = httpd_req_recv(req, body + received, len - received);
+    if (ret <= 0) {
+      if (ret == HTTPD_SOCK_ERR_TIMEOUT)
+        continue;
+      httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Receive error");
+      return ESP_FAIL;
+    }
+    received += ret;
+  }
+  body[received] = '\0';
+
+  cJSON *json = cJSON_Parse(body);
+  if (!json) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+    return ESP_FAIL;
+  }
+
+  cJSON *host_item = cJSON_GetObjectItem(json, "hostname");
+  if (!host_item || !cJSON_IsString(host_item)) {
+    cJSON_Delete(json);
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing 'hostname'");
+    return ESP_FAIL;
+  }
+
+  wifi_manager_set_hostname(host_item->valuestring);
+  cJSON_Delete(json);
+
+  // Echo back the sanitised value that was actually applied.
+  char applied[64];
+  wifi_manager_get_hostname(applied, sizeof(applied));
+
+  cJSON *response = cJSON_CreateObject();
+  cJSON_AddStringToObject(response, "status", "ok");
+  cJSON_AddStringToObject(response, "hostname", applied);
+
+  const char *resp_str = cJSON_PrintUnformatted(response);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, resp_str);
+
+  cJSON_free((void *)resp_str);
+  cJSON_Delete(response);
+  return ESP_OK;
+}
+
 // --- OPTIONS handler for CORS preflight ---
 
 static esp_err_t _wifi_options_handler(httpd_req_t *req) {
@@ -223,6 +305,30 @@ void web_api_wifi_register(httpd_handle_t server) {
       .user_ctx = nullptr,
   };
   httpd_register_uri_handler(server, &connect_options);
+
+  const httpd_uri_t hostname_get_uri = {
+      .uri = "/api/wifi/hostname",
+      .method = HTTP_GET,
+      .handler = _wifi_hostname_get_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &hostname_get_uri);
+
+  const httpd_uri_t hostname_set_uri = {
+      .uri = "/api/wifi/hostname",
+      .method = HTTP_POST,
+      .handler = _wifi_hostname_set_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &hostname_set_uri);
+
+  const httpd_uri_t hostname_options = {
+      .uri = "/api/wifi/hostname",
+      .method = HTTP_OPTIONS,
+      .handler = _wifi_options_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &hostname_options);
 
   ESP_LOGI(TAG, "WiFi API registered");
 }

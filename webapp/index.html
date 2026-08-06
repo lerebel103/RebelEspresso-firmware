@@ -329,6 +329,13 @@ nav .tab .tab-label { display: inline; }
       <div id="wifi-status-info" style="font-size:0.9em;color:var(--text-dim)">Loading...</div>
     </div>
     <div class="card">
+      <h3>Device Hostname</h3>
+      <div style="font-size:0.85em;color:var(--text-dim);margin-bottom:8px">Name reported to the router (DHCP) and DNS. Letters, digits and hyphens only. Takes effect on the next reconnect or reboot.</div>
+      <div class="form-group"><label>Hostname</label><input type="text" id="wifi-hostname" placeholder="rebel-a1b2c3" maxlength="31"></div>
+      <div id="wifi-hostname-status" style="margin-bottom:8px;font-size:0.85em"></div>
+      <div class="btn-group"><button class="btn btn-primary" id="wifi-hostname-btn" onclick="wifiSaveHostname()">Save Hostname</button></div>
+    </div>
+    <div class="card">
       <h3>Available Networks</h3>
       <div id="wifi-scan-list" style="margin-bottom:12px"></div>
       <button class="btn btn-secondary" onclick="wifiScan()">Rescan</button>
@@ -458,7 +465,7 @@ function navigateTo(page) {
   if (page === 'system') startSysPolling();
   else stopSysPolling();
   if (page !== 'config') stopCommsPolling();
-  if (page === 'wifi') { loadWifiStatus(); wifiScan(); }
+  if (page === 'wifi') { loadWifiStatus(); wifiScan(); loadWifiHostname(); }
   if (page === 'config') loadConfig();
   if (page === 'auth') loadAuthStatus();
   closeMenu();
@@ -733,7 +740,21 @@ async function renderComms() {
   // don't start a poller that outlives the Comms tab (socket leak).
   if (currentConfigSection !== 'comms' || !document.getElementById('config').classList.contains('active')) return;
   fields.appendChild(_commsSection('mqtt', 'MQTT', CFG_SCHEMA.mqtt, mqtt, true));
-  fields.appendChild(_commsSection('homekit', 'Apple HomeKit', CFG_SCHEMA.homekit, hk, false));
+  const hkSec = _commsSection('homekit', 'Apple HomeKit', CFG_SCHEMA.homekit, hk, false);
+  // Reset pairings: erases all HomeKit pairings + accessory identity (reboots).
+  const resetWrap = document.createElement('div');
+  resetWrap.style.marginTop = '10px';
+  const resetHelp = document.createElement('div');
+  resetHelp.style.cssText = 'font-size:0.8em;color:var(--text-dim);margin-bottom:6px';
+  resetHelp.textContent = 'Remove this machine from all Apple Home hubs and start fresh. The accessory reboots and can be paired again with the code above.';
+  resetWrap.appendChild(resetHelp);
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-danger';
+  resetBtn.textContent = 'Reset HomeKit Pairings';
+  resetBtn.onclick = homekitResetPairings;
+  resetWrap.appendChild(resetBtn);
+  hkSec.appendChild(resetWrap);
+  fields.appendChild(hkSec);
   startCommsPolling();
 }
 
@@ -1374,6 +1395,14 @@ async function factoryReset() {
   try { await api('system/factory-reset', { method: 'POST' }); toast('Factory reset...', 'success'); } catch(e) {}
 }
 
+async function homekitResetPairings() {
+  if (!confirm('Erase all HomeKit pairings? The machine will be removed from Apple Home and reboot.')) return;
+  try {
+    await api('homekit/reset-pairings', { method: 'POST' });
+    toast('HomeKit pairings erased, rebooting...', 'success');
+  } catch (e) { toast('Reset failed: ' + e.message, 'error'); }
+}
+
 // AUTH
 async function loadAuthStatus() {
   try {
@@ -1418,6 +1447,8 @@ async function wifiScan(){const l=document.getElementById('wifi-scan-list');l.in
 function selectNetwork(s){document.getElementById('wifi-ssid').value=s;document.getElementById('wifi-psk').focus();document.querySelectorAll('.wifi-net').forEach(e=>e.classList.remove('selected'));document.querySelectorAll('.wifi-net').forEach(e=>{if(e.querySelector('.wifi-net-ssid').textContent===s)e.classList.add('selected')})}
 async function wifiConnect(){const ssid=document.getElementById('wifi-ssid').value.trim(),psk=document.getElementById('wifi-psk').value;if(!ssid){toast('Enter an SSID','error');return}const btn=document.getElementById('wifi-connect-btn'),st=document.getElementById('wifi-connect-status');btn.disabled=true;btn.textContent='Connecting...';st.textContent='Attempting connection to '+ssid+'...';st.style.color='var(--text-dim)';try{const d=await api('wifi/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssid,psk})});if(d.success){st.innerHTML='<span class="indicator ok"></span>Connected! IP: <strong>'+d.ip+'</strong><br><span style="color:var(--text-dim);font-size:0.85em">Access at http://'+d.ip+':8080</span>';st.style.color='var(--success)';toast('WiFi connected','success');setTimeout(loadWifiStatus,1000)}else{st.innerHTML='<span class="indicator error"></span>Failed: '+(d.error||'unknown');st.style.color='var(--error)';toast('Connection failed','error')}}catch(e){st.innerHTML='<span class="indicator error"></span>Error: '+e.message;st.style.color='var(--error)';toast('Error','error')}btn.disabled=false;btn.textContent='Connect'}
 async function loadWifiStatus(){try{const d=await api('wifi/status'),el=document.getElementById('wifi-status-info');let h='';if(d.sta&&d.sta.connected){h+='<span class="indicator ok"></span>Connected to <strong>'+d.sta.ssid+'</strong> ('+d.sta.rssi+' dBm) — IP: '+d.sta.ip}else{h+='<span class="indicator warn"></span>Not connected'}if(d.ap&&d.ap.active){h+='<br><span class="indicator ok"></span>AP: <strong>'+d.ap.ssid+'</strong> ('+d.ap.clients+' clients)'}h+='<br><span style="color:var(--text-dim);font-size:0.8em">Mode: '+d.mode+'</span>';el.innerHTML=h}catch(e){document.getElementById('wifi-status-info').textContent='Error loading status'}}
+async function loadWifiHostname(){try{const d=await api('wifi/hostname');document.getElementById('wifi-hostname').value=d.hostname||''}catch(e){}}
+async function wifiSaveHostname(){const v=document.getElementById('wifi-hostname').value.trim(),btn=document.getElementById('wifi-hostname-btn'),st=document.getElementById('wifi-hostname-status');btn.disabled=true;try{const d=await api('wifi/hostname',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hostname:v})});document.getElementById('wifi-hostname').value=d.hostname||'';st.innerHTML='<span class="indicator ok"></span>Saved as <strong>'+(d.hostname||'')+'</strong> — applies on next reconnect';st.style.color='var(--success)';toast('Hostname saved','success')}catch(e){st.innerHTML='<span class="indicator error"></span>'+e.message;st.style.color='var(--error)';toast('Save failed','error')}btn.disabled=false}
 </script>
 </body>
 </html>

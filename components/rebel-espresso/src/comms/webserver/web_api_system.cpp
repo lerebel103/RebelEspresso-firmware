@@ -421,12 +421,14 @@ static esp_err_t _probe_calibrate_handler(httpd_req_t *req) {
   if (!web_auth_check(req))
     return ESP_FAIL;
 
-  // Only calibrate against a trusted, submerged reading — otherwise (empty
-  // boiler, ADC fault or startup) we would store a bogus baseline and silently
-  // disable corrosion protection until re-calibrated.
+  // Only calibrate against a valid, submerged reading (ADC OK and below the
+  // refill threshold) — otherwise (empty boiler, ADC fault or startup) we would
+  // store a bogus baseline and silently disable corrosion protection until
+  // re-calibrated.
   const process_image_t *pi = process_image_get();
   if (!pi->water_level_ok) {
-    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Probe calibration requires a trusted, submerged probe reading");
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                        "Probe calibration requires a valid, submerged probe reading (boiler full, ADC OK)");
     return ESP_FAIL;
   }
   uint16_t median = pi->water_level_median_mv;
@@ -452,6 +454,9 @@ static esp_err_t _probe_calibrate_handler(httpd_req_t *req) {
 // --- GET /api/comms/status (live MQTT + HomeKit connection state) ---
 
 static esp_err_t _comms_status_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
   cJSON *root = cJSON_CreateObject();
 
   cJSON *mqtt = cJSON_AddObjectToObject(root, "mqtt");
@@ -470,6 +475,25 @@ static esp_err_t _comms_status_handler(httpd_req_t *req) {
   httpd_resp_sendstr(req, resp);
   cJSON_free((void *)resp);
   cJSON_Delete(root);
+  return ESP_OK;
+}
+
+// --- POST /api/homekit/reset-pairings ---
+
+static esp_err_t _homekit_reset_pairings_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  ESP_LOGW(TAG, "HomeKit reset-pairings requested!");
+
+  if (!homekit_reset_pairings()) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "HomeKit is not running");
+    return ESP_FAIL;
+  }
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, "{\"status\":\"ok\",\"message\":\"HomeKit pairings erased, accessory rebooting...\"}");
   return ESP_OK;
 }
 
@@ -537,6 +561,14 @@ void web_api_system_register(httpd_handle_t server) {
       .user_ctx = nullptr,
   };
   httpd_register_uri_handler(server, &comms_status_uri);
+
+  const httpd_uri_t hk_reset_uri = {
+      .uri = "/api/homekit/reset-pairings",
+      .method = HTTP_POST,
+      .handler = _homekit_reset_pairings_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &hk_reset_uri);
 
   ESP_LOGI(TAG, "System API registered");
 }

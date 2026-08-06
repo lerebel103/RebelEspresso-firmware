@@ -39,6 +39,12 @@ static char s_dev_name[48];
 static char s_model[24];
 static int64_t s_last_state_us = 0;
 
+// Snapshot of the connection-relevant config actually applied to the running
+// client, so a config change via the API triggers a reconnect (not a reboot).
+static char s_applied_broker[128];
+static char s_applied_user[64];
+static char s_applied_pass[96];
+
 // Sanitise an id to [A-Za-z0-9_] for use in topics / unique_ids.
 static void _sanitise(char *dst, size_t size, const char *src) {
   size_t j = 0;
@@ -266,15 +272,27 @@ void mqtt_ha_service() {
     return;
   }
 
-  if (s_started || cfg.broker_uri[0] == '\0') {
+  if (s_started) {
+    // Connection settings changed via the API: tear the client down so it is
+    // rebuilt with the new broker/credentials on the next service tick.
+    if (strcmp(s_applied_broker, cfg.broker_uri) != 0 || strcmp(s_applied_user, cfg.username) != 0 ||
+        strcmp(s_applied_pass, cfg.password) != 0) {
+      ESP_LOGI(TAG, "Config changed — reconnecting");
+      mqtt_ha_stop();
+      return;
+    }
     // Already running (esp-mqtt owns reconnect). Publish state at the configured
     // cadence while connected.
-    if (s_started && s_connected) {
+    if (s_connected) {
       uint32_t interval_us = (cfg.publish_interval_sec ? cfg.publish_interval_sec : 5) * 1000000u;
       if (esp_timer_get_time() - s_last_state_us >= interval_us) {
         _publish_state();
       }
     }
+    return;
+  }
+
+  if (cfg.broker_uri[0] == '\0') {
     return;
   }
 
@@ -309,6 +327,10 @@ void mqtt_ha_service() {
   esp_mqtt_client_register_event(s_client, MQTT_EVENT_ANY, _event_handler, nullptr);
   if (esp_mqtt_client_start(s_client) == ESP_OK) {
     s_started = true;
+    // Remember what we connected with so a later config edit forces a reconnect.
+    strlcpy(s_applied_broker, cfg.broker_uri, sizeof(s_applied_broker));
+    strlcpy(s_applied_user, cfg.username, sizeof(s_applied_user));
+    strlcpy(s_applied_pass, cfg.password, sizeof(s_applied_pass));
     ESP_LOGI(TAG, "Started (%s)", cfg.broker_uri);
   } else {
     ESP_LOGE(TAG, "client start failed");

@@ -90,9 +90,12 @@ void iot_process_events() {
     // OTA rollback self-test
     _check_rollback_validation();
 
-    // MQTT / Home Assistant — only attempt once STA WiFi is connected.
+    // MQTT / Home Assistant — only run while STA WiFi is connected; stop the
+    // client on WiFi loss so we don't squat an LWIP socket/client indefinitely.
     if (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) {
       mqtt_ha_service();
+    } else {
+      mqtt_ha_stop();
     }
 
     // Approximately every second...

@@ -274,6 +274,12 @@ void mqtt_ha_service() {
   mcfg.session.last_will.msg = "offline";
   mcfg.session.last_will.qos = 1;
   mcfg.session.last_will.retain = 1;
+  // Detect a dead broker/link quickly so the socket is recycled instead of
+  // squatting a file descriptor: 30s MQTT keepalive, bounded connect timeout,
+  // and a 10s reconnect backoff (esp-mqtt owns the reconnect loop).
+  mcfg.session.keepalive = 30;
+  mcfg.network.timeout_ms = 8000;
+  mcfg.network.reconnect_timeout_ms = 10000;
 
   s_client = esp_mqtt_client_init(&mcfg);
   if (s_client == nullptr) {

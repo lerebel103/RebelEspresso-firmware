@@ -535,7 +535,7 @@ async function checkAuth() {
 checkAuth();
 
 // STATUS
-let statusInterval;
+let statusActive = false, statusTimer = null;
 let _currentBrewSetpoint = 0;
 async function refreshStatus() {
   try {
@@ -661,9 +661,20 @@ async function adjustBrewTemp(delta) {
     document.getElementById('brew-sp-display').textContent = d.setpoint.toFixed(1);
   } catch (e) { toast('Failed to set temperature', 'error'); }
 }
-// Only poll when status page is active and tab is visible
-function startPolling() { if (!statusInterval) statusInterval = setInterval(refreshStatus, 2000); refreshStatus(); }
-function stopPolling() { if (statusInterval) { clearInterval(statusInterval); statusInterval = null; } }
+// Single-flight polling: the next request is scheduled only AFTER the previous
+// one settles, so overlapping requests can never open parallel connections
+// (which multiply under load and exhaust sockets). One reused keep-alive socket.
+function startPolling() {
+  if (statusActive) return;
+  statusActive = true;
+  const tick = async () => {
+    if (!statusActive) return;
+    await refreshStatus();
+    if (statusActive) statusTimer = setTimeout(tick, 2000);
+  };
+  tick();
+}
+function stopPolling() { statusActive = false; if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; } }
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { stopPolling(); stopSysPolling(); stopCommsPolling(); }
   else if (document.querySelector('[data-page="status"].active')) startPolling();
@@ -700,8 +711,18 @@ async function loadConfig() {
 }
 
 // --- Comms tab: MQTT + Apple HomeKit sub-sections with live indicators ---
-let commsInterval = null;
-function stopCommsPolling() { if (commsInterval) { clearInterval(commsInterval); commsInterval = null; } }
+let commsActive = false, commsTimer = null;
+function stopCommsPolling() { commsActive = false; if (commsTimer) { clearTimeout(commsTimer); commsTimer = null; } }
+function startCommsPolling() {
+  if (commsActive) return;
+  commsActive = true;
+  const tick = async () => {
+    if (!commsActive) return;
+    await loadCommsStatus();
+    if (commsActive) commsTimer = setTimeout(tick, 3000);
+  };
+  tick();
+}
 
 async function renderComms() {
   stopCommsPolling(); // clear any prior/racing interval before (re)rendering
@@ -713,8 +734,7 @@ async function renderComms() {
   if (currentConfigSection !== 'comms' || !document.getElementById('config').classList.contains('active')) return;
   fields.appendChild(_commsSection('mqtt', 'MQTT', CFG_SCHEMA.mqtt, mqtt, true));
   fields.appendChild(_commsSection('homekit', 'Apple HomeKit', CFG_SCHEMA.homekit, hk, false));
-  loadCommsStatus();
-  if (!commsInterval) commsInterval = setInterval(loadCommsStatus, 3000);
+  startCommsPolling();
 }
 
 function _commsSection(cfgName, title, schema, data, first) {
@@ -1195,9 +1215,18 @@ async function calibrateProbe() {
   } catch (e) { toast('Calibrate failed: ' + e.message, 'error'); }
 }
 
-let sysInterval = null;
-function startSysPolling() { if (!sysInterval) sysInterval = setInterval(loadSystemInfo, 3000); loadSystemInfo(); }
-function stopSysPolling() { if (sysInterval) { clearInterval(sysInterval); sysInterval = null; } }
+let sysActive = false, sysTimer = null;
+function startSysPolling() {
+  if (sysActive) return;
+  sysActive = true;
+  const tick = async () => {
+    if (!sysActive) return;
+    await loadSystemInfo();
+    if (sysActive) sysTimer = setTimeout(tick, 3000);
+  };
+  tick();
+}
+function stopSysPolling() { sysActive = false; if (sysTimer) { clearTimeout(sysTimer); sysTimer = null; } }
 
 async function uploadOTA() {
   const file = document.getElementById('ota-file').files[0];

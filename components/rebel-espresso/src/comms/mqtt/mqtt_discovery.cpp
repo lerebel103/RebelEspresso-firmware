@@ -33,6 +33,7 @@ static const mqtt_entity_t s_entities[] = {
     {"sensor", "brew_count", "Brew Count", "{{ value_json.brew_count }}", nullptr, nullptr, "diagnostic"},
     {"sensor", "descale_count", "Descale Count", "{{ value_json.descale_count }}", nullptr, nullptr, "diagnostic"},
     {"sensor", "last_descale", "Last Descale", "{{ value_json.last_descale }}", nullptr, nullptr, "diagnostic"},
+    {"sensor", "open_sockets", "Open Sockets", "{{ value_json.open_sockets }}", nullptr, nullptr, "diagnostic"},
 };
 
 const mqtt_entity_t *mqtt_entities(size_t *count) {
@@ -67,6 +68,7 @@ char *mqtt_build_state_json(const mqtt_state_t *s) {
   cJSON_AddNumberToObject(root, "brew_count", s->brew_count);
   cJSON_AddNumberToObject(root, "descale_count", s->descale_count);
   cJSON_AddStringToObject(root, "last_descale", s->last_descale);
+  cJSON_AddNumberToObject(root, "open_sockets", s->open_sockets);
   cJSON_AddBoolToObject(root, "power", s->power);
   cJSON_AddBoolToObject(root, "brewing", s->brewing);
   cJSON_AddBoolToObject(root, "steam", s->steam);

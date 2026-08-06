@@ -95,6 +95,8 @@ Grouped by HA component and `entity_category`:
     + baseline / thresholds (from the corrosion spec),
   - **Brew Count**, **Descale Count**, and **Last Descale** (maintenance
     counters; last-descale is only recorded once system time is SNTP-synced),
+  - **Open Sockets** (currently-open LWIP sockets, for leak/exhaustion
+    diagnostics),
   - Boot count, crash count, free heap, min heap, uptime, WiFi RSSI,
     firmware version, IDF version, hardware revision.
 - **Controls**:

@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <cctype>
 #include <ctime>
+#include <sys/socket.h>
+#include <lwip/sockets.h>
 #include "common/identity.h"
 #include "process_image.h"
 #include "boiler_temp.h"
@@ -65,6 +67,21 @@ static void _resolve_topics() {
   snprintf(s_model, sizeof(s_model), "rebel-espresso");
 }
 
+// Count currently-open LWIP sockets (fd-level) for leak/exhaustion diagnostics.
+// Socket fds live in [LWIP_SOCKET_OFFSET, +CONFIG_LWIP_MAX_SOCKETS); a valid
+// socket answers SO_TYPE, a free/closed slot returns -1.
+static int _count_open_sockets() {
+  int used = 0;
+  for (int fd = LWIP_SOCKET_OFFSET; fd < LWIP_SOCKET_OFFSET + CONFIG_LWIP_MAX_SOCKETS; fd++) {
+    int type;
+    socklen_t len = sizeof(type);
+    if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &len) == 0) {
+      used++;
+    }
+  }
+  return used;
+}
+
 static void _build_state(mqtt_state_t *s) {
   const process_image_t *img = process_image_get();
   measure_t boiler = {};
@@ -99,6 +116,8 @@ static void _build_state(mqtt_state_t *s) {
   } else {
     snprintf(s->last_descale, sizeof(s->last_descale), "Never");
   }
+
+  s->open_sockets = _count_open_sockets();
 }
 
 static void _publish_state() {

@@ -21,6 +21,7 @@ typedef struct {
   int brew_count;
   int descale_count;
   char last_descale[24]; ///< local "YYYY-MM-DD HH:MM" or "Never"
+  int open_sockets;      ///< currently-open LWIP sockets (leak diagnostic)
   bool power;
   bool brewing;
   bool steam;

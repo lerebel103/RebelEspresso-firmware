@@ -18,6 +18,7 @@ TEST_CASE("MQTT state: JSON document carries all fields", "[mqtt]") {
   s.refill_error = false;
   s.brew_count = 123;
   snprintf(s.last_descale, sizeof(s.last_descale), "2026-08-05 10:30");
+  s.open_sockets = 9;
 
   char *json = mqtt_build_state_json(&s);
   TEST_ASSERT_NOT_NULL(json);
@@ -27,6 +28,7 @@ TEST_CASE("MQTT state: JSON document carries all fields", "[mqtt]") {
   TEST_ASSERT_EQUAL_FLOAT(92.5f, (float)cJSON_GetObjectItem(root, "boiler_temp")->valuedouble);
   TEST_ASSERT_EQUAL_INT(40, cJSON_GetObjectItem(root, "boiler_duty")->valueint);
   TEST_ASSERT_EQUAL_INT(123, cJSON_GetObjectItem(root, "brew_count")->valueint);
+  TEST_ASSERT_EQUAL_INT(9, cJSON_GetObjectItem(root, "open_sockets")->valueint);
   TEST_ASSERT_EQUAL_STRING("2026-08-05 10:30", cJSON_GetObjectItem(root, "last_descale")->valuestring);
   TEST_ASSERT_TRUE(cJSON_IsTrue(cJSON_GetObjectItem(root, "power")));
   TEST_ASSERT_TRUE(cJSON_IsFalse(cJSON_GetObjectItem(root, "refill_error")));

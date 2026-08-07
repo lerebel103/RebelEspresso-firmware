@@ -110,6 +110,8 @@ CONFIG_MBEDTLS_SHA512_C=y
 
 # Logging
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+# Colorised log output (ANSI). Default is off in IDF 6.0; keep serial monitor coloured.
+CONFIG_LOG_COLORS=y
 
 # Suppress legacy I2C driver deprecation warning (used by HomeKit MFi)
 CONFIG_I2C_SUPPRESS_DEPRECATE_WARN=y

@@ -33,10 +33,20 @@ CMAKE_VARS = \
 # Build (Docker)
 ###############################################################################
 
-.PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker webapp
+.PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker webapp sdkconfig-sync
+
+# idf.py only seeds sdkconfig from sdkconfig.defaults when sdkconfig is ABSENT;
+# a stale sdkconfig silently overrides later edits to the defaults (and even
+# `idf.py fullclean` keeps it). Delete it whenever the defaults are newer so the
+# next build re-seeds a fresh sdkconfig that actually reflects sdkconfig.defaults.
+sdkconfig-sync:
+	@if [ sdkconfig.defaults -nt sdkconfig ] || [ ! -f sdkconfig ]; then \
+		echo "sdkconfig.defaults changed — regenerating sdkconfig from defaults"; \
+		rm -f sdkconfig sdkconfig.old; \
+	fi
 
 ## Build firmware (includes embedded web UI)
-build: .docker-image
+build: .docker-image sdkconfig-sync
 	$(DOCKER_RUN) bash -c "gzip -9 -n -k -f /workspace/webapp/index.html && idf.py $(CMAKE_VARS) build"
 
 ## Run unit tests in QEMU

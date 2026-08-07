@@ -84,9 +84,16 @@ CONFIG_FREERTOS_HZ=100
 CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
 
 # LWIP
-CONFIG_LWIP_MAX_SOCKETS=16
+# Socket pool sized for concurrent demand, not the old 16 "max" (the real
+# Kconfig range is 1-253; <=61 needs no FD_SETSIZE change). Peak users:
+#   HAP  5 + listener + ctrl = 7
+#   web  4 + listener + ctrl = 6
+#   MQTT 1-2, SNTP 1, mDNS 1-2  -> ~17-18 at peak, so 16 was oversubscribed.
+# MAX_ACTIVE_TCP (MEMP_NUM_TCP_PCB) must cover established + TIME_WAIT, so it
+# tracks the socket pool.
+CONFIG_LWIP_MAX_SOCKETS=24
 CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=32
-CONFIG_LWIP_MAX_ACTIVE_TCP=16
+CONFIG_LWIP_MAX_ACTIVE_TCP=24
 CONFIG_LWIP_MAX_LISTENING_TCP=16
 CONFIG_LWIP_TCP_MSS=1440
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=5760

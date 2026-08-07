@@ -7,33 +7,48 @@
 // Read-only entity set. Booleans are rendered ON/OFF by their value_template so
 // HA binary_sensors work with the default payload_on/payload_off.
 static const mqtt_entity_t s_entities[] = {
-    // component,       object_id,        name,                value_template, unit,  device_class,   entity_category
-    {"sensor", "boiler_temp", "Boiler Temperature", "{{ value_json.boiler_temp }}", "\u00b0C", "temperature", nullptr},
+    // component,       object_id,        name,                value_template, unit,  device_class,   entity_category,
+    // state_class
+    {"sensor", "boiler_temp", "Boiler Temperature", "{{ value_json.boiler_temp }}", "\u00b0C", "temperature", nullptr,
+     "measurement"},
     {"sensor", "boiler_setpoint", "Boiler Setpoint", "{{ value_json.boiler_setpoint }}", "\u00b0C", "temperature",
+     nullptr, "measurement"},
+    {"sensor", "brew_temp", "Brew Temperature", "{{ value_json.brew_temp }}", "\u00b0C", "temperature", nullptr,
+     "measurement"},
+    {"sensor", "brew_setpoint", "Brew Setpoint", "{{ value_json.brew_setpoint }}", "\u00b0C", "temperature", nullptr,
+     "measurement"},
+    {"sensor", "boiler_duty", "Boiler Duty", "{{ value_json.boiler_duty }}", "%", "power_factor", nullptr,
+     "measurement"},
+    {"binary_sensor", "power", "Power", "{{ 'ON' if value_json.power else 'OFF' }}", nullptr, "power", nullptr,
      nullptr},
-    {"sensor", "brew_temp", "Brew Temperature", "{{ value_json.brew_temp }}", "\u00b0C", "temperature", nullptr},
-    {"sensor", "brew_setpoint", "Brew Setpoint", "{{ value_json.brew_setpoint }}", "\u00b0C", "temperature", nullptr},
-    {"sensor", "boiler_duty", "Boiler Duty", "{{ value_json.boiler_duty }}", "%", nullptr, nullptr},
-    {"binary_sensor", "power", "Power", "{{ 'ON' if value_json.power else 'OFF' }}", nullptr, "power", nullptr},
-    {"binary_sensor", "brewing", "Brewing", "{{ 'ON' if value_json.brewing else 'OFF' }}", nullptr, "running", nullptr},
-    {"binary_sensor", "steam", "Steam", "{{ 'ON' if value_json.steam else 'OFF' }}", nullptr, nullptr, nullptr},
-    {"binary_sensor", "descale", "Descale", "{{ 'ON' if value_json.descale else 'OFF' }}", nullptr, nullptr, nullptr},
+    {"binary_sensor", "brewing", "Brewing", "{{ 'ON' if value_json.brewing else 'OFF' }}", nullptr, "running", nullptr,
+     nullptr},
+    {"binary_sensor", "steam", "Steam", "{{ 'ON' if value_json.steam else 'OFF' }}", nullptr, nullptr, nullptr,
+     nullptr},
+    {"binary_sensor", "descale", "Descale", "{{ 'ON' if value_json.descale else 'OFF' }}", nullptr, nullptr, nullptr,
+     nullptr},
     {"binary_sensor", "refill_active", "Refilling", "{{ 'ON' if value_json.refill_active else 'OFF' }}", nullptr,
-     "running", nullptr},
+     "running", nullptr, nullptr},
     {"binary_sensor", "refill_error", "Refill Error", "{{ 'ON' if value_json.refill_error else 'OFF' }}", nullptr,
-     "problem", nullptr},
+     "problem", nullptr, nullptr},
     // Diagnostics: the probe is a single electrode pair; both sensors are its
     // voltage in mV. "Water Level Voltage" is the live reading that drives
     // refill; "Probe Health Voltage" is the smoothed median that feeds corrosion.
-    {"sensor", "water_level", "Water Level Voltage", "{{ value_json.water_level_mv }}", "mV", "voltage", "diagnostic"},
-    {"sensor", "probe_voltage", "Probe Health Voltage", "{{ value_json.probe_mv }}", "mV", "voltage", "diagnostic"},
+    {"sensor", "water_level", "Water Level Voltage", "{{ value_json.water_level_mv }}", "mV", "voltage", "diagnostic",
+     "measurement"},
+    {"sensor", "probe_voltage", "Probe Health Voltage", "{{ value_json.probe_mv }}", "mV", "voltage", "diagnostic",
+     "measurement"},
     {"sensor", "corrosion_status", "Probe Corrosion",
-     "{{ ['OK','Service soon','Fault'][value_json.corrosion_status] }}", nullptr, nullptr, "diagnostic"},
+     "{{ ['OK','Service soon','Fault'][value_json.corrosion_status] }}", nullptr, nullptr, "diagnostic", nullptr},
     // Maintenance counters
-    {"sensor", "brew_count", "Brew Count", "{{ value_json.brew_count }}", nullptr, nullptr, "diagnostic"},
-    {"sensor", "descale_count", "Descale Count", "{{ value_json.descale_count }}", nullptr, nullptr, "diagnostic"},
-    {"sensor", "last_descale", "Last Descale", "{{ value_json.last_descale }}", nullptr, nullptr, "diagnostic"},
-    {"sensor", "open_sockets", "Open Sockets", "{{ value_json.open_sockets }}", nullptr, nullptr, "diagnostic"},
+    {"sensor", "brew_count", "Brew Count", "{{ value_json.brew_count }}", nullptr, nullptr, "diagnostic",
+     "total_increasing"},
+    {"sensor", "descale_count", "Descale Count", "{{ value_json.descale_count }}", nullptr, nullptr, "diagnostic",
+     "total_increasing"},
+    {"sensor", "last_descale", "Last Descale", "{{ value_json.last_descale }}", nullptr, nullptr, "diagnostic",
+     nullptr},
+    {"sensor", "open_sockets", "Open Sockets", "{{ value_json.open_sockets }}", nullptr, nullptr, "diagnostic",
+     "measurement"},
 };
 
 const mqtt_entity_t *mqtt_entities(size_t *count) {
@@ -106,6 +121,9 @@ char *mqtt_build_discovery_json(const mqtt_entity_t *e, const char *base_topic, 
   }
   if (e->entity_category) {
     cJSON_AddStringToObject(root, "entity_category", e->entity_category);
+  }
+  if (e->state_class) {
+    cJSON_AddStringToObject(root, "state_class", e->state_class);
   }
 
   // Shared device block so all entities group under one HA device.

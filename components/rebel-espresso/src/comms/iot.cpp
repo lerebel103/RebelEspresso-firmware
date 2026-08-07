@@ -22,6 +22,7 @@
 #include "schedules.h"
 #include "webserver/web_server.h"
 #include "mqtt/mqtt_ha.h"
+#include "net_diag.h"
 
 #define TAG "iot"
 
@@ -31,6 +32,29 @@ static bool _go = true;
 static bool _web_server_started = false;
 static bool _web_server_failed = false;
 static bool _rollback_validated = false;
+
+// Socket-pool watchdog: track the high-water mark and dump a full census when
+// the shared LWIP pool runs low, to pinpoint accept() ENFILE exhaustion.
+#define SOCKET_CENSUS_THROTTLE_MS 10000
+static int _socket_peak = 0;
+static time_t _last_census_ms = 0;
+
+static void _monitor_socket_pool() {
+  int used = net_diag_count_open_sockets();
+  if (used > _socket_peak) {
+    _socket_peak = used;
+    ESP_LOGW(TAG, "socket high-water: %d/%d used", used, CONFIG_LWIP_MAX_SOCKETS);
+  }
+
+  // When the pool is nearly full, dump who holds each fd (throttled).
+  if (used >= CONFIG_LWIP_MAX_SOCKETS - 2) {
+    time_t now_ms = esp_timer_get_time() / 1000;
+    if (_last_census_ms == 0 || (now_ms - _last_census_ms) >= SOCKET_CENSUS_THROTTLE_MS) {
+      _last_census_ms = now_ms;
+      net_diag_dump_sockets("pool nearly full");
+    }
+  }
+}
 
 /**
  * OTA rollback self-test: mark the firmware as valid once WiFi is connected
@@ -89,6 +113,9 @@ void iot_process_events() {
 
     // OTA rollback self-test
     _check_rollback_validation();
+
+    // Track the shared LWIP socket pool for accept() ENFILE diagnostics.
+    _monitor_socket_pool();
 
     // MQTT / Home Assistant — only run while STA WiFi is connected; stop the
     // client on WiFi loss so we don't squat an LWIP socket/client indefinitely.

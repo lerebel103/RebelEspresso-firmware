@@ -61,6 +61,11 @@ TEST_CASE("MQTT discovery: sensor config has topics, template, uid and device", 
   TEST_ASSERT_EQUAL_STRING("rebel/abc/availability", cJSON_GetObjectItem(root, "availability_topic")->valuestring);
   TEST_ASSERT_NOT_NULL(cJSON_GetObjectItem(root, "value_template"));
 
+  // Numeric sensors must advertise state_class so HA records long-term statistics.
+  TEST_ASSERT_EQUAL_STRING("measurement", cJSON_GetObjectItem(root, "state_class")->valuestring);
+  TEST_ASSERT_EQUAL_STRING("temperature", cJSON_GetObjectItem(root, "device_class")->valuestring);
+  TEST_ASSERT_EQUAL_STRING("\u00b0C", cJSON_GetObjectItem(root, "unit_of_measurement")->valuestring);
+
   cJSON *device = cJSON_GetObjectItem(root, "device");
   TEST_ASSERT_NOT_NULL(device);
   TEST_ASSERT_EQUAL_STRING("1.2.3", cJSON_GetObjectItem(device, "sw_version")->valuestring);
@@ -121,6 +126,22 @@ TEST_CASE("MQTT discovery: probe voltage is a diagnostic entity", "[mqtt]") {
   TEST_ASSERT_NOT_NULL(probe);
   TEST_ASSERT_EQUAL_STRING("diagnostic", probe->entity_category);
   TEST_ASSERT_EQUAL_STRING("mV", probe->unit);
+  TEST_ASSERT_EQUAL_STRING("measurement", probe->state_class);
+}
+
+TEST_CASE("MQTT discovery: counters are total_increasing, binary_sensors carry no state_class", "[mqtt]") {
+  size_t n = 0;
+  const mqtt_entity_t *ents = mqtt_entities(&n);
+  for (size_t i = 0; i < n; i++) {
+    const mqtt_entity_t *e = &ents[i];
+    if (strcmp(e->object_id, "brew_count") == 0 || strcmp(e->object_id, "descale_count") == 0) {
+      TEST_ASSERT_EQUAL_STRING("total_increasing", e->state_class);
+    }
+    // Binary sensors are not numeric and must not advertise a state_class.
+    if (strcmp(e->component, "binary_sensor") == 0) {
+      TEST_ASSERT_NULL(e->state_class);
+    }
+  }
 }
 
 TEST_CASE("MQTT controls: brew climate carries power via off/heat mode", "[mqtt]") {

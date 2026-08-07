@@ -39,6 +39,7 @@ typedef struct {
   const char *unit;            ///< unit_of_measurement, or nullptr
   const char *device_class;    ///< HA device_class, or nullptr
   const char *entity_category; ///< "diagnostic", or nullptr
+  const char *state_class;     ///< HA state_class ("measurement"/"total_increasing"), or nullptr
 } mqtt_entity_t;
 
 /// The read-only entity table (sensors + binary_sensors + diagnostics).

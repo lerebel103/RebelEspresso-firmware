@@ -11,15 +11,16 @@
 #include "web_api_control.h"
 #include "web_api_wifi.h"
 #include "web_auth.h"
+#include "net_diag.h"
 
 #define TAG "webserver"
-// LWIP has a fixed pool of CONFIG_LWIP_MAX_SOCKETS (16, the ESP-IDF max) shared
-// by everything. Budget so accept() never hits ENFILE while HomeKit hubs hold
-// persistent connections:
-//   HAP  5 accept + 1 listen = 6
-//   web  4 accept + 1 listen = 5   (this value)
-//   MQTT 1 + SNTP 1 + mDNS 2       = 4
-//   ----------------------------------> 15 of 16, one spare
+// The shared LWIP socket pool is CONFIG_LWIP_MAX_SOCKETS (24). It is split
+// across everything that opens a socket, so budget the web server to leave
+// room for HomeKit's HAP server, MQTT, SNTP and mDNS:
+//   HAP  5 accept + 1 listen + 1 ctrl = 7
+//   web  4 accept + 1 listen + 1 ctrl = 6   (this value drives the 4)
+//   MQTT 1-2 + SNTP 1 + mDNS 1-2           = ~4
+//   ----------------------------------------> ~17 of 24, with headroom
 // Idle keep-alive connections are reaped below so a browser's spare sockets are
 // released quickly instead of squatting the budget.
 #define MAX_CONNECTIONS 4
@@ -68,7 +69,9 @@ esp_err_t web_server_start() {
   web_static_register(s_server);
 
   s_running = true;
-  ESP_LOGI(TAG, "Web server started on port %d", config.server_port);
+  ESP_LOGI(TAG, "Web server started on port %d (max_open_sockets=%d, +listener +ctrl)", config.server_port,
+           config.max_open_sockets);
+  net_diag_dump_sockets("after web_server_start");
   return ESP_OK;
 }
 

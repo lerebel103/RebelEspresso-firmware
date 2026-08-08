@@ -384,9 +384,15 @@ static void espresso_thread_entry(void *arg) {
   }
 
   /* After all the initializations are done, start the HAP core */
-  hap_start();
-  s_running = true;
   s_hap_inited = true;
+  // hap_start() returns early (before hap_loop_start()) on any failure, leaving
+  // no event loop. Only advertise HomeKit as running on success, otherwise
+  // callers would queue events (reset-pairings, notifications) into a dead loop.
+  if (hap_start() == HAP_SUCCESS) {
+    s_running = true;
+  } else {
+    ESP_LOGE(TAG, "hap_start() failed — HomeKit not running");
+  }
 
   /* The task ends here. The read/write callbacks will be invoked by the HAP Framework */
   vTaskDelete(NULL);

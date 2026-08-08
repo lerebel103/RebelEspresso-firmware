@@ -128,6 +128,12 @@ nav .tab .tab-label { display: inline; }
 .btn-danger:hover { opacity: 0.9; }
 .btn-group { display: flex; gap: 8px; margin-top: 12px; }
 
+/* Form action bar: right-aligned and clearly separated from the fields above */
+.form-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+
 /* Status indicators */
 .indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .indicator.ok { background: var(--success); }
@@ -149,7 +155,7 @@ nav .tab .tab-label { display: inline; }
 
 /* Config sub-sections (grouped fields with inline help) */
 .cfg-group { margin-top: 4px; }
-.cfg-subsection { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cfg-subsection { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
 .cfg-group h4, .cfg-subsection h4 { margin: 0 0 4px; font-size: 0.95em; color: var(--text); }
 .cfg-intro { margin: 0 0 12px; font-size: 0.8em; color: var(--text-dim); line-height: 1.4; }
 .cfg-item { margin-bottom: 12px; }
@@ -363,9 +369,9 @@ nav .tab .tab-label { display: inline; }
     <div class="card" id="cfg-card">
       <h3 id="cfg-title">Loading...</h3>
       <div id="cfg-fields"></div>
-      <div class="btn-group">
-        <button class="btn btn-primary" onclick="saveConfig()">Save</button>
+      <div class="form-actions">
         <button class="btn btn-secondary" onclick="resetConfig()">Reset to Defaults</button>
+        <button class="btn btn-primary" onclick="saveConfig()">Save</button>
       </div>
     </div>
   </div>
@@ -409,7 +415,7 @@ nav .tab .tab-label { display: inline; }
     </div>
     <div class="card">
       <h3>Actions</h3>
-      <div class="btn-group">
+      <div class="form-actions">
         <button class="btn btn-secondary" onclick="reboot()">Reboot</button>
         <button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
       </div>

@@ -1190,7 +1190,11 @@ async function loadSystemInfo() {
     const rows = [
       ['Firmware', d.firmware_version], ['Project', d.project_name],
       ['IDF', d.idf_version], ['Build', d.build_date + ' ' + d.build_time],
-      ['Hardware', 'r' + d.hardware_rev], ['Thing ID', d.thing_id],
+      ['Hardware', 'r' + d.hardware_rev + '.' + (d.hardware_rev_minor || 0)],
+      ['Serial', d.serial != null ? String(d.serial).padStart(7, '0') : '—'],
+      ['Manufacturer', d.manufacturer_id != null ? String(d.manufacturer_id).padStart(4, '0') : '—'],
+      ['Assembled', d.build_epoch > 0 ? new Date(d.build_epoch * 1000).toISOString().slice(0, 10) : '—'],
+      ['Thing ID', d.thing_id],
       ['Boots', d.boot_count], ['Crashes', d.crash_count],
       ['Descales', d.descale_count || 0],
       ['Since Descale', d.last_descale_time > 0 ? _timeSince(d.last_descale_time) : 'Never'],

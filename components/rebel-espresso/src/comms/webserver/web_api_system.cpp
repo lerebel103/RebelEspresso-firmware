@@ -24,6 +24,7 @@
 #include "mqtt/mqtt_config.h"
 #include "homekit/homekit.h"
 #include "homekit/homekit_config.h"
+#include <src/device/thing_info.h>
 
 #define TAG "api_system"
 #define OTA_BUF_SIZE 4096
@@ -45,7 +46,14 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   cJSON_AddStringToObject(root, "build_time", app->time);
   cJSON_AddStringToObject(root, "thing_type", identity->thing_type);
   cJSON_AddStringToObject(root, "thing_id", identity_thing_id());
-  cJSON_AddNumberToObject(root, "hardware_rev", identity->hardware_major);
+  // Report the authoritative EEPROM-backed device identity (same source as the
+  // console "Hardware Info"), not the provisioned NVS identity value which may be stale.
+  const thing_info_ext_t *ti = thing_info_ext();
+  cJSON_AddNumberToObject(root, "hardware_rev", ti->hardware_version_major);
+  cJSON_AddNumberToObject(root, "hardware_rev_minor", ti->hardware_version_minor);
+  cJSON_AddNumberToObject(root, "serial", (double)ti->serial);
+  cJSON_AddNumberToObject(root, "manufacturer_id", ti->manufacturer_id);
+  cJSON_AddNumberToObject(root, "build_epoch", (double)ti->build_epoch_s);
   cJSON_AddNumberToObject(root, "boot_count", metrics.boot_count);
   cJSON_AddNumberToObject(root, "crash_count", metrics.crash_count);
   cJSON_AddNumberToObject(root, "free_heap", (double)esp_get_free_heap_size());

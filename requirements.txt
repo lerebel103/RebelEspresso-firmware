@@ -5,6 +5,11 @@
 # container they are pre-installed in IDF's venv.
 #
 # Only list packages your project scripts directly import.
+#
+# Exact versions (direct + transitive) are pinned in constraints.txt, which is
+# referenced below so Dependabot scans it and can open security PRs for every
+# dependency, including transitive ones.
+-c constraints.txt
 
 # Device provisioning / NVS generation
 bitstring>=4.4.0,<5

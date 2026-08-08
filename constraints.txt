@@ -1,16 +1,40 @@
-# Pinned versions for reproducible CI builds.
+# Fully-pinned dependency lockfile for reproducible CI builds AND Dependabot
+# security visibility.
 #
-# Regenerate with:
-#   docker compose run --rm idf pip freeze > constraints.txt
+# Every package in the resolved dependency tree (direct + transitive) is pinned
+# here to an exact version. This file is referenced from requirements.txt via
+#   -c constraints.txt
+# so that:
+#   1. CI installs are reproducible.
+#   2. Dependabot can see and bump EVERY dependency — including transitive ones
+#      (urllib3, certifi, cryptography, cffi, ...). Without the pin + the -c
+#      reference, Dependabot only sees the top-level ranges in requirements.txt
+#      and cannot open security PRs for transitive packages.
 #
-# Use with:
-#   pip install -c constraints.txt -r requirements.txt
+# Regenerate after changing requirements.txt with:
+#   docker compose run --rm idf \
+#     pip install --dry-run --ignore-installed --report - -r requirements.txt
 #
-# These are the resolved versions as of the last known-good build.
 # ESP-IDF's own dependencies are NOT listed here — they're managed by the
 # base Docker image (espressif/idf:v6.0.2).
 
+# --- Direct dependencies (declared in requirements.txt) ---
 bitstring==4.4.0
-boto3==1.43.59
-botocore==1.43.59
+boto3==1.43.67
+cryptography==49.0.0
 requests==2.34.2
+
+# --- Transitive dependencies (pinned so Dependabot can track them) ---
+bitarray==3.10.1
+botocore==1.43.67
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.4.9
+idna==3.18
+jmespath==1.1.0
+pycparser==3.0
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+tibs==0.5.7
+urllib3==2.7.0

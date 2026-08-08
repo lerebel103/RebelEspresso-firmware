@@ -27,6 +27,9 @@ CONFIG_BOOTLOADER_FACTORY_RESET_PIN_LOW=y
 CONFIG_BOOTLOADER_DATA_FACTORY_RESET="nvs"
 CONFIG_BOOTLOADER_HOLD_TIME_GPIO=5
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+# Factory-reset (GPIO) also clears the OTA boot selection back to the factory
+# app. Present in r2.0; lost in the refactor.
+CONFIG_BOOTLOADER_OTA_DATA_ERASE=y
 
 # Bluetooth — disabled (BLE provisioning removed)
 # CONFIG_BT_ENABLED is not set
@@ -88,6 +91,9 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=3584
 CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4496
 CONFIG_ESP_INT_WDT_TIMEOUT_MS=300
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=5
+# Brownout detector threshold — r2.0 used level 7 (highest); the refactor let it
+# fall back to the IDF default (0). Restore the validated value.
+CONFIG_ESP_BROWNOUT_DET_LVL_SEL_7=y
 
 # FreeRTOS
 CONFIG_FREERTOS_HZ=100
@@ -120,6 +126,15 @@ CONFIG_MBEDTLS_SHA512_C=y
 
 # Logging
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+# ANSI colour on the serial console. Present in r2.0; lost in the refactor.
+CONFIG_LOG_COLORS=y
+
+# Core dump to the dedicated 'coredump' partition so panics survive a reboot and
+# can be extracted with `idf.py coredump-info`. Present in r2.0; lost in refactor.
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_COREDUMP_CHECKSUM_CRC32=y
+CONFIG_ESP_COREDUMP_CHECK_BOOT=y
 
 # Suppress legacy I2C driver deprecation warning (used by HomeKit MFi)
 CONFIG_I2C_SUPPRESS_DEPRECATE_WARN=y

@@ -12,6 +12,7 @@
 #include <src/device/thing_info.h>
 #include <hw_config.h>
 #include <esp_log.h>
+#include <esp_system.h>
 #include "power.h"
 #include "rtds.h"
 #include "brew_temp.h"
@@ -22,8 +23,8 @@ static hap_serv_t *service;
 
 static bool s_running = false;
 // Set once the HAP core + accessory database have been built this boot. The SDK
-// cannot cleanly re-init, so a re-enable after a disable reuses the existing
-// accessory and only restarts the network services.
+// cannot cleanly re-init its internal event loop once stopped, so re-enabling
+// HomeKit after a disable requires a full reboot rather than a partial restart.
 static bool s_hap_inited = false;
 
 static hap_char_t *hc_brew_temp = nullptr;
@@ -446,7 +447,12 @@ bool homekit_reset_pairings() {
     return false;
   }
   ESP_LOGW(TAG, "Erasing all HomeKit pairings — accessory will reboot");
-  hap_reset_pairings();
+  // hap_reset_pairings() only enqueues an event for the HAP loop; if that loop
+  // isn't available the erase+reboot silently never happens, so surface it.
+  if (hap_reset_pairings() != HAP_SUCCESS) {
+    ESP_LOGE(TAG, "Failed to queue HomeKit pairing reset (HAP loop unavailable)");
+    return false;
+  }
   return true;
 }
 
@@ -457,26 +463,22 @@ static void _register_events() {
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
 }
 
-// Restart only the HAP network services for a re-enable (accessory DB already
-// built earlier this boot; the SDK cannot be fully re-initialised).
-static void _hap_restart_task(void *arg) {
-  hap_start();
-  s_running = true;
-  vTaskDelete(NULL);
-}
-
 void homekit_apply_config() {
   const bool desired = homekit_config_get().enabled;
 
   if (desired && !s_running) {
-    _register_events();
     if (!s_hap_inited) {
+      _register_events();
       xTaskCreate(espresso_thread_entry, HK_TASK_NAME, HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
+      ESP_LOGI(TAG, "HomeKit enabled at runtime");
     } else {
-      // Accessory already exists; just bring the network services back up.
-      xTaskCreate(_hap_restart_task, "hk_restart", HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
+      // hap_stop() tears down the HAP event loop and it cannot be recreated in
+      // place (leaves an accessory that is "running" but whose event queue is
+      // dead, silently dropping reset-pairings/notifications). A clean reboot
+      // re-initialises HomeKit fully from config.
+      ESP_LOGW(TAG, "Re-enabling HomeKit requires a reboot — restarting");
+      esp_restart();
     }
-    ESP_LOGI(TAG, "HomeKit enabled at runtime");
   } else if (!desired && s_running) {
     homekit_terminate();
     ESP_LOGI(TAG, "HomeKit disabled at runtime");

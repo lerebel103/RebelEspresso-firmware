@@ -17,10 +17,10 @@
 // The shared LWIP socket pool is CONFIG_LWIP_MAX_SOCKETS (24). It is split
 // across everything that opens a socket, so budget the web server to leave
 // room for HomeKit's HAP server, MQTT, SNTP and mDNS:
-//   HAP  5 accept + 1 listen + 1 ctrl = 7
+//   HAP  8 accept + 1 listen + 1 ctrl = 10
 //   web  4 accept + 1 listen + 1 ctrl = 6   (this value drives the 4)
 //   MQTT 1-2 + SNTP 1 + mDNS 1-2           = ~4
-//   ----------------------------------------> ~17 of 24, with headroom
+//   ----------------------------------------> ~20 of 24, with headroom
 // Idle keep-alive connections are reaped below so a browser's spare sockets are
 // released quickly instead of squatting the budget.
 #define MAX_CONNECTIONS 4

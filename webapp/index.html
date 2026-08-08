@@ -1134,7 +1134,10 @@ async function saveComms() {
     if (!cfg || !k) return;
     let v;
     if (inp.type === 'checkbox') v = inp.checked;
-    else if (inp.type === 'number') v = parseFloat(inp.value);
+    else if (inp.type === 'number') {
+      v = parseFloat(inp.value);
+      if (!Number.isFinite(v)) return; // skip cleared/invalid numeric field so it can't clobber stored config
+    }
     else v = inp.value;
     if (cfg === 'mqtt' && k === 'password' && v === '') return;
     bodies[cfg][k] = v;

@@ -37,7 +37,11 @@ void mqtt_cfg_t::from_json(const cJSON *config) {
         _copy_str(password, sizeof(password), pw);
       }
     } else if (strcmp(item->string, "publish_interval_sec") == 0) {
-      publish_interval_sec = (uint16_t)item->valueint;
+      // Reject out-of-range/garbage so a bad value can't wrap uint16 or stall publishing.
+      int v = item->valueint;
+      if (v >= 1 && v <= 3600) {
+        publish_interval_sec = (uint16_t)v;
+      }
     }
     item = item->next;
   }

@@ -264,6 +264,11 @@ void boiler_refill_reset_stats() {
 }
 
 void boiler_refill_calibrate_probe(uint16_t median_mv) {
+  // Clamp to the valid ADC range (0..3100 mV) so a bad reading can't persist an
+  // invalid baseline or derive nonsensical thresholds.
+  if (median_mv > 3100) {
+    median_mv = 3100;
+  }
   s_cfg.corrosion_baseline_mv = median_mv;
 
   uint32_t warn = (uint32_t)median_mv + s_cfg.corrosion_warn_margin_mv;

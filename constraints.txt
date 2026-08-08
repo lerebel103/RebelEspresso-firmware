@@ -21,7 +21,7 @@
 # --- Direct dependencies (declared in requirements.txt) ---
 bitstring==4.4.0
 boto3==1.43.67
-cryptography==49.0.0
+cryptography==50.0.0
 requests==2.34.2
 
 # --- Transitive dependencies (pinned so Dependabot can track them) ---

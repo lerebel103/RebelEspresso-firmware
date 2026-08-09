@@ -174,12 +174,20 @@ static void _publish_discovery() {
   char *j;
   j = mqtt_build_brew_climate_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version, config_url);
   snprintf(ctopic, sizeof(ctopic), "%s/climate/%s/brew/config", s_disc_prefix, s_node_id);
-  esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
-  free(j);
+  if (j) {
+    esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
+    free(j);
+  } else {
+    ESP_LOGW(TAG, "Failed to build brew climate discovery JSON");
+  }
   j = mqtt_build_calibrate_button_json(s_base, s_avail_topic, s_node_id, s_dev_name, s_model, app->version, config_url);
   snprintf(ctopic, sizeof(ctopic), "%s/button/%s/calibrate/config", s_disc_prefix, s_node_id);
-  esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
-  free(j);
+  if (j) {
+    esp_mqtt_client_publish(s_client, ctopic, j, 0, 1, 1);
+    free(j);
+  } else {
+    ESP_LOGW(TAG, "Failed to build calibrate button discovery JSON");
+  }
 
   // Remove the deprecated standalone power switch (folded into the climate mode):
   // an empty retained payload deletes a previously-discovered entity.

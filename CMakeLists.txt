@@ -35,32 +35,49 @@ if(NOT _git_result EQUAL 0)
     set(GIT_SHORT_HASH "unknown")
 endif()
 
-execute_process(
-    COMMAND ${GIT_EXECUTABLE} for-each-ref refs/tags --sort=-taggerdate --count=1 --format=%\(refname:short\)
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_LAST_TAG
-    ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE _git_result
-)
-if(_git_result EQUAL 0 AND GIT_LAST_TAG)
-    # Release tags are expected as vX.Y.Z (or X.Y.Z). Strip an optional leading
-    # "v" so compile-time numeric defines remain valid integers.
-    string(REGEX REPLACE "^v" "" GIT_LAST_TAG_SANITIZED ${GIT_LAST_TAG})
-    string(REPLACE "." ";" VERSION_LIST ${GIT_LAST_TAG_SANITIZED})
-    list(LENGTH VERSION_LIST VERSION_LIST_LEN)
-    if(VERSION_LIST_LEN GREATER 0)
-        list(GET VERSION_LIST 0 PROJECT_VERSION_MAJOR)
+# Preferred source for release version. In CI, pass -DRELEASE_VERSION=$GITHUB_REF_NAME
+# for deterministic tag-based builds (e.g. v2.0.0).
+set(RELEASE_VERSION "" CACHE STRING "Release version override (vX.Y.Z or X.Y.Z)")
+set(VERSION_SOURCE_TAG "")
+
+if(RELEASE_VERSION)
+    set(VERSION_SOURCE_TAG "${RELEASE_VERSION}")
+else()
+    # If HEAD is exactly at a tag, use that tag first.
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --exact-match
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_HEAD_TAG
+        ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE _head_tag_result
+    )
+    if(_head_tag_result EQUAL 0 AND GIT_HEAD_TAG)
+        set(VERSION_SOURCE_TAG "${GIT_HEAD_TAG}")
     else()
+        # Fallback for local/dev builds: most recently created tag.
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} for-each-ref refs/tags --sort=-taggerdate --count=1 --format=%\(refname:short\)
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            OUTPUT_VARIABLE GIT_LAST_TAG
+            ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE _git_result
+        )
+        if(_git_result EQUAL 0 AND GIT_LAST_TAG)
+            set(VERSION_SOURCE_TAG "${GIT_LAST_TAG}")
+        endif()
+    endif()
+endif()
+
+if(VERSION_SOURCE_TAG)
+    string(REGEX REPLACE "^v" "" VERSION_SOURCE_TAG_SANITIZED ${VERSION_SOURCE_TAG})
+    if(VERSION_SOURCE_TAG_SANITIZED MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
+        set(PROJECT_VERSION_MAJOR "${CMAKE_MATCH_1}")
+        set(PROJECT_VERSION_MINOR "${CMAKE_MATCH_2}")
+        set(PROJECT_VERSION_PATCH "${CMAKE_MATCH_3}")
+    else()
+        message(WARNING "Version tag '${VERSION_SOURCE_TAG}' is not semver (vX.Y.Z); defaulting to 0.0.0")
         set(PROJECT_VERSION_MAJOR 0)
-    endif()
-    if(VERSION_LIST_LEN GREATER 1)
-        list(GET VERSION_LIST 1 PROJECT_VERSION_MINOR)
-    else()
         set(PROJECT_VERSION_MINOR 0)
-    endif()
-    if(VERSION_LIST_LEN GREATER 2)
-        list(GET VERSION_LIST 2 PROJECT_VERSION_PATCH)
-    else()
         set(PROJECT_VERSION_PATCH 0)
     endif()
 else()

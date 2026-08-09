@@ -97,9 +97,14 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           rm -f dependencies.lock
+          REL_VER=""
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            REL_VER="${GITHUB_REF_NAME}"
+          fi
           idf.py \
             -DBUILD_STAGE=${{ vars.BUILD_STAGE || 'dev' }} \
             -DCMAKE_BUILD_TYPE=Release \
+            -DRELEASE_VERSION="${REL_VER}" \
             build
 
       - name: Verify binary fits OTA partition
@@ -120,10 +125,22 @@ jobs:
           fi
 
       - name: Upload build artifacts
+        run: |
+          mkdir -p release-assets
+          cp build/deploy.zip release-assets/
+          FW_BIN=$(find build/deploy/firmware -maxdepth 1 -type f -name '*-v*.bin' | head -n1)
+          if [ -z "$FW_BIN" ]; then
+            echo "ERROR: Versioned firmware .bin not found for release assets"
+            ls -la build/deploy/firmware
+            exit 1
+          fi
+          cp "$FW_BIN" release-assets/
+
+      - name: Upload release assets artifact
         uses: actions/upload-artifact@v7
         with:
           name: firmware
-          path: build/deploy.zip
+          path: release-assets/*
 
   release:
     name: Create Release
@@ -136,10 +153,12 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: firmware
-          path: ./
+          path: ./release-assets
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          files: deploy.zip
+          files: |
+            release-assets/deploy.zip
+            release-assets/*.bin

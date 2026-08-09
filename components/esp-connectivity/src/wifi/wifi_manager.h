@@ -61,3 +61,16 @@ bool wifi_manager_is_connected();
  * Call with true before disconnecting for scan, false after scan completes.
  */
 void wifi_manager_suppress_reconnect(bool suppress);
+
+/**
+ * Copy the configured system hostname (used for DHCP option 12 / mDNS) into
+ * `out`. Falls back to a MAC-derived default when none has been configured.
+ */
+void wifi_manager_get_hostname(char *out, size_t len);
+
+/**
+ * Persist a new system hostname to NVS and apply it to the STA interface.
+ * The value is sanitised to a valid DNS label; an empty value restores the
+ * MAC-derived default. Takes effect on the next DHCP lease (reconnect/reboot).
+ */
+void wifi_manager_set_hostname(const char *hostname);

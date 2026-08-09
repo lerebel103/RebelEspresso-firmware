@@ -33,11 +33,27 @@ CMAKE_VARS = \
 # Build (Docker)
 ###############################################################################
 
-.PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker webapp
+.PHONY: build test lint format clean fullclean menuconfig shell setup submodules docker webapp sdkconfig-sync
+
+# idf.py only seeds sdkconfig from sdkconfig.defaults when sdkconfig is ABSENT;
+# a stale sdkconfig silently overrides later edits to the defaults (and even
+# `idf.py fullclean` keeps it). Regenerate whenever the *content* of
+# sdkconfig.defaults changes or sdkconfig is missing. Content hashing is used
+# instead of mtime (`-nt`): a build touches sdkconfig, which can make it newer
+# than a subsequent defaults edit and silently skip the re-seed.
+SDKCONFIG_HASH_FILE = .sdkconfig.defaults.hash
+sdkconfig-sync:
+	@cur=$$( (shasum -a 256 sdkconfig.defaults 2>/dev/null || sha256sum sdkconfig.defaults) | awk '{print $$1}'); \
+	prev=$$(cat $(SDKCONFIG_HASH_FILE) 2>/dev/null); \
+	if [ ! -f sdkconfig ] || [ "$$cur" != "$$prev" ]; then \
+		echo "sdkconfig.defaults changed — regenerating sdkconfig from defaults"; \
+		rm -f sdkconfig sdkconfig.old; \
+		echo "$$cur" > $(SDKCONFIG_HASH_FILE); \
+	fi
 
 ## Build firmware (includes embedded web UI)
-build: .docker-image
-	$(DOCKER_RUN) bash -c "gzip -9 -n -k -f /workspace/webapp/index.html && idf.py $(CMAKE_VARS) build"
+build: .docker-image sdkconfig-sync
+	$(DOCKER_RUN) idf.py $(CMAKE_VARS) build
 
 ## Run unit tests in QEMU
 test: .docker-image

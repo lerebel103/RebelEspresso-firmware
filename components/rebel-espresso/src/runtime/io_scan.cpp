@@ -6,6 +6,7 @@
 #include "boiler_temp.h"
 #include "boiler_refill_states.h"
 #include "boiler_refill.h"
+#include "water_probe.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -172,15 +173,24 @@ static void scan_refill(process_image_t *img) {
     return;
   }
 
-  // Drive the state machine with current water level from process image
+  // Untrusted level reading (ADC fault / out-of-range / corroded probe): a bad
+  // probe must never open the solenoid. Instead of skipping the state machine
+  // (which would strand it in ACTIVE and later trip a spurious max-refill ERROR
+  // once trust returns), drive it as if the boiler were full so it winds down to
+  // idle, and force the solenoid off below. Releases automatically when the level
+  // is trustworthy again (corrosion status auto-clears).
+  bool untrusted = (img->level_status == LEVEL_UNKNOWN);
+
+  // Drive the state machine with current water level from process image.
+  // LEVEL_OK (or untrusted) => full (no refill); LEVEL_LOW_CONFIRMED => refill.
   uint64_t now_ms = esp_timer_get_time() / 1000;
-  boiler_refill_states_process(now_ms, img->water_level_ok, false);
+  boiler_refill_states_process(now_ms, untrusted || img->level_status == LEVEL_OK, false);
 
   RefillState_t state = boiler_refill_state();
   img->refill_state = state;
 
   // Set outputs based on state
-  if (state == REFILL_STATE_ACTIVE) {
+  if (state == REFILL_STATE_ACTIVE && !untrusted) {
     img->refill_solenoid_on = true;
     // Pump on for refill (additive with brew)
     img->pump_on = true;

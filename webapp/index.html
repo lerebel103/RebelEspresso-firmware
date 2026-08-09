@@ -128,6 +128,12 @@ nav .tab .tab-label { display: inline; }
 .btn-danger:hover { opacity: 0.9; }
 .btn-group { display: flex; gap: 8px; margin-top: 12px; }
 
+/* Form action bar: right-aligned and clearly separated from the fields above */
+.form-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+
 /* Status indicators */
 .indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .indicator.ok { background: var(--success); }
@@ -146,6 +152,22 @@ nav .tab .tab-label { display: inline; }
 }
 .cfg-tab:hover { color: var(--text); background: var(--card); }
 .cfg-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--card); }
+
+/* Config sub-sections (grouped fields with inline help) */
+.cfg-group { margin-top: 4px; }
+.cfg-subsection { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.cfg-group h4, .cfg-subsection h4 { margin: 0 0 4px; font-size: 0.95em; color: var(--text); }
+.cfg-intro { margin: 0 0 12px; font-size: 0.8em; color: var(--text-dim); line-height: 1.4; }
+.cfg-item { margin-bottom: 12px; }
+.cfg-item > label { display: block; font-size: 0.85em; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.cfg-item input[type=number], .cfg-item input[type=text], .cfg-item input[type=password] {
+  width: 100%; padding: 8px 12px; background: var(--input-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 0.9em;
+}
+.cfg-item input:focus { outline: none; border-color: var(--primary); }
+.cfg-item.cfg-bool > label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.cfg-item.cfg-bool input { width: auto; }
+.cfg-help { font-size: 0.75em; color: var(--text-dim); line-height: 1.4; margin-top: 3px; }
 
 /* Schedule editor */
 .sched-master { padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; }
@@ -313,6 +335,13 @@ nav .tab .tab-label { display: inline; }
       <div id="wifi-status-info" style="font-size:0.9em;color:var(--text-dim)">Loading...</div>
     </div>
     <div class="card">
+      <h3>Device Hostname</h3>
+      <div style="font-size:0.85em;color:var(--text-dim);margin-bottom:8px">Name reported to the router (DHCP) and DNS. Letters, digits and hyphens only. Takes effect on the next reconnect or reboot.</div>
+      <div class="form-group"><label>Hostname</label><input type="text" id="wifi-hostname" placeholder="rebel-a1b2c3" maxlength="31"></div>
+      <div id="wifi-hostname-status" style="margin-bottom:8px;font-size:0.85em"></div>
+      <div class="btn-group"><button class="btn btn-primary" id="wifi-hostname-btn" onclick="wifiSaveHostname()">Save Hostname</button></div>
+    </div>
+    <div class="card">
       <h3>Available Networks</h3>
       <div id="wifi-scan-list" style="margin-bottom:12px"></div>
       <button class="btn btn-secondary" onclick="wifiScan()">Rescan</button>
@@ -334,14 +363,15 @@ nav .tab .tab-label { display: inline; }
         <button class="cfg-tab" data-cfg="brew_temp">Brew</button>
         <button class="cfg-tab" data-cfg="boiler_refill">Refill</button>
         <button class="cfg-tab" data-cfg="schedules">Schedules</button>
+        <button class="cfg-tab" data-cfg="comms">Comms</button>
       </div>
     </div>
     <div class="card" id="cfg-card">
       <h3 id="cfg-title">Loading...</h3>
       <div id="cfg-fields"></div>
-      <div class="btn-group">
-        <button class="btn btn-primary" onclick="saveConfig()">Save</button>
+      <div class="form-actions">
         <button class="btn btn-secondary" onclick="resetConfig()">Reset to Defaults</button>
+        <button class="btn btn-primary" onclick="saveConfig()">Save</button>
       </div>
     </div>
   </div>
@@ -351,6 +381,18 @@ nav .tab .tab-label { display: inline; }
     <div class="card">
       <h3>Device Info</h3>
       <div id="sys-info">Loading...</div>
+    </div>
+    <div class="card">
+      <h3>Water Probe</h3>
+      <div id="probe-info" style="font-size:0.9em;">Loading...</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.85em;">
+        <input type="checkbox" id="probe-guard" onchange="setProbeGuard(this.checked)">
+        Corrosion guard (cut heater / hold refill on a faulty probe)
+      </label>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="calibrateProbe()">Calibrate Probe</button>
+      </div>
+      <div style="margin-top:6px;font-size:0.75em;color:var(--text-dim);">Calibrate with a clean probe and the boiler full. Turn the guard off to keep the machine on its prior behaviour while still tracking the probe voltage.</div>
     </div>
     <div class="card">
       <h3>Firmware Update (OTA)</h3>
@@ -373,7 +415,7 @@ nav .tab .tab-label { display: inline; }
     </div>
     <div class="card">
       <h3>Actions</h3>
-      <div class="btn-group">
+      <div class="form-actions">
         <button class="btn btn-secondary" onclick="reboot()">Reboot</button>
         <button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
       </div>
@@ -426,9 +468,11 @@ function navigateTo(page) {
   document.getElementById(page).classList.add('active');
   if (page === 'status') startPolling();
   else stopPolling();
-  if (page === 'wifi') { loadWifiStatus(); wifiScan(); }
+  if (page === 'system') startSysPolling();
+  else stopSysPolling();
+  if (page !== 'config') stopCommsPolling();
+  if (page === 'wifi') { loadWifiStatus(); wifiScan(); loadWifiHostname(); }
   if (page === 'config') loadConfig();
-  if (page === 'system') loadSystemInfo();
   if (page === 'auth') loadAuthStatus();
   closeMenu();
 }
@@ -504,7 +548,7 @@ async function checkAuth() {
 checkAuth();
 
 // STATUS
-let statusInterval;
+let statusActive = false, statusTimer = null;
 let _currentBrewSetpoint = 0;
 async function refreshStatus() {
   try {
@@ -630,12 +674,24 @@ async function adjustBrewTemp(delta) {
     document.getElementById('brew-sp-display').textContent = d.setpoint.toFixed(1);
   } catch (e) { toast('Failed to set temperature', 'error'); }
 }
-// Only poll when status page is active and tab is visible
-function startPolling() { if (!statusInterval) statusInterval = setInterval(refreshStatus, 2000); refreshStatus(); }
-function stopPolling() { if (statusInterval) { clearInterval(statusInterval); statusInterval = null; } }
+// Single-flight polling: the next request is scheduled only AFTER the previous
+// one settles, so overlapping requests can never open parallel connections
+// (which multiply under load and exhaust sockets). One reused keep-alive socket.
+function startPolling() {
+  if (statusActive) return;
+  statusActive = true;
+  const tick = async () => {
+    if (!statusActive) return;
+    await refreshStatus();
+    if (statusActive) statusTimer = setTimeout(tick, 2000);
+  };
+  tick();
+}
+function stopPolling() { statusActive = false; if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; } }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopPolling();
+  if (document.hidden) { stopPolling(); stopSysPolling(); stopCommsPolling(); }
   else if (document.querySelector('[data-page="status"].active')) startPolling();
+  else if (document.querySelector('[data-page="system"].active')) startSysPolling();
 });
 startPolling();
 
@@ -654,36 +710,286 @@ document.querySelectorAll('.cfg-tab').forEach(tab => {
 
 async function loadConfig() {
   const section = currentConfigSection;
-  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules'};
+  stopCommsPolling();
+  const titles = {boiler_temp:'Boiler', brew_temp:'Brew', boiler_refill:'Refill', schedules:'Schedules', comms:'Comms'};
   document.getElementById('cfg-title').textContent = titles[section] || section;
   try {
+    if (section === 'comms') { await renderComms(); return; }
     const data = await api('config/' + section);
     const fields = document.getElementById('cfg-fields');
     fields.innerHTML = '';
     if (section === 'schedules') { renderSchedules(data); return; }
-    const keys = Object.keys(data).sort();
-    for (let i = 0; i < keys.length; i += 2) {
-      const row = document.createElement('div');
-      row.className = 'form-row';
-      for (let j = i; j < Math.min(i + 2, keys.length); j++) {
-        const k = keys[j];
-        const v = data[k];
-        const grp = document.createElement('div');
-        grp.className = 'form-group';
-        const lbl = document.createElement('label');
-        lbl.textContent = k;
-        const inp = document.createElement('input');
-        inp.dataset.key = k;
-        if (typeof v === 'boolean') { inp.type = 'checkbox'; inp.checked = v; }
-        else if (typeof v === 'number') { inp.type = 'number'; inp.step = 'any'; inp.value = v; }
-        else { inp.type = 'text'; inp.value = v; }
-        grp.appendChild(lbl);
-        grp.appendChild(inp);
-        row.appendChild(grp);
-      }
-      fields.appendChild(row);
-    }
+    renderConfigForm(section, data);
   } catch (e) { toast('Failed to load config: ' + e.message, 'error'); }
+}
+
+// --- Comms tab: MQTT + Apple HomeKit sub-sections with live indicators ---
+let commsActive = false, commsTimer = null;
+function stopCommsPolling() { commsActive = false; if (commsTimer) { clearTimeout(commsTimer); commsTimer = null; } }
+function startCommsPolling() {
+  if (commsActive) return;
+  commsActive = true;
+  const tick = async () => {
+    if (!commsActive) return;
+    await loadCommsStatus();
+    if (commsActive) commsTimer = setTimeout(tick, 3000);
+  };
+  tick();
+}
+
+async function renderComms() {
+  stopCommsPolling(); // clear any prior/racing interval before (re)rendering
+  const fields = document.getElementById('cfg-fields');
+  fields.innerHTML = '';
+  const [mqtt, hk] = await Promise.all([api('config/mqtt'), api('config/homekit')]);
+  // Bail if the user navigated away or switched section while awaiting, so we
+  // don't start a poller that outlives the Comms tab (socket leak).
+  if (currentConfigSection !== 'comms' || !document.getElementById('config').classList.contains('active')) return;
+  fields.appendChild(_commsSection('mqtt', 'MQTT', CFG_SCHEMA.mqtt, mqtt, true));
+  const hkSec = _commsSection('homekit', 'Apple HomeKit', CFG_SCHEMA.homekit, hk, false);
+  // Reset pairings: erases all HomeKit pairings + accessory identity (reboots).
+  const resetWrap = document.createElement('div');
+  resetWrap.style.marginTop = '10px';
+  const resetHelp = document.createElement('div');
+  resetHelp.style.cssText = 'font-size:0.8em;color:var(--text-dim);margin-bottom:6px';
+  resetHelp.textContent = 'Remove this machine from all Apple Home hubs and start fresh. The accessory reboots and can be paired again with the code above.';
+  resetWrap.appendChild(resetHelp);
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-danger';
+  resetBtn.textContent = 'Reset HomeKit Pairings';
+  resetBtn.onclick = homekitResetPairings;
+  resetWrap.appendChild(resetBtn);
+  hkSec.appendChild(resetWrap);
+  fields.appendChild(hkSec);
+  startCommsPolling();
+}
+
+function _commsSection(cfgName, title, schema, data, first) {
+  const sec = document.createElement('div');
+  sec.className = first ? 'cfg-group' : 'cfg-subsection';
+  const h = document.createElement('h4');
+  h.innerHTML = '<span class="indicator" id="' + cfgName + '-ind"></span>' + title +
+    ' <span id="' + cfgName + '-ind-label" style="font-weight:400;font-size:0.8em;color:var(--text-dim)"></span>';
+  sec.appendChild(h);
+  if (schema.intro) { const p = document.createElement('p'); p.className = 'cfg-intro'; p.textContent = schema.intro; sec.appendChild(p); }
+  const meta = schema.fields || {};
+  schema.groups.flatMap(g => g.keys).filter(k => k in data).forEach(k => {
+    const item = _cfgItem(k, data[k], data, meta[k]);
+    item.querySelectorAll('input').forEach(inp => inp.dataset.cfg = cfgName);
+    sec.appendChild(item);
+  });
+  return sec;
+}
+
+function _setCommsInd(cfgName, cls, label) {
+  const dot = document.getElementById(cfgName + '-ind');
+  if (dot) {
+    dot.className = 'indicator' + (cls === 'off' ? '' : ' ' + cls);
+    dot.style.background = (cls === 'off') ? 'var(--text-dim)' : '';
+  }
+  const lb = document.getElementById(cfgName + '-ind-label');
+  if (lb) lb.textContent = label;
+}
+
+async function loadCommsStatus() {
+  try {
+    const s = await api('comms/status');
+    _setCommsInd('mqtt', !s.mqtt.enabled ? 'off' : (s.mqtt.connected ? 'ok' : 'error'),
+      !s.mqtt.enabled ? 'Disabled' : (s.mqtt.connected ? 'Connected' : 'Disconnected'));
+    const hk = s.homekit;
+    _setCommsInd('homekit', !hk.enabled ? 'off' : (hk.paired > 0 ? 'ok' : 'warn'),
+      !hk.enabled ? 'Disabled' : (hk.paired > 0 ? ('Paired (' + hk.paired + ')') : 'Not paired'));
+  } catch (e) { /* transient */ }
+}
+
+// Build the input control for a config key (shared by all renderers).
+function _cfgInput(k, v, data) {
+  const inp = document.createElement('input');
+  inp.dataset.key = k;
+  if (typeof v === 'boolean') { inp.type = 'checkbox'; inp.checked = v; }
+  else if (typeof v === 'number') { inp.type = 'number'; inp.step = 'any'; inp.value = v; }
+  else if (k === 'password') { inp.type = 'password'; inp.value = ''; inp.placeholder = data.has_password ? '\u2022\u2022\u2022\u2022 (unchanged)' : 'not set'; }
+  else { inp.type = 'text'; inp.value = v; }
+  return inp;
+}
+
+// One labelled field with optional help text. meta = [label, help] or null.
+function _cfgItem(k, v, data, meta) {
+  const label = meta ? meta[0] : k;
+  const help = meta ? meta[1] : null;
+  const item = document.createElement('div');
+  const isBool = typeof v === 'boolean';
+  item.className = 'cfg-item' + (isBool ? ' cfg-bool' : '');
+  const lbl = document.createElement('label');
+  const inp = _cfgInput(k, v, data);
+  if (isBool) {
+    lbl.appendChild(inp);
+    lbl.appendChild(document.createTextNode(' ' + label));
+    item.appendChild(lbl);
+  } else {
+    lbl.textContent = label;
+    item.appendChild(lbl);
+    item.appendChild(inp);
+  }
+  if (help) {
+    const helpEl = document.createElement('div');
+    helpEl.className = 'cfg-help';
+    helpEl.textContent = help;
+    item.appendChild(helpEl);
+  }
+  return item;
+}
+
+// Shared PID field descriptions (used by the boiler + brew sections).
+const PID_FIELDS = {
+  'pid.P': ['Proportional gain (P)', 'Reacts to the current error (setpoint \u2212 temperature). Larger = a stronger immediate push toward the setpoint, but too large overshoots.'],
+  'pid.I': ['Integral gain (I)', 'Accumulates past error to remove any steady-state offset. Too high causes slow oscillation/overshoot.'],
+  'pid.D': ['Derivative gain (D)', 'Reacts to how fast the temperature is changing, damping overshoot.'],
+  'pid.I_reset_temp': ['Integral reset band (\u00b0C)', 'The accumulated integral term is discarded whenever the temperature is more than this many degrees from the setpoint, preventing wind-up after big changes.'],
+  'pid.over_setpoint_perc': ['Over-setpoint cutoff (%)', 'How far above the setpoint (as a % of it) the temperature may rise before the heater is cut and the PID disabled \u2014 an over-temperature backstop.'],
+};
+
+// Per-section field metadata + grouping. Sections not listed fall back to a
+// plain sorted grid. Keys must match those emitted by each config's to_json().
+const CFG_SCHEMA = {
+  boiler_temp: {
+    intro: 'Controls the main boiler heater with a PID loop, plus its safety limits.',
+    fields: Object.assign({}, PID_FIELDS, {
+      'pid.setpoint0': ['Brew setpoint (\u00b0C)', 'Target boiler temperature for normal brewing.'],
+      'pid.setpoint1': ['Steam setpoint (\u00b0C)', 'Target boiler temperature when steam mode is selected.'],
+      'full_duty_pid_error_threshold': ['Full-power band (\u00b0C)', 'When the temperature is more than this far below the setpoint, the heater runs at 100% until it gets close, for a faster warm-up.'],
+      'mains_hz': ['Mains frequency (Hz)', 'Your AC line frequency (50 or 60). Times the zero-cross SSR pulses \u2014 must match your region.'],
+      'temp_error_restart_time_sec': ['Sensor-fault restart (s)', 'If the boiler sensor keeps faulting for this long, the controller restarts to a known-safe state. 0 disables.'],
+    }),
+    groups: [
+      { title: 'Setpoints', keys: ['pid.setpoint0', 'pid.setpoint1', 'pid.over_setpoint_perc'] },
+      { title: 'PID Tuning', help: 'The heater PID blends these terms to hold the setpoint without overshoot.', keys: ['pid.P', 'pid.I', 'pid.D', 'pid.I_reset_temp', 'full_duty_pid_error_threshold'] },
+      { title: 'Safety & Mains', keys: ['mains_hz', 'temp_error_restart_time_sec'] },
+    ],
+  },
+  brew_temp: {
+    intro: 'Optional trim that uses the brew-head sensor to nudge the boiler so the group holds a steadier temperature.',
+    fields: Object.assign({}, PID_FIELDS, {
+      'enabled': ['Brew-head trim enabled', 'Use the brew-head sensor to fine-tune (dampen) the boiler setpoint.'],
+      'pid.setpoint0': ['Brew-head target (\u00b0C)', 'Desired temperature at the brew head; the trim nudges the boiler toward it.'],
+      'pid.setpoint1': ['Secondary target (\u00b0C)', 'Alternate brew-head target for the second setpoint slot.'],
+      'max_damping_perc': ['Max trim (% of setpoint)', 'Caps how far the trim may move the boiler setpoint, as a percentage \u2014 keeps the correction gentle.'],
+      'boiler_setpoint_hold_sec': ['Post-brew hold (s)', 'After a shot finishes, pause trimming for this long so the boiler can recover before adjusting again.'],
+    }),
+    groups: [
+      { title: 'Brew-head Trim', keys: ['enabled', 'pid.setpoint0', 'pid.setpoint1', 'max_damping_perc', 'boiler_setpoint_hold_sec'] },
+      { title: 'PID Tuning', help: 'Tuning for the trim loop that drives the boiler nudge.', keys: ['pid.P', 'pid.I', 'pid.D', 'pid.I_reset_temp', 'pid.over_setpoint_perc'] },
+    ],
+  },
+  boiler_refill: {
+    intro: 'Keeps the boiler topped up using the water-level probe.',
+    fields: {
+      'refill_mv_threshold': ['Empty threshold (mV)', 'Probe voltage above which the boiler is considered low and needs a refill. A higher reading means less water bridging the electrodes.'],
+      'max_refill_time_ms': ['Max refill time (ms)', 'If a single refill runs longer than this it is aborted and a Refill Error is latched \u2014 protects against a stuck valve or an empty tank.'],
+      'level_low_hysteresis_ms': ['Low debounce (ms)', 'The level must read low for this long before a refill starts \u2014 filters out sloshing.'],
+      'level_ok_hysteresis_ms': ['Full debounce (ms)', 'The level must read full for this long before a refill stops.'],
+      'start_delay_ms': ['Start-up delay (ms)', 'Ignore probe readings for this long after power-on while the board settles (boot readings are unreliable).'],
+      'stabilise_ms': ['Settle time (ms)', 'Wait after energising the probe before sampling, so the reading can stabilise.'],
+      'adc_num_readings': ['Samples per read', 'How many ADC samples are averaged for each level measurement \u2014 more is smoother but slower.'],
+      'corrosion_enabled': ['Corrosion monitoring', 'Measure and classify probe health so a worn probe can be spotted before it fails. Set automatically when you calibrate. When off the status reads \u201cNot calibrated\u201d and never touches the machine \u2014 the raw voltage is still shown.'],
+      'corrosion_guard_enabled': ['Corrosion guard (safety interlock)', 'When a Fault is detected, cut the heater and hold the refill until the probe reads healthy again (auto-clears). Turn this off to keep the machine on its prior behaviour while you watch how the algorithm behaves \u2014 voltage and status are still reported. A genuine ADC/sensor fault always stays safe regardless of this switch.'],
+      'corrosion_baseline_mv': ['Healthy baseline (mV)', 'The probe voltage of a clean probe in a full boiler, captured at calibration. Higher voltage = more contact resistance = more corrosion.'],
+      'corrosion_warn_margin_mv': ['Warn margin (mV)', 'Added to the baseline to compute the \u201cService soon\u201d threshold when you calibrate.'],
+      'corrosion_fault_margin_mv': ['Fault margin (mV)', 'Added to the baseline to compute the \u201cFault\u201d threshold when you calibrate.'],
+      'corrosion_warn_threshold_mv': ['Warn threshold (mV)', 'At or above this reading the probe reports \u201cService soon\u201d (advisory only). Derived at calibration (baseline + warn margin); editable here to fine-tune.'],
+      'corrosion_fault_threshold_mv': ['Fault threshold (mV)', 'At or above this reading the probe reports \u201cFault\u201d and is treated as untrusted. Derived at calibration (baseline + fault margin); editable here. This is the level the guard acts on.'],
+      'corrosion_consistency_ms': ['Debounce time (ms)', 'A reading must persist this long before the status changes, in either direction (escalating to a fault or clearing back to OK). Filters out momentary spikes.'],
+    },
+    groups: [
+      { title: 'Refill Control', keys: ['refill_mv_threshold', 'max_refill_time_ms', 'level_low_hysteresis_ms', 'level_ok_hysteresis_ms'] },
+      { title: 'Probe Sampling', keys: ['start_delay_ms', 'stabilise_ms', 'adc_num_readings'] },
+      { title: 'Probe Corrosion Monitoring', help: 'The water-level probe wears out over time (electrolysis raises its contact resistance, so its voltage drifts up). These settings watch that trend. Calibrate with a clean probe and a full boiler to capture the baseline and thresholds \u2014 monitoring detects a worn probe; the guard lets it protect the machine.',
+        keys: ['corrosion_enabled', 'corrosion_guard_enabled', 'corrosion_consistency_ms', 'corrosion_baseline_mv', 'corrosion_warn_margin_mv', 'corrosion_fault_margin_mv', 'corrosion_warn_threshold_mv', 'corrosion_fault_threshold_mv'] },
+    ],
+  },
+  mqtt: {
+    intro: 'Publishes state and accepts commands over MQTT for Home Assistant auto-discovery.',
+    fields: {
+      'enabled': ['MQTT enabled', 'Connect to the broker and publish discovery + state.'],
+      'broker_uri': ['Broker URL', 'e.g. mqtt://192.168.1.10:1883 (plain TCP; TLS not supported yet).'],
+      'username': ['Username', 'MQTT username, if your broker requires authentication.'],
+      'password': ['Password', 'MQTT password. Leave blank to keep the stored one unchanged.'],
+      'publish_interval_sec': ['Publish interval (s)', 'How often the device pushes its state to the broker.'],
+    },
+    groups: [
+      { title: 'Broker', keys: ['enabled', 'broker_uri', 'username', 'password', 'publish_interval_sec'] },
+    ],
+  },
+  homekit: {
+    intro: 'Control and view the machine from the Apple Home app and Siri.',
+    fields: {
+      'enabled': ['HomeKit enabled', 'Advertise the accessory for pairing and expose it in the Home app.'],
+      'setup_code': ['Pairing code', 'The PIN to enter when adding the accessory in the Home app (format xxx-xx-xxx). This is the default pairing code — changing it requires re-pairing any hubs.'],
+    },
+    groups: [
+      { title: 'HomeKit', keys: ['enabled', 'setup_code'] },
+    ],
+  },
+};
+
+// Render a config form from CFG_SCHEMA, grouping fields with friendly labels +
+// help. Unknown sections fall back to a plain sorted grid. Any keys absent from
+// the schema are still shown under an "Other" group so nothing is ever hidden.
+function renderConfigForm(section, data) {
+  const fields = document.getElementById('cfg-fields');
+  const schema = CFG_SCHEMA[section];
+  if (!schema) { renderGenericConfig(data); return; }
+
+  const meta = schema.fields || {};
+  const used = new Set();
+
+  schema.groups.forEach((group, gi) => {
+    const groupKeys = group.keys.filter(k => k in data);
+    if (groupKeys.length === 0) return;
+    const sec = document.createElement('div');
+    sec.className = gi === 0 ? 'cfg-group' : 'cfg-subsection';
+    const h = document.createElement('h4');
+    h.textContent = group.title;
+    sec.appendChild(h);
+    if (gi === 0 && schema.intro) {
+      const p = document.createElement('p'); p.className = 'cfg-intro'; p.textContent = schema.intro; sec.appendChild(p);
+    }
+    if (group.help) {
+      const p = document.createElement('p'); p.className = 'cfg-intro'; p.textContent = group.help; sec.appendChild(p);
+    }
+    groupKeys.forEach(k => { used.add(k); sec.appendChild(_cfgItem(k, data[k], data, meta[k])); });
+    fields.appendChild(sec);
+  });
+
+  const leftover = Object.keys(data).filter(k => k !== 'has_password' && !used.has(k));
+  if (leftover.length) {
+    const sec = document.createElement('div');
+    sec.className = 'cfg-subsection';
+    const h = document.createElement('h4'); h.textContent = 'Other'; sec.appendChild(h);
+    leftover.forEach(k => sec.appendChild(_cfgItem(k, data[k], data, meta[k])));
+    fields.appendChild(sec);
+  }
+}
+
+// Fallback: plain two-per-row grid using raw keys (for any unschematised section).
+function renderGenericConfig(data) {
+  const fields = document.getElementById('cfg-fields');
+  const keys = Object.keys(data).sort().filter(k => k !== 'has_password');
+  for (let i = 0; i < keys.length; i += 2) {
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    for (let j = i; j < Math.min(i + 2, keys.length); j++) {
+      const k = keys[j];
+      const grp = document.createElement('div');
+      grp.className = 'form-group';
+      const lbl = document.createElement('label');
+      lbl.textContent = k;
+      grp.appendChild(lbl);
+      grp.appendChild(_cfgInput(k, data[k], data));
+      row.appendChild(grp);
+    }
+    fields.appendChild(row);
+  }
 }
 
 // --- Schedule editor (schedules section) ---
@@ -800,6 +1106,7 @@ function collectSchedules() {
 
 async function saveConfig() {
   const section = currentConfigSection;
+  if (section === 'comms') { return saveComms(); }
   let body;
   if (section === 'schedules') {
     body = collectSchedules();
@@ -818,8 +1125,43 @@ async function saveConfig() {
   } catch (e) { toast('Save failed: ' + e.message, 'error'); }
 }
 
+// Collect the comms tab's two sub-sections (data-cfg tags each input) and save
+// them to their respective endpoints. Empty MQTT password is skipped (write-only).
+async function saveComms() {
+  const bodies = { mqtt: {}, homekit: {} };
+  document.querySelectorAll('#cfg-fields input').forEach(inp => {
+    const cfg = inp.dataset.cfg, k = inp.dataset.key;
+    if (!cfg || !k) return;
+    let v;
+    if (inp.type === 'checkbox') v = inp.checked;
+    else if (inp.type === 'number') {
+      v = parseFloat(inp.value);
+      if (!Number.isFinite(v)) return; // skip cleared/invalid numeric field so it can't clobber stored config
+    }
+    else v = inp.value;
+    if (cfg === 'mqtt' && k === 'password' && v === '') return;
+    bodies[cfg][k] = v;
+  });
+  try {
+    await api('config/mqtt', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(bodies.mqtt) });
+    await api('config/homekit', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(bodies.homekit) });
+    toast('Config saved', 'success');
+    loadCommsStatus();
+  } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+}
+
 async function resetConfig() {
   const section = currentConfigSection;
+  if (section === 'comms') {
+    if (!confirm('Reset MQTT and HomeKit to factory defaults?')) return;
+    try {
+      await api('config/mqtt/reset', { method: 'POST' });
+      await api('config/homekit/reset', { method: 'POST' });
+      toast('Reset to defaults', 'success');
+      loadConfig();
+    } catch (e) { toast('Reset failed: ' + e.message, 'error'); }
+    return;
+  }
   if (!confirm('Reset ' + section + ' to factory defaults?')) return;
   try {
     await api('config/' + section + '/reset', { method: 'POST' });
@@ -856,6 +1198,7 @@ async function loadSystemInfo() {
       ['Boots', d.boot_count], ['Crashes', d.crash_count],
       ['Descales', d.descale_count || 0],
       ['Since Descale', d.last_descale_time > 0 ? _timeSince(d.last_descale_time) : 'Never'],
+      ['Probe Voltage', d.water_probe_mv != null ? d.water_probe_mv + ' mV' : '--'],
       ['Free Heap', (d.free_heap/1024).toFixed(0) + ' KB'],
       ['Min Heap', (d.min_free_heap/1024).toFixed(0) + ' KB'],
     ];
@@ -870,8 +1213,54 @@ async function loadSystemInfo() {
       tbl.appendChild(tr);
     });
     el.appendChild(tbl);
+
+    const probeEl = document.getElementById('probe-info');
+    if (probeEl) {
+      const statusMap = {0:['OK','var(--success)'],1:['Service soon','#ff9800'],2:['Fault \u2014 service','var(--error)']};
+      const cs = statusMap[d.corrosion_status] || ['--','var(--text-dim)'];
+      const volt = d.water_probe_mv != null ? d.water_probe_mv + ' mV' : '--';
+      let html = '<div>Voltage: <b>' + volt + '</b></div>' +
+        '<div>Status: <b style="color:' + cs[1] + '">' + (d.corrosion_enabled ? cs[0] : 'Not calibrated') + '</b></div>';
+      if (d.corrosion_enabled) {
+        html += '<div style="color:var(--text-dim);margin-top:2px;">Baseline ' + d.corrosion_baseline_mv +
+          ' mV \u00b7 warn ' + d.corrosion_warn_mv + ' \u00b7 fault ' + d.corrosion_fault_mv + ' mV</div>';
+      }
+      probeEl.innerHTML = html;
+    }
+    const guardEl = document.getElementById('probe-guard');
+    if (guardEl && d.corrosion_guard_enabled != null) guardEl.checked = !!d.corrosion_guard_enabled;
   } catch (e) { document.getElementById('sys-info').textContent = 'Error loading info'; }
 }
+
+async function setProbeGuard(on) {
+  try {
+    await api('config/boiler_refill', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ corrosion_guard_enabled: on }) });
+    toast('Corrosion guard ' + (on ? 'enabled' : 'disabled'), 'success');
+    loadSystemInfo();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); loadSystemInfo(); }
+}
+
+async function calibrateProbe() {
+  if (!confirm('Calibrate the water probe now?\n\nUse a clean probe with the boiler full. This captures the current voltage as the healthy baseline and sets the service/fault thresholds.')) return;
+  try {
+    const r = await api('system/probe-calibrate', { method: 'POST' });
+    toast('Probe calibrated (baseline ' + r.baseline_mv + ' mV)', 'success');
+    loadSystemInfo();
+  } catch (e) { toast('Calibrate failed: ' + e.message, 'error'); }
+}
+
+let sysActive = false, sysTimer = null;
+function startSysPolling() {
+  if (sysActive) return;
+  sysActive = true;
+  const tick = async () => {
+    if (!sysActive) return;
+    await loadSystemInfo();
+    if (sysActive) sysTimer = setTimeout(tick, 3000);
+  };
+  tick();
+}
+function stopSysPolling() { sysActive = false; if (sysTimer) { clearTimeout(sysTimer); sysTimer = null; } }
 
 async function uploadOTA() {
   const file = document.getElementById('ota-file').files[0];
@@ -888,6 +1277,19 @@ async function uploadOTA() {
   bar.style.width = '0%';
   status.textContent = 'Uploading firmware...';
   status.style.color = 'var(--text)';
+
+  // Capture a baseline uptime/version so reboot verification can distinguish
+  // "device is still online" from "device rebooted and came back".
+  let otaBaseline = null;
+  try {
+    const info = await api('system/info');
+    otaBaseline = {
+      uptimeSec: Number(info.uptime_sec),
+      firmwareVersion: info.firmware_version || ''
+    };
+  } catch (e) {
+    otaBaseline = null;
+  }
 
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/system/ota');
@@ -910,31 +1312,24 @@ async function uploadOTA() {
       status.style.color = 'var(--success)';
       toast('Firmware flashed, rebooting...', 'success');
       // Wait for reboot and try to reconnect
-      _waitForReboot();
+      _waitForReboot(otaBaseline);
     } else {
       progress.style.display = 'none';
-      let errMsg = xhr.responseText || ('HTTP ' + xhr.status);
+      let errMsg = (xhr.responseText || '').trim();
+      if (!errMsg) errMsg = 'HTTP ' + xhr.status;
       status.innerHTML = '<span class="indicator error"></span>OTA failed: ' + errMsg;
       status.style.color = 'var(--error)';
-      toast('OTA failed', 'error');
+      toast('OTA failed: ' + errMsg, 'error');
       btn.disabled = false;
     }
   };
 
   xhr.onerror = () => {
-    // Connection reset can mean the device rebooted mid-response (success case)
-    // or a genuine network error. Check if upload completed (100%).
-    if (bar.style.width === '100%') {
-      status.innerHTML = '<span class="indicator ok"></span>Upload complete. Device may be rebooting...<br><span style="color:var(--text-dim)">Please wait ~15 seconds. This page will reload automatically.</span>';
-      status.style.color = 'var(--success)';
-      _waitForReboot();
-    } else {
-      progress.style.display = 'none';
-      status.innerHTML = '<span class="indicator error"></span>Upload failed (connection lost)';
-      status.style.color = 'var(--error)';
-      toast('Connection lost during upload', 'error');
-      btn.disabled = false;
-    }
+    // Network errors can happen on both success (connection reset during reboot)
+    // and failure. Defer final judgement to reboot verification logic.
+    status.innerHTML = '<span class="indicator warn"></span>Connection changed during OTA; verifying device reboot status...';
+    status.style.color = 'var(--warn)';
+    _waitForReboot(otaBaseline, true);
   };
 
   xhr.ontimeout = () => {
@@ -948,10 +1343,11 @@ async function uploadOTA() {
   xhr.send(file);
 }
 
-function _waitForReboot() {
+function _waitForReboot(baseline, fromNetworkError = false) {
   // Poll the device until it responds (reboot takes ~10-15s)
   let attempts = 0;
   const maxAttempts = 30; // 30 x 2s = 60s max wait
+  let sawOffline = false;
   const status = document.getElementById('ota-status');
   const progress = document.getElementById('ota-progress');
   const bar = document.getElementById('ota-bar');
@@ -965,14 +1361,41 @@ function _waitForReboot() {
     try {
       const resp = await fetch('/api/system/info', {signal: AbortSignal.timeout(3000)});
       if (resp.ok) {
-        clearInterval(interval);
-        progress.style.display = 'none';
-        status.innerHTML = '<span class="indicator ok"></span>Device is back online! Reloading...';
-        status.style.color = 'var(--success)';
-        toast('Device back online', 'success');
-        setTimeout(() => window.location.reload(), 1500);
+        const info = await resp.json();
+        const uptime = Number(info.uptime_sec);
+
+        // Accept success only when we have evidence of an actual reboot.
+        const rebootedByUptime =
+          baseline && Number.isFinite(baseline.uptimeSec) && Number.isFinite(uptime) &&
+          uptime + 5 < baseline.uptimeSec;
+
+        if (sawOffline || rebootedByUptime) {
+          clearInterval(interval);
+          progress.style.display = 'none';
+          status.innerHTML = '<span class="indicator ok"></span>Device is back online! Reloading...';
+          status.style.color = 'var(--success)';
+          toast('Device back online', 'success');
+          setTimeout(() => window.location.reload(), 1500);
+          return;
+        }
+
+        // If still online for a while with no reboot evidence, surface failure
+        // instead of hanging in a misleading "rebooting" state.
+        if (attempts >= 6) {
+          clearInterval(interval);
+          progress.style.display = 'none';
+          status.innerHTML = '<span class="indicator error"></span>OTA did not trigger a reboot. Firmware may have been rejected by the device.';
+          status.style.color = 'var(--error)';
+          toast('OTA failed: firmware rejected or reboot not triggered', 'error');
+          btn.disabled = false;
+          return;
+        }
+
+        status.innerHTML = '<span class="indicator warn"></span>Waiting for reboot to start... (' + (attempts * 2) + 's)';
+        status.style.color = 'var(--warn)';
       }
     } catch (e) {
+      sawOffline = true;
       // Still rebooting, update status
       if (attempts <= 7) {
         status.innerHTML = '<span class="indicator warn"></span>Device is rebooting... (' + (attempts * 2) + 's)';
@@ -985,7 +1408,10 @@ function _waitForReboot() {
     if (attempts >= maxAttempts) {
       clearInterval(interval);
       progress.style.display = 'none';
-      status.innerHTML = '<span class="indicator error"></span>Device did not respond after 60s. Try reloading the page manually.';
+      status.innerHTML = '<span class="indicator error"></span>' +
+        (fromNetworkError
+          ? 'OTA could not be verified after a network error. Device did not complete a detectable reboot.'
+          : 'Device did not respond after 60s. Try reloading the page manually.');
       status.style.color = 'var(--error)';
       btn.disabled = false;
     }
@@ -1017,6 +1443,14 @@ async function factoryReset() {
   if (!confirm('This will erase all settings. Continue?')) return;
   if (!confirm('Are you sure? This cannot be undone.')) return;
   try { await api('system/factory-reset', { method: 'POST' }); toast('Factory reset...', 'success'); } catch(e) {}
+}
+
+async function homekitResetPairings() {
+  if (!confirm('Erase all HomeKit pairings? The machine will be removed from Apple Home and reboot.')) return;
+  try {
+    await api('homekit/reset-pairings', { method: 'POST' });
+    toast('HomeKit pairings erased, rebooting...', 'success');
+  } catch (e) { toast('Reset failed: ' + e.message, 'error'); }
 }
 
 // AUTH
@@ -1063,6 +1497,8 @@ async function wifiScan(){const l=document.getElementById('wifi-scan-list');l.in
 function selectNetwork(s){document.getElementById('wifi-ssid').value=s;document.getElementById('wifi-psk').focus();document.querySelectorAll('.wifi-net').forEach(e=>e.classList.remove('selected'));document.querySelectorAll('.wifi-net').forEach(e=>{if(e.querySelector('.wifi-net-ssid').textContent===s)e.classList.add('selected')})}
 async function wifiConnect(){const ssid=document.getElementById('wifi-ssid').value.trim(),psk=document.getElementById('wifi-psk').value;if(!ssid){toast('Enter an SSID','error');return}const btn=document.getElementById('wifi-connect-btn'),st=document.getElementById('wifi-connect-status');btn.disabled=true;btn.textContent='Connecting...';st.textContent='Attempting connection to '+ssid+'...';st.style.color='var(--text-dim)';try{const d=await api('wifi/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssid,psk})});if(d.success){st.innerHTML='<span class="indicator ok"></span>Connected! IP: <strong>'+d.ip+'</strong><br><span style="color:var(--text-dim);font-size:0.85em">Access at http://'+d.ip+':8080</span>';st.style.color='var(--success)';toast('WiFi connected','success');setTimeout(loadWifiStatus,1000)}else{st.innerHTML='<span class="indicator error"></span>Failed: '+(d.error||'unknown');st.style.color='var(--error)';toast('Connection failed','error')}}catch(e){st.innerHTML='<span class="indicator error"></span>Error: '+e.message;st.style.color='var(--error)';toast('Error','error')}btn.disabled=false;btn.textContent='Connect'}
 async function loadWifiStatus(){try{const d=await api('wifi/status'),el=document.getElementById('wifi-status-info');let h='';if(d.sta&&d.sta.connected){h+='<span class="indicator ok"></span>Connected to <strong>'+d.sta.ssid+'</strong> ('+d.sta.rssi+' dBm) — IP: '+d.sta.ip}else{h+='<span class="indicator warn"></span>Not connected'}if(d.ap&&d.ap.active){h+='<br><span class="indicator ok"></span>AP: <strong>'+d.ap.ssid+'</strong> ('+d.ap.clients+' clients)'}h+='<br><span style="color:var(--text-dim);font-size:0.8em">Mode: '+d.mode+'</span>';el.innerHTML=h}catch(e){document.getElementById('wifi-status-info').textContent='Error loading status'}}
+async function loadWifiHostname(){try{const d=await api('wifi/hostname');document.getElementById('wifi-hostname').value=d.hostname||''}catch(e){}}
+async function wifiSaveHostname(){const v=document.getElementById('wifi-hostname').value.trim(),btn=document.getElementById('wifi-hostname-btn'),st=document.getElementById('wifi-hostname-status');btn.disabled=true;try{const d=await api('wifi/hostname',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hostname:v})});document.getElementById('wifi-hostname').value=d.hostname||'';st.innerHTML='<span class="indicator ok"></span>Saved as <strong>'+(d.hostname||'')+'</strong> — applies on next reconnect';st.style.color='var(--success)';toast('Hostname saved','success')}catch(e){st.innerHTML='<span class="indicator error"></span>'+e.message;st.style.color='var(--error)';toast('Save failed','error')}btn.disabled=false}
 </script>
 </body>
 </html>

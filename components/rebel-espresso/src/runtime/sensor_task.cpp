@@ -3,6 +3,7 @@
 #include "rtds.h"
 #include "hw_specs.h"
 #include "boiler_refill.h"
+#include "water_probe.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -18,6 +19,12 @@
 
 static TaskHandle_t s_task_handle = nullptr;
 static bool s_running = false;
+
+// Rolling window of probe voltages for the glitch-robust diagnostic median.
+static water_probe_window_t s_probe_window;
+
+// Debounced corrosion status tracker (advisory in M2).
+static corrosion_monitor_t s_corrosion;
 
 /**
  * Callback from rtds_update() — publishes each RTD reading into the process
@@ -53,10 +60,54 @@ static void _read_water_level(process_image_t *img) {
 
   img->water_level_mv = voltage;
 
+  // Publish a glitch-robust median for diagnostics/corrosion monitoring.
+  // Only feed valid samples into the window: a faulted ADC read would pollute
+  // the rolling median and keep it wrong for several cycles after recovery.
+  if (status == 0) {
+    water_probe_window_push(&s_probe_window, (uint16_t)voltage);
+  }
+  img->water_level_median_mv = water_probe_window_median(&s_probe_window);
+
   // Derive level OK from configured threshold.
   // Use the boiler refill config threshold for now.
   auto& refill_cfg = boiler_refill_get_cfg();
   img->water_level_ok = (status == 0) && (voltage <= refill_cfg.refill_mv_threshold);
+
+  // Reset the debounced monitor whenever the thresholds change (e.g. after a
+  // calibrate) so a fresh baseline clears any prior fault immediately instead of
+  // holding it for up to corrosion_consistency_ms.
+  static uint16_t s_last_warn_mv = 0;
+  static uint16_t s_last_fault_mv = 0;
+  if (refill_cfg.corrosion_warn_threshold_mv != s_last_warn_mv ||
+      refill_cfg.corrosion_fault_threshold_mv != s_last_fault_mv) {
+    corrosion_monitor_reset(&s_corrosion);
+    img->corrosion_status = (uint8_t)CORROSION_OK;
+    s_last_warn_mv = refill_cfg.corrosion_warn_threshold_mv;
+    s_last_fault_mv = refill_cfg.corrosion_fault_threshold_mv;
+  }
+
+  // Corrosion status is only meaningful on a *wet* reading (an empty boiler
+  // legitimately reads high). Evaluate the debounced status only when submerged
+  // and monitoring is enabled; hold the last status otherwise.
+  if (refill_cfg.corrosion_enabled && img->water_level_ok) {
+    uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
+    corrosion_status_t st =
+        corrosion_monitor_update(&s_corrosion, img->water_level_median_mv, refill_cfg.corrosion_warn_threshold_mv,
+                                 refill_cfg.corrosion_fault_threshold_mv, now_ms, refill_cfg.corrosion_consistency_ms);
+    img->corrosion_status = (uint8_t)st;
+  } else if (!refill_cfg.corrosion_enabled) {
+    corrosion_monitor_reset(&s_corrosion);
+    img->corrosion_status = (uint8_t)CORROSION_OK;
+  }
+
+  // Trust-aware level classification: an ADC fault is always untrusted; a corroded
+  // probe is untrusted only while the corrosion guard is enabled. With the guard
+  // off the machine ignores the corrosion thresholds for control (prior behaviour)
+  // while still reporting voltage/status for tracking.
+  bool submerged = (voltage <= refill_cfg.refill_mv_threshold);
+  bool trusted = water_level_trusted(status == 0, (corrosion_status_t)img->corrosion_status,
+                                     refill_cfg.corrosion_guard_enabled != 0);
+  img->level_status = (uint8_t)water_level_classify(trusted, submerged);
 }
 
 static void _sensor_task(void *) {
@@ -100,6 +151,9 @@ extern "C" void sensor_task_init(void) {
 
   // Note: PIN_WATER_LEVEL_ENABLE GPIO is configured by boiler_refill_init().
   // When legacy refill code is removed, pin configuration moves here.
+
+  water_probe_window_reset(&s_probe_window);
+  corrosion_monitor_reset(&s_corrosion);
 
   s_running = true;
   xTaskCreate(_sensor_task, "sensor_task", 3072, nullptr, 6, &s_task_handle);

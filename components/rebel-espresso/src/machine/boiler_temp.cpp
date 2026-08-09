@@ -256,6 +256,12 @@ void boiler_temp_init() {
   };
   ESP_ERROR_CHECK(ssr_ctrl_new(cfg, &_ssr_handle));
 
+  // Start the zero-cross carrier so the SSR GPIO is actually driven. The output
+  // is governed entirely by the applied duty: the I/O scan safety gate forces
+  // duty 0 for standby/faults, and the driver holds the GPIO low at duty 0.
+  // (Restores drive lost when the refactor dropped the power_on/off calls.)
+  ESP_ERROR_CHECK(ssr_ctrl_power_on(_ssr_handle));
+
   pid_init(s_pid);
   s_boiler_error_sec = 0;
   s_trimmed_setpoint = s_cfg.pid.setpoints[s_cfg.pid.active_setpoint];

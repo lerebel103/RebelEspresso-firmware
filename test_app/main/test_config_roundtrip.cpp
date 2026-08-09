@@ -27,6 +27,8 @@
 #include "machine/brew_temp.h"
 #include "machine/boiler_refill.h"
 #include "machine/schedules.h"
+#include "mqtt/mqtt_config.h"
+#include "homekit/homekit_config.h"
 
 // ============================================================================
 // Boiler Temp Config
@@ -325,6 +327,25 @@ TEST_CASE("Config: composite export format can be re-imported", "[config]") {
     br_cfg.to_json(br_json, "");
     cJSON_AddItemToObject(export_doc, "boiler_refill", br_json);
 
+    // mqtt (password is redacted by to_json)
+    mqtt_cfg_t mq_cfg{};
+    mq_cfg.enabled = true;
+    strcpy(mq_cfg.broker_uri, "mqtt://10.0.0.5:1883");
+    strcpy(mq_cfg.username, "barista");
+    strcpy(mq_cfg.password, "s3cret");
+    mq_cfg.publish_interval_sec = 7;
+    cJSON *mq_json = cJSON_CreateObject();
+    mq_cfg.to_json(mq_json, "");
+    cJSON_AddItemToObject(export_doc, "mqtt", mq_json);
+
+    // homekit
+    homekit_cfg_t hk_cfg{};
+    hk_cfg.enabled = false;
+    strcpy(hk_cfg.setup_code, "314-15-926");
+    cJSON *hk_json = cJSON_CreateObject();
+    hk_cfg.to_json(hk_json, "");
+    cJSON_AddItemToObject(export_doc, "homekit", hk_json);
+
     // Serialize to string (simulates what the export endpoint produces)
     char *exported = cJSON_PrintUnformatted(export_doc);
     TEST_ASSERT_NOT_NULL(exported);
@@ -354,6 +375,24 @@ TEST_CASE("Config: composite export format can be re-imported", "[config]") {
     TEST_ASSERT_EQUAL(2000, br_restored.start_delay_ms);
     TEST_ASSERT_EQUAL(10000, br_restored.max_refill_time_ms);
     TEST_ASSERT_EQUAL(500, br_restored.level_low_hysteresis_ms);
+
+    section = cJSON_GetObjectItem(import_doc, "mqtt");
+    TEST_ASSERT_NOT_NULL(section);
+    mqtt_cfg_t mq_restored{};
+    mq_restored.from_json(section);
+    TEST_ASSERT_TRUE(mq_restored.enabled);
+    TEST_ASSERT_EQUAL_STRING("mqtt://10.0.0.5:1883", mq_restored.broker_uri);
+    TEST_ASSERT_EQUAL_STRING("barista", mq_restored.username);
+    TEST_ASSERT_EQUAL(7, mq_restored.publish_interval_sec);
+    // Secret must never travel through an export file.
+    TEST_ASSERT_EQUAL_STRING("", mq_restored.password);
+
+    section = cJSON_GetObjectItem(import_doc, "homekit");
+    TEST_ASSERT_NOT_NULL(section);
+    homekit_cfg_t hk_restored{};
+    hk_restored.from_json(section);
+    TEST_ASSERT_FALSE(hk_restored.enabled);
+    TEST_ASSERT_EQUAL_STRING("314-15-926", hk_restored.setup_code);
 
     // Sections not present in the export should not be found
     TEST_ASSERT_NULL(cJSON_GetObjectItem(import_doc, "brew_temp"));
@@ -393,6 +432,19 @@ TEST_CASE("Config: export document stays under 4KB limit", "[config]") {
     sc_cfg.times[1][0] = {true, 6, 30, 22, 0};
     sc_cfg.to_json(sc, "");
     cJSON_AddItemToObject(full, "schedules", sc);
+
+    cJSON *mq = cJSON_CreateObject();
+    mqtt_cfg_t mq_cfg{};
+    mq_cfg.enabled = true;
+    strcpy(mq_cfg.broker_uri, "mqtt://192.168.1.10:1883");
+    strcpy(mq_cfg.username, "espresso");
+    mq_cfg.to_json(mq, "");
+    cJSON_AddItemToObject(full, "mqtt", mq);
+
+    cJSON *hk = cJSON_CreateObject();
+    homekit_cfg_t hk_cfg{};
+    hk_cfg.to_json(hk, "");
+    cJSON_AddItemToObject(full, "homekit", hk);
 
     char *str = cJSON_PrintUnformatted(full);
     TEST_ASSERT_NOT_NULL(str);

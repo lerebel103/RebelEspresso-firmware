@@ -13,6 +13,7 @@
 #include "process_image.h"
 #include "io_scan_safety.h"
 #include "io_scan_modes.h"
+#include "water_probe.h"
 #include "boiler_refill_states.h"
 
 // Process image init, field-isolation, and seqlock tests live in
@@ -123,6 +124,7 @@ TEST_CASE("IO: All conditions OK allows full duty through", "[io_scan]") {
   img->descale_mode = false;
   img->refill_state = REFILL_STATE_IDLE;
   img->temperatures[1].fault = 0; // Boiler RTD healthy
+  img->level_status = LEVEL_OK;
   img->ssr_boiler_duty = 85;
   img->pump_on = true;
   img->aux_on = true;
@@ -141,6 +143,22 @@ TEST_CASE("IO: Multiple overrides combine (low water + descale)", "[io_scan]") {
   img->water_level_ok = false;
   img->descale_mode = true;
   img->ssr_boiler_duty = 50;
+
+  auto result = apply_safety_overrides(img);
+  TEST_ASSERT_EQUAL(0, result.ssr_duty);
+}
+
+TEST_CASE("IO: Unknown level (untrusted probe) forces SSR to zero", "[io_scan]") {
+  process_image_init();
+  auto *img = process_image_get();
+
+  img->power_on = true;
+  img->water_level_ok = true; // even if it reads submerged
+  img->descale_mode = false;
+  img->refill_state = REFILL_STATE_IDLE;
+  img->temperatures[1].fault = 0;
+  img->ssr_boiler_duty = 80;
+  img->level_status = LEVEL_UNKNOWN; // corroded / faulted probe
 
   auto result = apply_safety_overrides(img);
   TEST_ASSERT_EQUAL(0, result.ssr_duty);
@@ -279,6 +297,7 @@ TEST_CASE("IO: Remote power_active allows outputs when GPIO says OFF", "[io_scan
   img->power_on = true;
   img->water_level_ok = true;
   img->temperatures[1].fault = 0; // Boiler RTD healthy
+  img->level_status = LEVEL_OK;
   img->ssr_boiler_duty = 50;
   img->pump_on = true;
   img->aux_on = true;
@@ -407,6 +426,7 @@ TEST_CASE("IO: Boiler reading just below limit still allows duty", "[io_scan]") 
     img->temperatures[i].fault = 0;
   }
   img->temperatures[1].value = 139.5;
+  img->level_status = LEVEL_OK;
   img->ssr_boiler_duty = 60;
 
   auto result = apply_safety_overrides(img);
@@ -644,6 +664,7 @@ TEST_CASE("Flow: boot powered on with healthy sensors allows control", "[io_scan
   img->refill_state = REFILL_STATE_IDLE;
   img->temperatures[1].fault = 0;
   img->temperatures[1].value = 95.0;
+  img->level_status = LEVEL_OK;
   img->ssr_boiler_duty = 70;
 
   auto result = apply_safety_overrides(img);

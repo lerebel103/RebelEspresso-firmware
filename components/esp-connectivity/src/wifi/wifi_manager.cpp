@@ -14,7 +14,9 @@
 #include <freertos/event_groups.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <nvs.h>
 
+#include <cctype>
 #include <cstring>
 
 #define TAG "wifi_mgr"
@@ -22,6 +24,11 @@
 // Internal event bits for signaling connection results
 #define CONNECT_SUCCESS_BIT BIT0
 #define CONNECT_FAIL_BIT BIT1
+
+// NVS location for the user-configurable system hostname.
+#define NVS_NET_CFG_STORE "cfg.net"
+#define NVS_KEY_HOSTNAME "hostname"
+#define HOSTNAME_MAX_LEN 32
 
 static EventGroupHandle_t xNetworkEventGroup;
 static EventGroupHandle_t s_connect_event_group;
@@ -31,6 +38,7 @@ static int64_t _start_time;
 static bool s_is_connecting = false;
 static bool s_sta_started = false;
 static esp_netif_t *s_sta_netif = nullptr;
+static char s_hostname[HOSTNAME_MAX_LEN] = {0};
 
 static TimerHandle_t s_ap_fallback_timer = nullptr;
 static bool s_initial_connect = true;
@@ -124,12 +132,65 @@ static bool _is_ap_fallback_timer_running() {
   return xTimerIsTimerActive(s_ap_fallback_timer) != pdFALSE;
 }
 
+// The MAC-derived default hostname (rebel-XXXXXX), used when none is configured.
+static void _default_hostname(char *out, size_t len) {
+  uint8_t mac[6];
+  esp_efuse_mac_get_default(mac);
+  snprintf(out, len, "rebel-%02x%02x%02x", mac[3], mac[4], mac[5]);
+}
+
+// Reduce an arbitrary string to a valid DNS label ([A-Za-z0-9-], no leading or
+// trailing hyphen). Writes the MAC-derived default when nothing usable remains.
+static void _sanitise_hostname(const char *src, char *out, size_t len) {
+  size_t j = 0;
+  for (size_t i = 0; src && src[i] != '\0' && j + 1 < len; i++) {
+    char c = src[i];
+    if (isalnum((unsigned char)c) || c == '-') {
+      // Skip a leading hyphen so the label never starts with one.
+      if (j == 0 && c == '-') {
+        continue;
+      }
+      out[j++] = c;
+    }
+  }
+  // Trim trailing hyphens.
+  while (j > 0 && out[j - 1] == '-') {
+    j--;
+  }
+  out[j] = '\0';
+  if (j == 0) {
+    _default_hostname(out, len);
+  }
+}
+
+// Load the configured hostname from NVS (or fall back to the default) into
+// s_hostname. Must run before the STA interface starts so DHCP carries it.
+static void _load_hostname() {
+  char stored[HOSTNAME_MAX_LEN] = {0};
+  nvs_handle_t h;
+  if (nvs_open(NVS_NET_CFG_STORE, NVS_READONLY, &h) == ESP_OK) {
+    size_t len = sizeof(stored);
+    nvs_get_str(h, NVS_KEY_HOSTNAME, stored, &len);
+    nvs_close(h);
+  }
+  if (stored[0] != '\0') {
+    _sanitise_hostname(stored, s_hostname, sizeof(s_hostname));
+  } else {
+    _default_hostname(s_hostname, sizeof(s_hostname));
+  }
+  ESP_LOGI(TAG, "System hostname: %s", s_hostname);
+}
+
 /**
  * WiFi/IP event handler.
  */
 static void _event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
     s_sta_started = true;
+    // Apply the hostname before connecting so it is present in the DHCP request.
+    if (s_sta_netif != nullptr) {
+      esp_netif_set_hostname(s_sta_netif, s_hostname);
+    }
     s_metrics.connect_attempt_count++;
     _start_time = esp_timer_get_time();
     esp_wifi_connect();
@@ -141,14 +202,6 @@ static void _event_handler(void *arg, esp_event_base_t event_base, int32_t event
     sprintf(s_metrics.gw_addr, IPSTR, IP2STR(&event->ip_info.gw));
     sprintf(s_metrics.nm_addr, IPSTR, IP2STR(&event->ip_info.netmask));
     ESP_LOGI(TAG, "Connected with IP %s, GW %s, NM %s", s_metrics.ip_addr, s_metrics.gw_addr, s_metrics.nm_addr);
-
-    // Set hostname
-    char hostname[128];
-    uint8_t mac[6];
-    esp_efuse_mac_get_default(mac);
-    snprintf(hostname, sizeof(hostname), "rebel-%02x%02x%02x", mac[3], mac[4], mac[5]);
-    esp_netif_set_hostname(event->esp_netif, hostname);
-    ESP_LOGI(TAG, "Hostname set to %s", hostname);
 
     // If AP was running, schedule shutdown in a separate task (don't block event loop)
     if (wifi_ap_is_active()) {
@@ -208,6 +261,10 @@ static void _event_handler(void *arg, esp_event_base_t event_base, int32_t event
 void wifi_manager_init(EventGroupHandle_t networkEventGroup) {
   xNetworkEventGroup = networkEventGroup;
   s_connect_event_group = xEventGroupCreate();
+
+  // Resolve the configured hostname from NVS before the STA starts so the very
+  // first DHCP request already advertises it.
+  _load_hostname();
 
   // Initialize TCP/IP
   ESP_ERROR_CHECK(esp_netif_init());
@@ -327,4 +384,33 @@ bool wifi_manager_is_connected() {
 
 void wifi_manager_suppress_reconnect(bool suppress) {
   s_suppress_reconnect = suppress;
+}
+
+void wifi_manager_get_hostname(char *out, size_t len) {
+  if (out == nullptr || len == 0) {
+    return;
+  }
+  if (s_hostname[0] == '\0') {
+    _default_hostname(out, len);
+  } else {
+    strncpy(out, s_hostname, len - 1);
+    out[len - 1] = '\0';
+  }
+}
+
+void wifi_manager_set_hostname(const char *hostname) {
+  _sanitise_hostname(hostname, s_hostname, sizeof(s_hostname));
+
+  nvs_handle_t h;
+  if (nvs_open(NVS_NET_CFG_STORE, NVS_READWRITE, &h) == ESP_OK) {
+    nvs_set_str(h, NVS_KEY_HOSTNAME, s_hostname);
+    nvs_commit(h);
+    nvs_close(h);
+  }
+
+  // Apply live; the network stack picks it up on the next DHCP lease.
+  if (s_sta_netif != nullptr) {
+    esp_netif_set_hostname(s_sta_netif, s_hostname);
+  }
+  ESP_LOGI(TAG, "System hostname set to %s", s_hostname);
 }

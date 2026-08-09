@@ -30,6 +30,9 @@ extern "C" void process_image_init(void) {
     s_image.temperatures[i].fault = 1; // Non-zero = fault, inhibits heater
   }
   s_image.water_level_mv = 0;
+  s_image.water_level_median_mv = 0;
+  s_image.corrosion_status = 0;
+  s_image.level_status = 2; // LEVEL_UNKNOWN — untrusted until a valid read
   s_image.water_level_ok = false;
 
   // State

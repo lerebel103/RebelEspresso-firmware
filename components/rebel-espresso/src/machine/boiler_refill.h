@@ -16,6 +16,14 @@ typedef bool (*check_level_fn)();
 #define KEY_max_refill_time_ms "max_r_time"
 #define KEY_level_low_hysteresis_ms "level_low_ms"
 #define KEY_level_ok_hysteresis_ms "level_ok_ms"
+#define KEY_corrosion_enabled "cor_en"
+#define KEY_corrosion_guard_enabled "cor_guard"
+#define KEY_corrosion_baseline_mv "cor_base_mv"
+#define KEY_corrosion_warn_margin_mv "cor_warn_m"
+#define KEY_corrosion_fault_margin_mv "cor_flt_m"
+#define KEY_corrosion_warn_threshold_mv "cor_warn_t"
+#define KEY_corrosion_fault_threshold_mv "cor_flt_t"
+#define KEY_corrosion_consistency_ms "cor_cons_ms"
 
 extern "C" const uint16_t BOILER_REFILL_START_DELAY_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_STABILISE_MS_DEFAULT;
@@ -24,6 +32,14 @@ extern "C" const uint16_t BOILER_REFILL_REFILL_MV_THRESHOLD_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_MAX_REFILL_TIME_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_LEVEL_LOW_HYSTERESIS_MS_DEFAULT;
 extern "C" const uint16_t BOILER_REFILL_LEVEL_OK_HYSTERESIS_MS_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_ENABLED_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_GUARD_ENABLED_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_BASELINE_MV_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_WARN_MARGIN_MV_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_FAULT_MARGIN_MV_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_WARN_THRESHOLD_MV_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_FAULT_THRESHOLD_MV_DEFAULT;
+extern "C" const uint16_t BOILER_REFILL_CORROSION_CONSISTENCY_MS_DEFAULT;
 
 struct boiler_refill_cfg_t {
   /**
@@ -62,6 +78,16 @@ struct boiler_refill_cfg_t {
    */
   uint16_t level_ok_hysteresis_ms;
 
+  // --- Probe corrosion monitoring (predictive maintenance) ---
+  uint16_t corrosion_enabled;            ///< 0/1 — inert until calibrated
+  uint16_t corrosion_guard_enabled;      ///< 0/1 — let a corrosion fault gate heater/refill
+  uint16_t corrosion_baseline_mv;        ///< healthy wet reading captured at calibration
+  uint16_t corrosion_warn_margin_mv;     ///< added to baseline -> warn threshold
+  uint16_t corrosion_fault_margin_mv;    ///< added to baseline -> fault threshold
+  uint16_t corrosion_warn_threshold_mv;  ///< derived at calibration, directly editable
+  uint16_t corrosion_fault_threshold_mv; ///< derived at calibration, directly editable
+  uint16_t corrosion_consistency_ms;     ///< sustained period before status changes
+
   /**
    * Apply new configuration
    */
@@ -82,6 +108,22 @@ struct boiler_refill_cfg_t {
         level_low_hysteresis_ms = item->valueint;
       } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "level_ok_hysteresis_ms")) {
         level_ok_hysteresis_ms = item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_enabled")) {
+        corrosion_enabled = cJSON_IsTrue(item) ? 1 : (uint16_t)item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_guard_enabled")) {
+        corrosion_guard_enabled = cJSON_IsTrue(item) ? 1 : (uint16_t)item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_baseline_mv")) {
+        corrosion_baseline_mv = item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_warn_margin_mv")) {
+        corrosion_warn_margin_mv = item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_fault_margin_mv")) {
+        corrosion_fault_margin_mv = item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_warn_threshold_mv")) {
+        corrosion_warn_threshold_mv = item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_fault_threshold_mv")) {
+        corrosion_fault_threshold_mv = item->valueint;
+      } else if (strend(item->string, BOILER_REFILL_CFG_JSON_KEY "corrosion_consistency_ms")) {
+        corrosion_consistency_ms = item->valueint;
       }
       item = item->next;
     }
@@ -113,6 +155,30 @@ struct boiler_refill_cfg_t {
 
     sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "level_ok_hysteresis_ms", base_key);
     cJSON_AddNumberToObject(config, buf, level_ok_hysteresis_ms);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_enabled", base_key);
+    cJSON_AddBoolToObject(config, buf, corrosion_enabled != 0);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_guard_enabled", base_key);
+    cJSON_AddBoolToObject(config, buf, corrosion_guard_enabled != 0);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_baseline_mv", base_key);
+    cJSON_AddNumberToObject(config, buf, corrosion_baseline_mv);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_warn_margin_mv", base_key);
+    cJSON_AddNumberToObject(config, buf, corrosion_warn_margin_mv);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_fault_margin_mv", base_key);
+    cJSON_AddNumberToObject(config, buf, corrosion_fault_margin_mv);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_warn_threshold_mv", base_key);
+    cJSON_AddNumberToObject(config, buf, corrosion_warn_threshold_mv);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_fault_threshold_mv", base_key);
+    cJSON_AddNumberToObject(config, buf, corrosion_fault_threshold_mv);
+
+    sprintf(buf, "%s" BOILER_REFILL_CFG_JSON_KEY "corrosion_consistency_ms", base_key);
+    cJSON_AddNumberToObject(config, buf, corrosion_consistency_ms);
 
     free(buf);
   }
@@ -156,6 +222,13 @@ void boiler_refill_update_cfg(const cJSON *json);
 void boiler_refill_set_cfg(boiler_refill_cfg_t cfg);
 
 void boiler_refill_reset_cfg();
+
+/**
+ * Capture the current (healthy, submerged) probe voltage as the corrosion
+ * baseline, derive warn/fault thresholds from the configured margins, enable
+ * monitoring, and persist to NVS. Called by the Calibrate action.
+ */
+void boiler_refill_calibrate_probe(uint16_t median_mv);
 
 const boiler_refill_status_t& boiler_refill_get_status();
 

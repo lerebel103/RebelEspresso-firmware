@@ -225,6 +225,34 @@ TEST_CASE("Safety: Refill timeout triggers ERROR and stops solenoid", "[safety]"
     TEST_ASSERT_EQUAL(REFILL_STATE_ERROR, boiler_refill_state());
 }
 
+TEST_CASE("Safety: Untrusted probe winds ACTIVE down to IDLE without ERROR", "[safety]") {
+    // Mirrors io_scan's handling of LEVEL_UNKNOWN: instead of stalling the state
+    // machine in ACTIVE (which would later trip a spurious max-refill ERROR when
+    // trust returns), it is driven as if the boiler were full so it winds down.
+    boiler_refill_cfg_t cfg = {};
+    cfg.max_refill_time_ms = 3000;
+    cfg.start_delay_ms = 0;
+    cfg.level_ok_hysteresis_ms = 500;
+    cfg.level_low_hysteresis_ms = 0;
+
+    boiler_refill_states_init(cfg);
+
+    // Drive into ACTIVE (level low).
+    boiler_refill_states_process(0, false, false);
+    TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
+
+    // Probe goes untrusted -> fed as "level ok": still ACTIVE within hysteresis...
+    boiler_refill_states_process(100, true, false);
+    TEST_ASSERT_EQUAL(REFILL_STATE_ACTIVE, boiler_refill_state());
+    // ...then transitions to IDLE once the ok-hysteresis elapses.
+    boiler_refill_states_process(700, true, false);
+    TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
+
+    // Even long past the original max_refill_time, staying "level ok" never errors.
+    boiler_refill_states_process(10000, true, false);
+    TEST_ASSERT_EQUAL(REFILL_STATE_IDLE, boiler_refill_state());
+}
+
 TEST_CASE("Safety: Refill ERROR state latches until power cycle", "[safety]") {
     boiler_refill_cfg_t cfg = {};
     cfg.max_refill_time_ms = 1000;

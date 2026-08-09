@@ -27,6 +27,9 @@ CONFIG_BOOTLOADER_FACTORY_RESET_PIN_LOW=y
 CONFIG_BOOTLOADER_DATA_FACTORY_RESET="nvs"
 CONFIG_BOOTLOADER_HOLD_TIME_GPIO=5
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+# Factory-reset (GPIO) also clears the OTA boot selection back to the factory
+# app. Present in r2.0; lost in the refactor.
+CONFIG_BOOTLOADER_OTA_DATA_ERASE=y
 
 # Bluetooth — disabled (BLE provisioning removed)
 # CONFIG_BT_ENABLED is not set
@@ -63,23 +66,50 @@ CONFIG_I2C_RETRY_COUNT=200
 # HAP HTTP Server
 CONFIG_HAP_HTTP_STACK_SIZE=8192
 CONFIG_HAP_HTTP_SERVER_PORT=80
-CONFIG_HAP_HTTP_MAX_OPEN_SOCKETS=5
+CONFIG_HAP_HTTP_MAX_OPEN_SOCKETS=8
 CONFIG_HAP_HTTP_MAX_URI_HANDLERS=16
+CONFIG_HAP_SESSION_KEEP_ALIVE_ENABLE=y
+
+# HAP keystore partitions — CRITICAL, do not drop. The SDK Kconfig default for
+# the factory partition is "factory_nvs", but our partition table (partitions.csv)
+# names it "nvs_factory". Without this override the HAP factory keystore points at
+# a non-existent partition, so the provisioned setup_id/salt/verifier can't be
+# read → "Setup ID absent" → hap_acc_setup_init() fails → hap_start() aborts
+# before the event loop starts (HomeKit silently dead). Must match partitions.csv.
+CONFIG_HAP_PLATFORM_DEF_NVS_RUNTIME_PARTITION="nvs"
+CONFIG_HAP_PLATFORM_DEF_NVS_FACTORY_PARTITION="nvs_factory"
+
+# Web server HTTP header buffer — the default 512 B is too small once the
+# Authorization: Bearer <token> header is added on top of a full set of browser
+# headers (User-Agent, sec-ch-ua, Referer, Origin, ...), which caused
+# authenticated requests to fail with 431. The httpd scratch buffer is
+# MAX(MAX_REQ_HDR_LEN, MAX_URI_LEN) and must hold the entire header block.
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048
 
 # System
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=3584
 CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4496
 CONFIG_ESP_INT_WDT_TIMEOUT_MS=300
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=5
+# Brownout detector threshold — r2.0 used level 7 (highest); the refactor let it
+# fall back to the IDF default (0). Restore the validated value.
+CONFIG_ESP_BROWNOUT_DET_LVL_SEL_7=y
 
 # FreeRTOS
 CONFIG_FREERTOS_HZ=100
 CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
 
 # LWIP
-CONFIG_LWIP_MAX_SOCKETS=10
+# Socket pool sized for concurrent demand, not the old 16 "max" (the real
+# Kconfig range is 1-253; <=61 needs no FD_SETSIZE change). Peak users:
+#   HAP  5 + listener + ctrl = 7
+#   web  4 + listener + ctrl = 6
+#   MQTT 1-2, SNTP 1, mDNS 1-2  -> ~17-18 at peak, so 16 was oversubscribed.
+# MAX_ACTIVE_TCP (MEMP_NUM_TCP_PCB) must cover established + TIME_WAIT, so it
+# tracks the socket pool.
+CONFIG_LWIP_MAX_SOCKETS=24
 CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=32
-CONFIG_LWIP_MAX_ACTIVE_TCP=16
+CONFIG_LWIP_MAX_ACTIVE_TCP=24
 CONFIG_LWIP_MAX_LISTENING_TCP=16
 CONFIG_LWIP_TCP_MSS=1440
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=5760
@@ -96,6 +126,15 @@ CONFIG_MBEDTLS_SHA512_C=y
 
 # Logging
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+# ANSI colour on the serial console. Present in r2.0; lost in the refactor.
+CONFIG_LOG_COLORS=y
+
+# Core dump to the dedicated 'coredump' partition so panics survive a reboot and
+# can be extracted with `idf.py coredump-info`. Present in r2.0; lost in refactor.
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_COREDUMP_CHECKSUM_CRC32=y
+CONFIG_ESP_COREDUMP_CHECK_BOOT=y
 
 # Suppress legacy I2C driver deprecation warning (used by HomeKit MFi)
 CONFIG_I2C_SUPPRESS_DEPRECATE_WARN=y

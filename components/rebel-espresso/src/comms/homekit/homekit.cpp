@@ -12,12 +12,20 @@
 #include <src/device/thing_info.h>
 #include <hw_config.h>
 #include <esp_log.h>
+#include <esp_system.h>
 #include "power.h"
 #include "rtds.h"
 #include "brew_temp.h"
 #include "boiler_temp.h"
+#include "homekit_config.h"
 
 static hap_serv_t *service;
+
+static bool s_running = false;
+// Set once the HAP core + accessory database have been built this boot. The SDK
+// cannot cleanly re-init its internal event loop once stopped, so re-enabling
+// HomeKit after a disable requires a full reboot rather than a partial restart.
+static bool s_hap_inited = false;
 
 static hap_char_t *hc_brew_temp = nullptr;
 static hap_char_t *hc_boiler_temp = nullptr;
@@ -365,8 +373,26 @@ static void espresso_thread_entry(void *arg) {
   /* Enable Hardware MFi authentication (applicable only for MFi variant of SDK) */
   hap_enable_mfi_auth(HAP_MFI_AUTH_HW);
 
+  // Firmware-owned pairing PIN so it is deterministic and shown in the web UI.
+  // Overrides any code derived from the factory keystore. Must precede hap_start().
+  {
+    const homekit_cfg_t& hkcfg = homekit_config_get();
+    if (homekit_setup_code_valid(hkcfg.setup_code)) {
+      hap_set_setup_code(hkcfg.setup_code);
+      ESP_LOGI(TAG, "HomeKit setup code applied from config");
+    }
+  }
+
   /* After all the initializations are done, start the HAP core */
-  hap_start();
+  s_hap_inited = true;
+  // hap_start() returns early (before hap_loop_start()) on any failure, leaving
+  // no event loop. Only advertise HomeKit as running on success, otherwise
+  // callers would queue events (reset-pairings, notifications) into a dead loop.
+  if (hap_start() == HAP_SUCCESS) {
+    s_running = true;
+  } else {
+    ESP_LOGE(TAG, "hap_start() failed — HomeKit not running");
+  }
 
   /* The task ends here. The read/write callbacks will be invoked by the HAP Framework */
   vTaskDelete(NULL);
@@ -410,13 +436,68 @@ void homekit_terminate() {
   ESP_ERROR_CHECK(esp_event_handler_unregister(MACHINE_EVENTS, TICK, _tick_events));
 
   hap_stop();
+  s_running = false;
 }
 
-void homekit_init() {
-  // Register power events so we can send to home kit
+bool homekit_is_running() {
+  return s_running;
+}
+
+int homekit_paired_count() {
+  return s_running ? hap_get_paired_controller_count() : 0;
+}
+
+bool homekit_reset_pairings() {
+  if (!s_running) {
+    ESP_LOGW(TAG, "Reset pairings requested but HomeKit is not running");
+    return false;
+  }
+  ESP_LOGW(TAG, "Erasing all HomeKit pairings — accessory will reboot");
+  // hap_reset_pairings() only enqueues an event for the HAP loop; if that loop
+  // isn't available the erase+reboot silently never happens, so surface it.
+  if (hap_reset_pairings() != HAP_SUCCESS) {
+    ESP_LOGE(TAG, "Failed to queue HomeKit pairing reset (HAP loop unavailable)");
+    return false;
+  }
+  return true;
+}
+
+// Register the machine events the accessory reacts to (idempotent per start).
+static void _register_events() {
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_STANDBY, _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, POWER_ACTIVE, _power_events, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_register(MACHINE_EVENTS, TICK, _tick_events, nullptr));
+}
 
+void homekit_apply_config() {
+  const bool desired = homekit_config_get().enabled;
+
+  if (desired && !s_running) {
+    if (!s_hap_inited) {
+      _register_events();
+      xTaskCreate(espresso_thread_entry, HK_TASK_NAME, HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
+      ESP_LOGI(TAG, "HomeKit enabled at runtime");
+    } else {
+      // hap_stop() tears down the HAP event loop and it cannot be recreated in
+      // place (leaves an accessory that is "running" but whose event queue is
+      // dead, silently dropping reset-pairings/notifications). A clean reboot
+      // re-initialises HomeKit fully from config.
+      ESP_LOGW(TAG, "Re-enabling HomeKit requires a reboot — restarting");
+      esp_restart();
+    }
+  } else if (!desired && s_running) {
+    homekit_terminate();
+    ESP_LOGI(TAG, "HomeKit disabled at runtime");
+  }
+}
+
+void homekit_init() {
+  homekit_config_load();
+  if (!homekit_config_get().enabled) {
+    ESP_LOGI(TAG, "HomeKit disabled by config");
+    return;
+  }
+
+  _register_events();
   xTaskCreate(espresso_thread_entry, HK_TASK_NAME, HK_MAIN_STACK_SIZE, NULL, SWITCH_TASK_PRIORITY, NULL);
 }

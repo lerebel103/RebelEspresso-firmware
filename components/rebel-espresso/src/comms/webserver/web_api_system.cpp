@@ -19,6 +19,11 @@
 #include "brew_temp.h"
 #include "boiler_refill.h"
 #include "schedules.h"
+#include "process_image.h"
+#include "mqtt/mqtt_ha.h"
+#include "mqtt/mqtt_config.h"
+#include "homekit/homekit.h"
+#include "homekit/homekit_config.h"
 #include <src/device/thing_info.h>
 
 #define TAG "api_system"
@@ -59,6 +64,17 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   auto brew_status = brew_get_status();
   cJSON_AddNumberToObject(root, "descale_count", brew_status.descale_count);
   cJSON_AddNumberToObject(root, "last_descale_time", (double)brew_status.last_descale_time);
+
+  // Water-probe diagnostic (median voltage) + corrosion monitoring
+  const process_image_t *pi = process_image_get();
+  auto& refill_cfg = boiler_refill_get_cfg();
+  cJSON_AddNumberToObject(root, "water_probe_mv", pi->water_level_median_mv);
+  cJSON_AddNumberToObject(root, "corrosion_status", pi->corrosion_status);
+  cJSON_AddBoolToObject(root, "corrosion_enabled", refill_cfg.corrosion_enabled != 0);
+  cJSON_AddBoolToObject(root, "corrosion_guard_enabled", refill_cfg.corrosion_guard_enabled != 0);
+  cJSON_AddNumberToObject(root, "corrosion_baseline_mv", refill_cfg.corrosion_baseline_mv);
+  cJSON_AddNumberToObject(root, "corrosion_warn_mv", refill_cfg.corrosion_warn_threshold_mv);
+  cJSON_AddNumberToObject(root, "corrosion_fault_mv", refill_cfg.corrosion_fault_threshold_mv);
 
   const char *json = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");
@@ -141,9 +157,12 @@ static esp_err_t _ota_handler(httpd_req_t *req) {
 
         if (strcmp(incoming_desc->project_name, running_desc->project_name) != 0) {
           ESP_LOGE(TAG, "Project name mismatch: '%s' vs '%s'", incoming_desc->project_name, running_desc->project_name);
+          char err_msg[160];
+          snprintf(err_msg, sizeof(err_msg), "Wrong firmware: expected '%s', got '%s'", running_desc->project_name,
+                   incoming_desc->project_name);
           free(buf);
           esp_ota_abort(ota_handle);
-          httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Wrong firmware (project name mismatch)");
+          httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, err_msg);
           return ESP_FAIL;
         }
 
@@ -256,6 +275,28 @@ static esp_err_t _config_export_handler(httpd_req_t *req) {
     cJSON_free(s);
     cJSON_Delete(obj);
   }
+  // mqtt (password is redacted by to_json — secrets are never exported)
+  {
+    const char *key = ",\"mqtt\":";
+    httpd_resp_send_chunk(req, key, strlen(key));
+    cJSON *obj = cJSON_CreateObject();
+    mqtt_config_get().to_json(obj, "");
+    char *s = cJSON_PrintUnformatted(obj);
+    httpd_resp_send_chunk(req, s, strlen(s));
+    cJSON_free(s);
+    cJSON_Delete(obj);
+  }
+  // homekit
+  {
+    const char *key = ",\"homekit\":";
+    httpd_resp_send_chunk(req, key, strlen(key));
+    cJSON *obj = cJSON_CreateObject();
+    homekit_config_get().to_json(obj, "");
+    char *s = cJSON_PrintUnformatted(obj);
+    httpd_resp_send_chunk(req, s, strlen(s));
+    cJSON_free(s);
+    cJSON_Delete(obj);
+  }
 
   httpd_resp_send_chunk(req, "}", 1);
   httpd_resp_send_chunk(req, NULL, 0); // end chunked transfer
@@ -330,6 +371,18 @@ static esp_err_t _config_import_handler(httpd_req_t *req) {
     applied++;
   }
 
+  section = cJSON_GetObjectItem(root, "mqtt");
+  if (section) {
+    mqtt_config_update(section);
+    applied++;
+  }
+
+  section = cJSON_GetObjectItem(root, "homekit");
+  if (section) {
+    homekit_config_update(section);
+    applied++;
+  }
+
   cJSON_Delete(root);
 
   char resp[64];
@@ -370,6 +423,88 @@ static esp_err_t _factory_reset_handler(httpd_req_t *req) {
   vTaskDelay(pdMS_TO_TICKS(500));
   nvs_flash_erase();
   esp_restart();
+  return ESP_OK;
+}
+
+// --- POST /api/system/probe-calibrate ---
+
+static esp_err_t _probe_calibrate_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  // Only calibrate against a valid, submerged reading (ADC OK and below the
+  // refill threshold) — otherwise (empty boiler, ADC fault or startup) we would
+  // store a bogus baseline and silently disable corrosion protection until
+  // re-calibrated.
+  const process_image_t *pi = process_image_get();
+  if (!pi->water_level_ok) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                        "Probe calibration requires a valid, submerged probe reading (boiler full, ADC OK)");
+    return ESP_FAIL;
+  }
+  uint16_t median = pi->water_level_median_mv;
+  boiler_refill_calibrate_probe(median);
+  auto& cfg = boiler_refill_get_cfg();
+
+  cJSON *root = cJSON_CreateObject();
+  cJSON_AddStringToObject(root, "status", "ok");
+  cJSON_AddNumberToObject(root, "baseline_mv", cfg.corrosion_baseline_mv);
+  cJSON_AddNumberToObject(root, "warn_mv", cfg.corrosion_warn_threshold_mv);
+  cJSON_AddNumberToObject(root, "fault_mv", cfg.corrosion_fault_threshold_mv);
+
+  const char *resp = cJSON_PrintUnformatted(root);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, resp);
+
+  cJSON_free((void *)resp);
+  cJSON_Delete(root);
+  return ESP_OK;
+}
+
+// --- GET /api/comms/status (live MQTT + HomeKit connection state) ---
+
+static esp_err_t _comms_status_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  cJSON *root = cJSON_CreateObject();
+
+  cJSON *mqtt = cJSON_AddObjectToObject(root, "mqtt");
+  cJSON_AddBoolToObject(mqtt, "enabled", mqtt_ha_is_enabled());
+  cJSON_AddBoolToObject(mqtt, "connected", mqtt_ha_is_connected());
+
+  cJSON *hk = cJSON_AddObjectToObject(root, "homekit");
+  const homekit_cfg_t& hkcfg = homekit_config_get();
+  cJSON_AddBoolToObject(hk, "enabled", hkcfg.enabled);
+  cJSON_AddBoolToObject(hk, "running", homekit_is_running());
+  cJSON_AddNumberToObject(hk, "paired", homekit_paired_count());
+
+  const char *resp = cJSON_PrintUnformatted(root);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, resp);
+  cJSON_free((void *)resp);
+  cJSON_Delete(root);
+  return ESP_OK;
+}
+
+// --- POST /api/homekit/reset-pairings ---
+
+static esp_err_t _homekit_reset_pairings_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  ESP_LOGW(TAG, "HomeKit reset-pairings requested!");
+
+  if (!homekit_reset_pairings()) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "HomeKit is not running");
+    return ESP_FAIL;
+  }
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_sendstr(req, "{\"status\":\"ok\",\"message\":\"HomeKit pairings erased, accessory rebooting...\"}");
   return ESP_OK;
 }
 
@@ -421,6 +556,30 @@ void web_api_system_register(httpd_handle_t server) {
       .user_ctx = nullptr,
   };
   httpd_register_uri_handler(server, &factory_reset_uri);
+
+  const httpd_uri_t probe_cal_uri = {
+      .uri = "/api/system/probe-calibrate",
+      .method = HTTP_POST,
+      .handler = _probe_calibrate_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &probe_cal_uri);
+
+  const httpd_uri_t comms_status_uri = {
+      .uri = "/api/comms/status",
+      .method = HTTP_GET,
+      .handler = _comms_status_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &comms_status_uri);
+
+  const httpd_uri_t hk_reset_uri = {
+      .uri = "/api/homekit/reset-pairings",
+      .method = HTTP_POST,
+      .handler = _homekit_reset_pairings_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &hk_reset_uri);
 
   ESP_LOGI(TAG, "System API registered");
 }

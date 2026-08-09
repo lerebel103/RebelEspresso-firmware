@@ -76,7 +76,7 @@ MOCK_SYSTEM_INFO = {
     "idf_version": "v6.0.2",
     "build_date": "Jul 31 2026",
     "build_time": "10:30:00",
-    "thing_type": "coffee-drivah",
+    "thing_type": "rebel-espresso",
     "thing_id": "espresso-001",
     "hardware_rev": 2,
     "hardware_rev_minor": 0,

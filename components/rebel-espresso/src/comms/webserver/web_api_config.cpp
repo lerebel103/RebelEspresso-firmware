@@ -9,6 +9,9 @@
 #include "brew_temp.h"
 #include "boiler_refill.h"
 #include "schedules.h"
+#include "mqtt/mqtt_config.h"
+#include "homekit/homekit_config.h"
+#include "homekit/homekit.h"
 
 #define TAG "api_config"
 #define MAX_BODY_SIZE 1024
@@ -85,6 +88,10 @@ static esp_err_t _config_get_handler(httpd_req_t *req) {
   } else if (strcmp(name, "schedules") == 0) {
     auto cfg = schedules_get_cfg();
     cfg.to_json(json, "");
+  } else if (strcmp(name, "mqtt") == 0) {
+    mqtt_config_get().to_json(json, "");
+  } else if (strcmp(name, "homekit") == 0) {
+    homekit_config_get().to_json(json, "");
   } else {
     found = false;
   }
@@ -138,6 +145,12 @@ static esp_err_t _config_put_handler(httpd_req_t *req) {
     boiler_refill_update_cfg(json);
   } else if (strcmp(name, "schedules") == 0) {
     schedules_update_cfg(json);
+  } else if (strcmp(name, "mqtt") == 0) {
+    mqtt_config_update(json);
+  } else if (strcmp(name, "homekit") == 0) {
+    homekit_config_update(json);
+    // Start/stop the accessory to match the new enabled state without a reboot.
+    homekit_apply_config();
   } else {
     found = false;
   }
@@ -176,6 +189,11 @@ static esp_err_t _config_reset_handler(httpd_req_t *req) {
     boiler_refill_reset_cfg();
   } else if (strcmp(name, "schedules") == 0) {
     schedules_reset_cfg();
+  } else if (strcmp(name, "mqtt") == 0) {
+    mqtt_config_reset();
+  } else if (strcmp(name, "homekit") == 0) {
+    homekit_config_reset();
+    homekit_apply_config();
   } else {
     found = false;
   }

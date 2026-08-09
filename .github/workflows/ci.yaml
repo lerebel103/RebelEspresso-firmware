@@ -39,7 +39,6 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           rm -f dependencies.lock
-          gzip -9 -n -k -f webapp/index.html
           idf.py -DBUILD_STAGE=$BUILD_STAGE -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE build
 
       - name: Check formatting
@@ -94,9 +93,6 @@ jobs:
           fetch-tags: true
           submodules: recursive
 
-      - name: Build web UI
-        run: gzip -9 -n -k -f webapp/index.html
-
       - name: Build firmware
         run: |
           . $IDF_PATH/export.sh
@@ -108,8 +104,15 @@ jobs:
 
       - name: Verify binary fits OTA partition
         run: |
-          SIZE=$(stat -c%s build/coffee-drivah-firmware.bin)
+          FW_BIN=$(find build/deploy/firmware -maxdepth 1 -type f -name '*-v*.bin' | head -n1)
+          if [ -z "$FW_BIN" ]; then
+            echo "ERROR: Versioned firmware .bin not found in deploy output"
+            ls -la build/deploy/firmware
+            exit 1
+          fi
+          SIZE=$(stat -c%s "$FW_BIN")
           MAX=$((2000 * 1024))
+          echo "Firmware artifact: $FW_BIN"
           echo "Firmware size: $SIZE bytes (max: $MAX)"
           if [ "$SIZE" -gt "$MAX" ]; then
             echo "ERROR: Firmware exceeds OTA partition limit!"

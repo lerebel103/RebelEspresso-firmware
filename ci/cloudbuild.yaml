@@ -1,0 +1,17 @@
+# Legacy Google Cloud Build compatibility stub.
+# This repository now uses GitHub Actions as the primary CI system.
+# Keep this file so old Cloud Build triggers that still point to
+# `ci/cloudbuild.yaml` do not fail with file-not-found.
+
+steps:
+  - name: gcr.io/cloud-builders/gcloud
+    id: legacy-ci-stub
+    entrypoint: /bin/bash
+    args:
+      - -lc
+      - |
+        echo "Legacy Google Cloud Build trigger is deprecated."
+        echo "Primary CI runs in GitHub Actions (.github/workflows/ci.yaml)."
+
+options:
+  logging: CLOUD_LOGGING_ONLY

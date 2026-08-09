@@ -32,7 +32,13 @@ execute_process(
     RESULT_VARIABLE _git_result
 )
 if(NOT _git_result EQUAL 0)
-    set(GIT_SHORT_HASH "unknown")
+    # In CI/container builds, git ownership checks or missing .git metadata can
+    # make rev-parse fail even though the commit SHA is available from env.
+    if(DEFINED ENV{GITHUB_SHA} AND NOT "$ENV{GITHUB_SHA}" STREQUAL "")
+        string(SUBSTRING "$ENV{GITHUB_SHA}" 0 7 GIT_SHORT_HASH)
+    else()
+        set(GIT_SHORT_HASH "unknown")
+    endif()
 endif()
 
 # Preferred source for release version. In CI, pass -DRELEASE_VERSION=$GITHUB_REF_NAME

@@ -104,7 +104,7 @@ jobs:
 
       - name: Verify binary fits OTA partition
         run: |
-          FW_BIN=$(find build/deploy/firmware -maxdepth 1 -type f -name '*-firmware-v*.bin' | head -n1)
+          FW_BIN=$(find build/deploy/firmware -maxdepth 1 -type f -name '*-v*.bin' | head -n1)
           if [ -z "$FW_BIN" ]; then
             echo "ERROR: Versioned firmware .bin not found in deploy output"
             ls -la build/deploy/firmware

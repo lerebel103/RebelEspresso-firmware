@@ -127,7 +127,7 @@ SET(CMAKE_CXX_FLAGS "-Wno-error=incompatible-pointer-types ${CMAKE_CXX_FLAGS}")
 ###############################################################################
 
 set(IDF_TARGET esp32)
-set(PROJECT_NAME "${THING_TYPE}-firmware")
+set(PROJECT_NAME "${THING_TYPE}")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
 

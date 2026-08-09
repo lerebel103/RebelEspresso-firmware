@@ -72,6 +72,9 @@ endif()
 SET(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" CACHE INTERNAL "" FORCE)
 SET(FIRMWARE_VERSION "${PROJECT_VERSION}-${GIT_SHORT_HASH}" CACHE INTERNAL "" FORCE)
 SET(FIRMWARE_VERSION_LABEL "v${FIRMWARE_VERSION}" CACHE INTERNAL "" FORCE)
+# Use the same hash-augmented version for ESP-IDF app metadata (esp_app_desc_t)
+# so console logs, web API system info, and integrations all report one value.
+set(PROJECT_VER "${FIRMWARE_VERSION}")
 MESSAGE(STATUS "Firmware version: ${FIRMWARE_VERSION_LABEL}")
 
 # Compile-time defines

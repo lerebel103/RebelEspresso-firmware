@@ -11,6 +11,7 @@
 
 # Web UI build output (generated from webapp/ sources)
 /data/
+/webapp/index.html.gz
 
 # sdkconfig is auto-generated from sdkconfig.defaults — don't track it
 /sdkconfig

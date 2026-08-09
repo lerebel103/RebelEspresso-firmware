@@ -53,9 +53,9 @@ set(COMPONENT_ADD_INCLUDEDIRS
         "./src/device"
         )
 
-# The web UI is pre-gzipped (webapp/index.html.gz) and embedded in the firmware binary.
-# To update: edit webapp/index.html, then run: gzip -9 -k -f webapp/index.html
-set(WEBAPP_GZ "${CMAKE_SOURCE_DIR}/webapp/index.html.gz")
+# The web UI is gzipped into the build directory and embedded in the firmware binary.
+set(WEBAPP_HTML "${CMAKE_SOURCE_DIR}/webapp/index.html")
+set(WEBAPP_GZ "${CMAKE_BINARY_DIR}/generated/webapp/index.html.gz")
 
 idf_component_register(
         SRC_DIRS ${COMPONENT_SRCDIRS}
@@ -63,3 +63,20 @@ idf_component_register(
         INCLUDE_DIRS ${COMPONENT_ADD_INCLUDEDIRS}
         EMBED_FILES ${WEBAPP_GZ}
 )
+
+if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    add_custom_command(
+            OUTPUT "${WEBAPP_GZ}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/generated/webapp"
+            COMMAND ${CMAKE_COMMAND}
+                    -DINPUT_FILE=${WEBAPP_HTML}
+                    -DOUTPUT_FILE=${WEBAPP_GZ}
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/gzip_webapp.cmake"
+            DEPENDS "${WEBAPP_HTML}"
+            COMMENT "Compressing web UI for firmware embedding"
+            VERBATIM
+    )
+
+    add_custom_target(webapp_gzip DEPENDS "${WEBAPP_GZ}")
+    add_dependencies(${COMPONENT_LIB} webapp_gzip)
+endif()

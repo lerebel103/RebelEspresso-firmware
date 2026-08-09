@@ -1278,6 +1278,19 @@ async function uploadOTA() {
   status.textContent = 'Uploading firmware...';
   status.style.color = 'var(--text)';
 
+  // Capture a baseline uptime/version so reboot verification can distinguish
+  // "device is still online" from "device rebooted and came back".
+  let otaBaseline = null;
+  try {
+    const info = await api('system/info');
+    otaBaseline = {
+      uptimeSec: Number(info.uptime_sec),
+      firmwareVersion: info.firmware_version || ''
+    };
+  } catch (e) {
+    otaBaseline = null;
+  }
+
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/system/ota');
   xhr.timeout = 120000;
@@ -1299,31 +1312,24 @@ async function uploadOTA() {
       status.style.color = 'var(--success)';
       toast('Firmware flashed, rebooting...', 'success');
       // Wait for reboot and try to reconnect
-      _waitForReboot();
+      _waitForReboot(otaBaseline);
     } else {
       progress.style.display = 'none';
-      let errMsg = xhr.responseText || ('HTTP ' + xhr.status);
+      let errMsg = (xhr.responseText || '').trim();
+      if (!errMsg) errMsg = 'HTTP ' + xhr.status;
       status.innerHTML = '<span class="indicator error"></span>OTA failed: ' + errMsg;
       status.style.color = 'var(--error)';
-      toast('OTA failed', 'error');
+      toast('OTA failed: ' + errMsg, 'error');
       btn.disabled = false;
     }
   };
 
   xhr.onerror = () => {
-    // Connection reset can mean the device rebooted mid-response (success case)
-    // or a genuine network error. Check if upload completed (100%).
-    if (bar.style.width === '100%') {
-      status.innerHTML = '<span class="indicator ok"></span>Upload complete. Device may be rebooting...<br><span style="color:var(--text-dim)">Please wait ~15 seconds. This page will reload automatically.</span>';
-      status.style.color = 'var(--success)';
-      _waitForReboot();
-    } else {
-      progress.style.display = 'none';
-      status.innerHTML = '<span class="indicator error"></span>Upload failed (connection lost)';
-      status.style.color = 'var(--error)';
-      toast('Connection lost during upload', 'error');
-      btn.disabled = false;
-    }
+    // Network errors can happen on both success (connection reset during reboot)
+    // and failure. Defer final judgement to reboot verification logic.
+    status.innerHTML = '<span class="indicator warn"></span>Connection changed during OTA; verifying device reboot status...';
+    status.style.color = 'var(--warn)';
+    _waitForReboot(otaBaseline, true);
   };
 
   xhr.ontimeout = () => {
@@ -1337,10 +1343,11 @@ async function uploadOTA() {
   xhr.send(file);
 }
 
-function _waitForReboot() {
+function _waitForReboot(baseline, fromNetworkError = false) {
   // Poll the device until it responds (reboot takes ~10-15s)
   let attempts = 0;
   const maxAttempts = 30; // 30 x 2s = 60s max wait
+  let sawOffline = false;
   const status = document.getElementById('ota-status');
   const progress = document.getElementById('ota-progress');
   const bar = document.getElementById('ota-bar');
@@ -1354,14 +1361,41 @@ function _waitForReboot() {
     try {
       const resp = await fetch('/api/system/info', {signal: AbortSignal.timeout(3000)});
       if (resp.ok) {
-        clearInterval(interval);
-        progress.style.display = 'none';
-        status.innerHTML = '<span class="indicator ok"></span>Device is back online! Reloading...';
-        status.style.color = 'var(--success)';
-        toast('Device back online', 'success');
-        setTimeout(() => window.location.reload(), 1500);
+        const info = await resp.json();
+        const uptime = Number(info.uptime_sec);
+
+        // Accept success only when we have evidence of an actual reboot.
+        const rebootedByUptime =
+          baseline && Number.isFinite(baseline.uptimeSec) && Number.isFinite(uptime) &&
+          uptime + 5 < baseline.uptimeSec;
+
+        if (sawOffline || rebootedByUptime) {
+          clearInterval(interval);
+          progress.style.display = 'none';
+          status.innerHTML = '<span class="indicator ok"></span>Device is back online! Reloading...';
+          status.style.color = 'var(--success)';
+          toast('Device back online', 'success');
+          setTimeout(() => window.location.reload(), 1500);
+          return;
+        }
+
+        // If still online for a while with no reboot evidence, surface failure
+        // instead of hanging in a misleading "rebooting" state.
+        if (attempts >= 6) {
+          clearInterval(interval);
+          progress.style.display = 'none';
+          status.innerHTML = '<span class="indicator error"></span>OTA did not trigger a reboot. Firmware may have been rejected by the device.';
+          status.style.color = 'var(--error)';
+          toast('OTA failed: firmware rejected or reboot not triggered', 'error');
+          btn.disabled = false;
+          return;
+        }
+
+        status.innerHTML = '<span class="indicator warn"></span>Waiting for reboot to start... (' + (attempts * 2) + 's)';
+        status.style.color = 'var(--warn)';
       }
     } catch (e) {
+      sawOffline = true;
       // Still rebooting, update status
       if (attempts <= 7) {
         status.innerHTML = '<span class="indicator warn"></span>Device is rebooting... (' + (attempts * 2) + 's)';
@@ -1374,7 +1408,10 @@ function _waitForReboot() {
     if (attempts >= maxAttempts) {
       clearInterval(interval);
       progress.style.display = 'none';
-      status.innerHTML = '<span class="indicator error"></span>Device did not respond after 60s. Try reloading the page manually.';
+      status.innerHTML = '<span class="indicator error"></span>' +
+        (fromNetworkError
+          ? 'OTA could not be verified after a network error. Device did not complete a detectable reboot.'
+          : 'Device did not respond after 60s. Try reloading the page manually.');
       status.style.color = 'var(--error)';
       btn.disabled = false;
     }

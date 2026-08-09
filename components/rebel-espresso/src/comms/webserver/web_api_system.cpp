@@ -157,9 +157,12 @@ static esp_err_t _ota_handler(httpd_req_t *req) {
 
         if (strcmp(incoming_desc->project_name, running_desc->project_name) != 0) {
           ESP_LOGE(TAG, "Project name mismatch: '%s' vs '%s'", incoming_desc->project_name, running_desc->project_name);
+          char err_msg[160];
+          snprintf(err_msg, sizeof(err_msg), "Wrong firmware: expected '%s', got '%s'", running_desc->project_name,
+                   incoming_desc->project_name);
           free(buf);
           esp_ota_abort(ota_handle);
-          httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Wrong firmware (project name mismatch)");
+          httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, err_msg);
           return ESP_FAIL;
         }
 

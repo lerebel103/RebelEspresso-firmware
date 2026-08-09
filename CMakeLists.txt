@@ -43,18 +43,36 @@ execute_process(
     RESULT_VARIABLE _git_result
 )
 if(_git_result EQUAL 0 AND GIT_LAST_TAG)
-    string(REPLACE "." ";" VERSION_LIST ${GIT_LAST_TAG})
-    list(GET VERSION_LIST 0 PROJECT_VERSION_MAJOR)
-    list(GET VERSION_LIST 1 PROJECT_VERSION_MINOR)
+    # Release tags are expected as vX.Y.Z (or X.Y.Z). Strip an optional leading
+    # "v" so compile-time numeric defines remain valid integers.
+    string(REGEX REPLACE "^v" "" GIT_LAST_TAG_SANITIZED ${GIT_LAST_TAG})
+    string(REPLACE "." ";" VERSION_LIST ${GIT_LAST_TAG_SANITIZED})
+    list(LENGTH VERSION_LIST VERSION_LIST_LEN)
+    if(VERSION_LIST_LEN GREATER 0)
+        list(GET VERSION_LIST 0 PROJECT_VERSION_MAJOR)
+    else()
+        set(PROJECT_VERSION_MAJOR 0)
+    endif()
+    if(VERSION_LIST_LEN GREATER 1)
+        list(GET VERSION_LIST 1 PROJECT_VERSION_MINOR)
+    else()
+        set(PROJECT_VERSION_MINOR 0)
+    endif()
+    if(VERSION_LIST_LEN GREATER 2)
+        list(GET VERSION_LIST 2 PROJECT_VERSION_PATCH)
+    else()
+        set(PROJECT_VERSION_PATCH 0)
+    endif()
 else()
     set(PROJECT_VERSION_MAJOR 0)
     set(PROJECT_VERSION_MINOR 0)
+    set(PROJECT_VERSION_PATCH 0)
 endif()
-set(PROJECT_VERSION_PATCH 0)
 
 SET(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" CACHE INTERNAL "" FORCE)
-SET(FIRMWARE_VERSION ${PROJECT_VERSION} CACHE INTERNAL "" FORCE)
-MESSAGE(STATUS "Firmware version: ${PROJECT_VERSION} (${GIT_SHORT_HASH})")
+SET(FIRMWARE_VERSION "${PROJECT_VERSION}-${GIT_SHORT_HASH}" CACHE INTERNAL "" FORCE)
+SET(FIRMWARE_VERSION_LABEL "v${FIRMWARE_VERSION}" CACHE INTERNAL "" FORCE)
+MESSAGE(STATUS "Firmware version: ${FIRMWARE_VERSION_LABEL}")
 
 # Compile-time defines
 add_definitions(
@@ -109,7 +127,7 @@ SET(CMAKE_CXX_FLAGS "-Wno-error=incompatible-pointer-types ${CMAKE_CXX_FLAGS}")
 ###############################################################################
 
 set(IDF_TARGET esp32)
-set(PROJECT_NAME coffee-drivah-firmware)
+set(PROJECT_NAME "${THING_TYPE}-firmware")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
 
@@ -119,26 +137,23 @@ project(${PROJECT_NAME} VERSION ${PROJECT_VERSION})
 
 set(DEPLOY_BASE_DIR ${CMAKE_BINARY_DIR}/deploy)
 set(FIRMWARE_TARGET_DIR ${DEPLOY_BASE_DIR}/firmware)
-
-add_custom_command(TARGET app POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E rm -fr "${DEPLOY_BASE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${FIRMWARE_TARGET_DIR}"
-
-    COMMAND ${CMAKE_COMMAND} -E echo "${FIRMWARE_VERSION}" > "${FIRMWARE_TARGET_DIR}/firmware_version.txt"
-    COMMAND ${CMAKE_COMMAND} -E echo "r2" > "${FIRMWARE_TARGET_DIR}/hardware_revision.txt"
-
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.bin" "${FIRMWARE_TARGET_DIR}/firmware.bin"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.elf" "${FIRMWARE_TARGET_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/*firmware.map" "${FIRMWARE_TARGET_DIR}"
-)
-
-add_custom_command(TARGET bootloader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/partition_table/*.bin" "${FIRMWARE_TARGET_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/bootloader/*.bin" "${FIRMWARE_TARGET_DIR}"
-)
+set(FIRMWARE_ARTIFACT_BASENAME "${PROJECT_NAME}-${FIRMWARE_VERSION_LABEL}")
 
 add_custom_target(deploy ALL
     DEPENDS app bootloader
+    COMMAND ${CMAKE_COMMAND} -E rm -fr "${DEPLOY_BASE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${FIRMWARE_TARGET_DIR}"
+
+    COMMAND ${CMAKE_COMMAND} -E echo "${FIRMWARE_VERSION_LABEL}" > "${FIRMWARE_TARGET_DIR}/firmware_version.txt"
+    COMMAND ${CMAKE_COMMAND} -E echo "r2" > "${FIRMWARE_TARGET_DIR}/hardware_revision.txt"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.bin" "${FIRMWARE_TARGET_DIR}/${FIRMWARE_ARTIFACT_BASENAME}.bin"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.elf" "${FIRMWARE_TARGET_DIR}/${FIRMWARE_ARTIFACT_BASENAME}.elf"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map" "${FIRMWARE_TARGET_DIR}/${FIRMWARE_ARTIFACT_BASENAME}.map"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/partition_table/partition-table.bin" "${FIRMWARE_TARGET_DIR}/partition-table.bin"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/bootloader/bootloader.bin" "${FIRMWARE_TARGET_DIR}/bootloader.bin"
+
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${CMAKE_BINARY_DIR}/deploy.zip"
     COMMAND zip -r deploy.zip deploy
 )
 

@@ -53,7 +53,7 @@ sdkconfig-sync:
 
 ## Build firmware (includes embedded web UI)
 build: .docker-image sdkconfig-sync
-	$(DOCKER_RUN) bash -c "gzip -9 -n -k -f /workspace/webapp/index.html && idf.py $(CMAKE_VARS) build"
+	$(DOCKER_RUN) idf.py $(CMAKE_VARS) build
 
 ## Run unit tests in QEMU
 test: .docker-image

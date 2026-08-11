@@ -59,7 +59,7 @@ This capture shows the control behavior in practice:
 - Boiler temperature reaches and holds its target quickly.
 - Brew-head temperature rises more gradually due to thermal mass and pipework coupling.
 
-The reason for the dual PID architecture is that the brew head cannot be heated independently — it is coupled to the boiler through a thermosyphon, the passive heat-exchange loop common to E61 group machines like the VBM Super. To hold the brew head at its own target, the boiler setpoint is continuously trimmed up or down so that the resulting thermosyphon flow maintains the brew-head temperature. In this capture the boiler setpoint happens to be stable because thermal equilibrium was already reached before recording started.
+The reason for the dual PID architecture is that the brew head cannot be heated independently — it is coupled to the boiler through a thermosyphon, the passive heat-exchange loop common to E61 group machines like the VBM Super. To hold the brew head at its own target, the boiler setpoint is continuously trimmed up or down so that the resulting thermosyphon flow maintains the brew-head temperature (not shown on this capture). 
 
 ### Built-in web interface
 

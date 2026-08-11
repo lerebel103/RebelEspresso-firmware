@@ -59,7 +59,7 @@ This capture shows the control behavior in practice:
 - Boiler temperature reaches and holds its target quickly.
 - Brew-head temperature rises more gradually due to thermal mass and pipework coupling.
 
-Together, these traces show why the project uses separate boiler and brew-head control logic rather than a single-loop approach.
+The reason for the dual PID architecture is that the brew head cannot be heated independently — it is thermally coupled to the boiler through pipework. To hold the brew head at its own target, the boiler setpoint is continuously trimmed up or down so that the resulting heat flow through the group maintains the brew-head temperature. In this capture the boiler setpoint happens to be stable because thermal equilibrium was already reached before recording started.
 
 ### Built-in web interface
 

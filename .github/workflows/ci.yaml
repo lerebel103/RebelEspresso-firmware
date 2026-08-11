@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, feature/*]
+    branches: [master, feature/*]
     tags: ['v*']
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

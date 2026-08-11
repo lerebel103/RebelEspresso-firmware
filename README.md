@@ -52,13 +52,18 @@ safety and deterministic temperature control on-device.
 
 ### Home Assistant telemetry
 
+![Home Assistant history for duty, boiler and brew temperatures](media/home-assistant-history.jpg)
+
+This capture shows the control behavior at startup:
+- Boiler duty (%) ramps hard, then tapers as the system approaches thermal steady state.
+- Boiler temperature reaches and holds its target quickly.
+- Brew-head temperature rises more gradually as the thermosyphon transfers heat to the group.
+
+The reason for the dual PID architecture is that the brew head cannot be heated independently — it is coupled to the boiler through a thermosyphon, the passive heat-exchange loop common to E61 group machines like the VBM Super. To hold the brew head at its own target, the firmware continuously trims the boiler setpoint up or down so that the resulting thermosyphon flow maintains the brew-head temperature.
+
 ![Dual PID in action: boiler trim maintaining brew head temperature](media/dual-pid-action.jpg)
 
-This capture shows the dual PID architecture in action over a two-hour window:
-- Boiler temperature (blue, ~122 °C) is held at its setpoint throughout.
-- Brew-head temperature (orange) warms from cold (~83 °C) and stabilises around 92 °C.
-
-The reason for the dual PID architecture is that the brew head cannot be heated independently — it is coupled to the boiler through a thermosyphon, the passive heat-exchange loop common to E61 group machines like the VBM Super. To hold the brew head at its own target, the firmware continuously trims the boiler setpoint up or down so that the resulting thermosyphon flow compensates for varying ambient conditions (open doors, air conditioning, etc.) and maintains the brew-head temperature.
+Over a longer window the trim effect becomes visible: the boiler setpoint is adjusted in response to ambient conditions (open doors, air conditioning, etc.) to keep the brew head stable at its target.
 
 ### Built-in web interface
 

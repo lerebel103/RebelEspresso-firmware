@@ -5,6 +5,7 @@
 #include <src/events.h>
 #include <esp_log.h>
 #include <ctime>
+#include <inttypes.h>
 #include <hw_config.h>
 #include <esp_timer.h>
 #include <esp_ota_ops.h>
@@ -29,6 +30,7 @@
 #define TAG "iot"
 
 #define IOT_LOOP_PERIOD 1000
+#define MDNS_RETRY_LOG_THROTTLE_MS 15000
 
 static bool _go = true;
 static bool _web_server_started = false;
@@ -37,6 +39,10 @@ static bool _rollback_validated = false;
 static bool _mdns_http_registered = false;
 static bool _mdns_hostname_warned = false;
 static bool _mdns_instance_warned = false;
+static uint32_t _mdns_attempt_count = 0;
+static uint32_t _mdns_failure_count = 0;
+static int64_t _mdns_last_failure_log_ms = 0;
+static esp_err_t _mdns_last_add_err = ESP_OK;
 static char _mdns_hostname[64] = {0};
 
 // Socket-pool watchdog: track the high-water mark and dump a full census when
@@ -44,6 +50,28 @@ static char _mdns_hostname[64] = {0};
 #define SOCKET_CENSUS_THROTTLE_MS 10000
 static int _socket_peak = 0;
 static time_t _last_census_ms = 0;
+
+static void _log_mdns_retry(esp_err_t add_err, esp_err_t port_err, esp_err_t txt_err, esp_err_t inst_err,
+                            const char *hostname) {
+  _mdns_failure_count++;
+
+  const int64_t now_ms = esp_timer_get_time() / 1000;
+  const bool throttle_elapsed =
+      (_mdns_last_failure_log_ms == 0) || ((now_ms - _mdns_last_failure_log_ms) >= MDNS_RETRY_LOG_THROTTLE_MS);
+  const bool error_changed = add_err != _mdns_last_add_err;
+
+  if (_mdns_failure_count <= 3 || throttle_elapsed || error_changed) {
+    EventBits_t bits = xEventGroupGetBits(status_event_group);
+    ESP_LOGW(TAG,
+             "mDNS HTTP advertise retry: host=%s attempts=%" PRIu32 " failures=%" PRIu32
+             " add=%s port=%s txt=%s inst=%s wifi_connected=%d ap_active=%d",
+             hostname, _mdns_attempt_count, _mdns_failure_count, esp_err_to_name(add_err), esp_err_to_name(port_err),
+             esp_err_to_name(txt_err), esp_err_to_name(inst_err), (bits & WIFI_CONNECTED_BIT) != 0,
+             (bits & WIFI_AP_ACTIVE_BIT) != 0);
+    _mdns_last_failure_log_ms = now_ms;
+    _mdns_last_add_err = add_err;
+  }
+}
 
 static void _ensure_mdns_http_advertisement() {
   char hostname[sizeof(_mdns_hostname)] = {0};
@@ -66,36 +94,46 @@ static void _ensure_mdns_http_advertisement() {
   }
 
   if (_mdns_http_registered) {
-    if (mdns_service_instance_name_set("_http", "_tcp", hostname) == ESP_OK) {
+    esp_err_t inst_err = mdns_service_instance_name_set("_http", "_tcp", hostname);
+    if (inst_err == ESP_OK) {
       _mdns_instance_warned = false;
     } else if (!_mdns_instance_warned) {
-      ESP_LOGW(TAG, "mDNS HTTP instance rename failed, keeping previous name");
+      ESP_LOGW(TAG, "mDNS HTTP instance rename failed (%s), keeping previous name", esp_err_to_name(inst_err));
       _mdns_instance_warned = true;
     }
     return;
   }
 
   mdns_txt_item_t txt[] = {{"path", "/"}};
+  _mdns_attempt_count++;
   esp_err_t err = mdns_service_add(hostname, "_http", "_tcp", 8080, txt, 1);
   if (err == ESP_OK) {
     _mdns_http_registered = true;
     _mdns_instance_warned = false;
-    ESP_LOGI(TAG, "mDNS service advertised: %s._http._tcp on port 8080", hostname);
+    ESP_LOGI(TAG, "mDNS service advertised: %s._http._tcp on port 8080 (attempt=%" PRIu32 ")", hostname,
+             _mdns_attempt_count);
     return;
   }
 
   // If the HTTP service already exists, ensure its port/TXT are what we need.
-  if (mdns_service_port_set("_http", "_tcp", 8080) == ESP_OK &&
-      mdns_service_txt_set("_http", "_tcp", txt, 1) == ESP_OK) {
-    if (mdns_service_instance_name_set("_http", "_tcp", hostname) == ESP_OK) {
+  esp_err_t port_err = mdns_service_port_set("_http", "_tcp", 8080);
+  esp_err_t txt_err = mdns_service_txt_set("_http", "_tcp", txt, 1);
+  esp_err_t inst_err = mdns_service_instance_name_set("_http", "_tcp", hostname);
+
+  if (port_err == ESP_OK && txt_err == ESP_OK) {
+    if (inst_err == ESP_OK) {
       _mdns_instance_warned = false;
     } else if (!_mdns_instance_warned) {
-      ESP_LOGW(TAG, "mDNS HTTP instance rename failed during service update");
+      ESP_LOGW(TAG, "mDNS HTTP instance rename failed during service update (%s)", esp_err_to_name(inst_err));
       _mdns_instance_warned = true;
     }
     _mdns_http_registered = true;
-    ESP_LOGI(TAG, "mDNS service updated: _http._tcp on port 8080");
+    ESP_LOGI(TAG, "mDNS service updated: _http._tcp on port 8080 (attempt=%" PRIu32 ", add=%s)", _mdns_attempt_count,
+             esp_err_to_name(err));
+    return;
   }
+
+  _log_mdns_retry(err, port_err, txt_err, inst_err, hostname);
 }
 
 static void _monitor_socket_pool() {

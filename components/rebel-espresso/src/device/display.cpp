@@ -413,7 +413,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 
     int wifi_setup_remaining_seconds = _wifi_setup_overlay_seconds_remaining();
 
-    if ((WIFI_AP_ACTIVE_BIT & uxBits) && wifi_setup_remaining_seconds > 0) {
+    if ((WIFI_AP_ACTIVE_BIT & uxBits) && !wifi_manager_is_connected() && wifi_setup_remaining_seconds > 0) {
       state = 1;
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);

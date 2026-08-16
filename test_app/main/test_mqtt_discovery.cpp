@@ -17,6 +17,8 @@ TEST_CASE("MQTT state: JSON document carries all fields", "[mqtt]") {
   s.power = true;
   s.refill_error = false;
   s.brew_count = 123;
+  s.boot_count = 42;
+  s.crash_count = 3;
   snprintf(s.last_descale, sizeof(s.last_descale), "2026-08-05 10:30");
   s.open_sockets = 9;
 
@@ -28,6 +30,8 @@ TEST_CASE("MQTT state: JSON document carries all fields", "[mqtt]") {
   TEST_ASSERT_EQUAL_FLOAT(92.5f, (float)cJSON_GetObjectItem(root, "boiler_temp")->valuedouble);
   TEST_ASSERT_EQUAL_INT(40, cJSON_GetObjectItem(root, "boiler_duty")->valueint);
   TEST_ASSERT_EQUAL_INT(123, cJSON_GetObjectItem(root, "brew_count")->valueint);
+  TEST_ASSERT_EQUAL_INT(42, cJSON_GetObjectItem(root, "boot_count")->valueint);
+  TEST_ASSERT_EQUAL_INT(3, cJSON_GetObjectItem(root, "crash_count")->valueint);
   TEST_ASSERT_EQUAL_INT(9, cJSON_GetObjectItem(root, "open_sockets")->valueint);
   TEST_ASSERT_EQUAL_STRING("2026-08-05 10:30", cJSON_GetObjectItem(root, "last_descale")->valuestring);
   TEST_ASSERT_TRUE(cJSON_IsTrue(cJSON_GetObjectItem(root, "power")));
@@ -134,7 +138,8 @@ TEST_CASE("MQTT discovery: counters are total_increasing, binary_sensors carry n
   const mqtt_entity_t *ents = mqtt_entities(&n);
   for (size_t i = 0; i < n; i++) {
     const mqtt_entity_t *e = &ents[i];
-    if (strcmp(e->object_id, "brew_count") == 0 || strcmp(e->object_id, "descale_count") == 0) {
+    if (strcmp(e->object_id, "brew_count") == 0 || strcmp(e->object_id, "descale_count") == 0 ||
+        strcmp(e->object_id, "boot_count") == 0 || strcmp(e->object_id, "crash_count") == 0) {
       TEST_ASSERT_EQUAL_STRING("total_increasing", e->state_class);
     }
     // Binary sensors are not numeric and must not advertise a state_class.

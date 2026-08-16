@@ -20,6 +20,8 @@ typedef struct {
   int corrosion_status; ///< 0 OK / 1 service / 2 fault
   int brew_count;
   int descale_count;
+  int boot_count;
+  int crash_count;
   char last_descale[24]; ///< local "YYYY-MM-DD HH:MM" or "Never"
   int open_sockets;      ///< currently-open LWIP sockets (leak diagnostic)
   bool power;

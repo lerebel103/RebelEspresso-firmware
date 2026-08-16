@@ -176,6 +176,15 @@ void _ensure_power_state_ok() {
       lcdDisplayOff(&dev);
       lcdBacklightOff(&dev);
     }
+
+    // Power-cycling the panel clears visible pixels but not our draw caches.
+    // Invalidate cached state so the next render pass always repaints icons.
+    s_force_status_icon_redraw = true;
+    s_last_wifi_icon_state = -1;
+    s_last_mqtt_icon_state = -1;
+    s_last_homekit_icon_state = -1;
+    last_state = -1;
+
     s_last_on_state = on;
   }
 }

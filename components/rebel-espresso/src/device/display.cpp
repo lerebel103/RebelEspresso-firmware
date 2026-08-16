@@ -1,6 +1,7 @@
 #include "display.h"
 #include <cstring>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_event.h>
@@ -48,6 +49,23 @@ static FontxFile fx24M[2];
 static FontxFile fx32M[2];
 static FontxFile fx64M[2];
 static int last_state = 0;
+static int64_t s_wifi_setup_overlay_deadline_us = 0;
+
+static constexpr int64_t WIFI_SETUP_OVERLAY_DURATION_US = 120LL * 1000000LL;
+
+static int _wifi_setup_overlay_seconds_remaining() {
+  if (s_wifi_setup_overlay_deadline_us <= 0) {
+    return 0;
+  }
+
+  int64_t remaining_us = s_wifi_setup_overlay_deadline_us - esp_timer_get_time();
+  if (remaining_us <= 0) {
+    return 0;
+  }
+
+  // Round up so the countdown reads 2:00 initially instead of 1:59.
+  return static_cast<int>((remaining_us + 999999LL) / 1000000LL);
+}
 
 static void SPIFFS_Directory(const char *path) {
   DIR *dir = opendir(path);
@@ -263,18 +281,42 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
   ESP_LOGD(TAG, "Render Took %" PRIu32 "ms\r\n", pdTICKS_TO_MS(endTick - startTick));
 }
 
-static void _draw_ap_mode(FontxFile *fx16M) {
+static void _draw_ap_mode(FontxFile *fx16M, int remaining_seconds) {
   int x = 20;
   int y = 25;
 
   lcdDrawString(&dev, fx16M, x, y, (uint8_t *)"WiFi Setup Mode", WHITE);
 
   wifi_ap_info_t ap_info = wifi_ap_get_info();
-  char ssid_buf[48];
-  snprintf(ssid_buf, sizeof(ssid_buf), "SSID: %s", ap_info.ssid);
-  lcdDrawString(&dev, fx16M, x, y + 32, (uint8_t *)ssid_buf, GREEN);
-  lcdDrawString(&dev, fx16M, x, y + 64, (uint8_t *)"Connect & open", WHITE);
-  lcdDrawString(&dev, fx16M, x, y + 88, (uint8_t *)"192.168.4.1:8080", WHITE);
+  lcdDrawString(&dev, fx16M, x, y + 32, (uint8_t *)"SSID:", WHITE);
+
+  // Guard against right-edge artifacts by clipping to the available line width.
+  char ssid_value_buf[24];
+  constexpr size_t kMaxShownSsidChars = 17;
+  size_t ssid_len = strnlen(ap_info.ssid, sizeof(ap_info.ssid));
+  if (ssid_len > kMaxShownSsidChars) {
+    snprintf(ssid_value_buf, sizeof(ssid_value_buf), "%.14s...", ap_info.ssid);
+  } else {
+    size_t copy_len = ssid_len;
+    if (copy_len > (sizeof(ssid_value_buf) - 1)) {
+      copy_len = sizeof(ssid_value_buf) - 1;
+    }
+    memcpy(ssid_value_buf, ap_info.ssid, copy_len);
+    ssid_value_buf[copy_len] = '\0';
+  }
+  lcdDrawString(&dev, fx16M, x, y + 56, (uint8_t *)ssid_value_buf, GREEN);
+
+  lcdDrawString(&dev, fx16M, x, y + 88, (uint8_t *)"Connect and open", WHITE);
+  lcdDrawString(&dev, fx16M, x, y + 112, (uint8_t *)"192.168.4.1:8080", WHITE);
+
+  // Keep the footer row clean before writing the changing countdown value.
+  lcdDrawFillRect(&dev, 0, CONFIG_HEIGHT - 30, CONFIG_WIDTH - 1, CONFIG_HEIGHT - 1, BLACK);
+
+  char countdown_buf[32];
+  int minutes = remaining_seconds / 60;
+  int seconds = remaining_seconds % 60;
+  snprintf(countdown_buf, sizeof(countdown_buf), "Hides in %d:%02d", minutes, seconds);
+  lcdDrawString(&dev, fx16M, 20, CONFIG_HEIGHT - 24, (uint8_t *)countdown_buf, GRAY);
 }
 
 static void _draw_descale_mode(FontxFile *fx) {
@@ -360,13 +402,15 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
 
     int state;
 
-    if (WIFI_AP_ACTIVE_BIT & uxBits) {
+    int wifi_setup_remaining_seconds = _wifi_setup_overlay_seconds_remaining();
+
+    if ((WIFI_AP_ACTIVE_BIT & uxBits) && wifi_setup_remaining_seconds > 0) {
       state = 1;
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
       }
-      _draw_ap_mode(fx24M);
+      _draw_ap_mode(fx24M, wifi_setup_remaining_seconds);
     } else if (DESCALE_MODE_BIT & uxBits) {
       state = 2;
       if (state != last_state) {
@@ -476,6 +520,8 @@ void display_init() {
   InitFontx(fx24M, "/spiffs/ILMH24XB.FNT", ""); // 12x24Dot Mincyo
   InitFontx(fx32M, "/spiffs/ILMH32XB.FNT", ""); // 16x32Dot Mincyo
   InitFontx(fx64M, "/spiffs/ILMH64XB.FNT", ""); // 32x64Dot Mincyo
+
+  s_wifi_setup_overlay_deadline_us = esp_timer_get_time() + WIFI_SETUP_OVERLAY_DURATION_US;
 
   ESP_LOGI(TAG, "########### TFT READY ###########");
 }

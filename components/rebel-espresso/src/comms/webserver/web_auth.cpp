@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "wifi/wifi_ap.h"
+#include "wifi/wifi_manager.h"
 
 #define TAG "web_auth"
 #define NVS_NAMESPACE "sys"
@@ -22,6 +23,13 @@ static char s_password_hash[SHA256_HEX_LEN + 1] = {};
 // Session token — generated on successful login, invalidated on password change/disable
 static char s_session_token[TOKEN_LEN * 2 + 1] = {};
 static bool s_token_valid = false;
+
+static bool _auth_temporarily_bypassed() {
+  // Recovery mode: if Soft-AP is active and STA is not connected yet,
+  // bypass auth so users can regain access even after forgetting password.
+  // Once STA connects again, bypass ends and normal auth resumes.
+  return wifi_ap_is_active() && !wifi_manager_is_connected();
+}
 
 static void _load_auth_state() {
   nvs_handle_t handle;
@@ -82,8 +90,8 @@ bool web_auth_check(httpd_req_t *req) {
     return true;
   }
 
-  // Bypass auth when Soft-AP is active (captive portal onboarding mode)
-  if (wifi_ap_is_active()) {
+  // Bypass auth only during AP recovery mode.
+  if (_auth_temporarily_bypassed()) {
     return true;
   }
 
@@ -113,7 +121,11 @@ bool web_auth_check(httpd_req_t *req) {
 
 static esp_err_t _auth_get_handler(httpd_req_t *req) {
   cJSON *root = cJSON_CreateObject();
-  cJSON_AddBoolToObject(root, "enabled", s_auth_enabled);
+
+  bool effective_enabled = s_auth_enabled && !_auth_temporarily_bypassed();
+  cJSON_AddBoolToObject(root, "enabled", effective_enabled);
+  cJSON_AddBoolToObject(root, "configured", s_auth_enabled);
+  cJSON_AddBoolToObject(root, "temporarily_disabled", s_auth_enabled && !effective_enabled);
 
   const char *json = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");

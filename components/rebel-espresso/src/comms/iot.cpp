@@ -44,6 +44,7 @@ static uint32_t _mdns_failure_count = 0;
 static int64_t _mdns_last_failure_log_ms = 0;
 static esp_err_t _mdns_last_add_err = ESP_OK;
 static char _mdns_hostname[64] = {0};
+static char _mdns_http_instance_name[64] = {0};
 
 // Socket-pool watchdog: track the high-water mark and dump a full census when
 // the shared LWIP pool runs low, to pinpoint accept() ENFILE exhaustion.
@@ -94,12 +95,16 @@ static void _ensure_mdns_http_advertisement() {
   }
 
   if (_mdns_http_registered) {
-    esp_err_t inst_err = mdns_service_instance_name_set("_http", "_tcp", hostname);
-    if (inst_err == ESP_OK) {
-      _mdns_instance_warned = false;
-    } else if (!_mdns_instance_warned) {
-      ESP_LOGW(TAG, "mDNS HTTP instance rename failed (%s), keeping previous name", esp_err_to_name(inst_err));
-      _mdns_instance_warned = true;
+    if (strcmp(_mdns_http_instance_name, hostname) != 0) {
+      esp_err_t inst_err = mdns_service_instance_name_set("_http", "_tcp", hostname);
+      if (inst_err == ESP_OK) {
+        strlcpy(_mdns_http_instance_name, hostname, sizeof(_mdns_http_instance_name));
+        _mdns_instance_warned = false;
+        ESP_LOGI(TAG, "mDNS HTTP instance updated to %s", hostname);
+      } else if (!_mdns_instance_warned) {
+        ESP_LOGW(TAG, "mDNS HTTP instance rename failed (%s), keeping previous name", esp_err_to_name(inst_err));
+        _mdns_instance_warned = true;
+      }
     }
     return;
   }
@@ -109,6 +114,7 @@ static void _ensure_mdns_http_advertisement() {
   esp_err_t err = mdns_service_add(hostname, "_http", "_tcp", 8080, txt, 1);
   if (err == ESP_OK) {
     _mdns_http_registered = true;
+    strlcpy(_mdns_http_instance_name, hostname, sizeof(_mdns_http_instance_name));
     _mdns_instance_warned = false;
     ESP_LOGI(TAG, "mDNS service advertised: %s._http._tcp on port 8080 (attempt=%" PRIu32 ")", hostname,
              _mdns_attempt_count);
@@ -122,6 +128,7 @@ static void _ensure_mdns_http_advertisement() {
 
   if (port_err == ESP_OK && txt_err == ESP_OK) {
     if (inst_err == ESP_OK) {
+      strlcpy(_mdns_http_instance_name, hostname, sizeof(_mdns_http_instance_name));
       _mdns_instance_warned = false;
     } else if (!_mdns_instance_warned) {
       ESP_LOGW(TAG, "mDNS HTTP instance rename failed during service update (%s)", esp_err_to_name(inst_err));

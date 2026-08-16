@@ -32,6 +32,8 @@ extern "C" {
 #include "wifi/wifi_ap.h"
 #include "web_auth.h"
 #include "brew.h"
+#include "mqtt/mqtt_ha.h"
+#include "homekit/homekit.h"
 
 #define TAG "tft"
 
@@ -51,6 +53,10 @@ static FontxFile fx32M[2];
 static FontxFile fx64M[2];
 static int last_state = 0;
 static int64_t s_wifi_setup_overlay_deadline_us = 0;
+static int s_last_wifi_icon_state = -1;
+static int s_last_mqtt_icon_state = -1;
+static int s_last_homekit_icon_state = -1;
+static bool s_force_status_icon_redraw = true;
 
 static constexpr int64_t WIFI_SETUP_OVERLAY_DURATION_US = 120LL * 1000000LL;
 
@@ -174,6 +180,106 @@ void _ensure_power_state_ok() {
   }
 }
 
+static inline void _draw_pixel_safe(int x, int y, uint16_t color) {
+  if (x < 0 || y < 0 || x >= CONFIG_WIDTH || y >= CONFIG_HEIGHT) {
+    return;
+  }
+  lcdDrawPixel(&dev, static_cast<uint16_t>(x), static_cast<uint16_t>(y), color);
+}
+
+static void _draw_wifi_arc(int cx, int cy, int radius, uint16_t color) {
+  for (int dx = -radius; dx <= radius; ++dx) {
+    int inside = radius * radius - dx * dx;
+    if (inside < 0) {
+      continue;
+    }
+    int dy = static_cast<int>(roundf(sqrtf(static_cast<float>(inside))));
+    _draw_pixel_safe(cx + dx, cy - dy, color);
+  }
+}
+
+static void _draw_wifi_status_icon(bool connected, bool force_redraw) {
+  int current_state = connected ? 1 : 0;
+  if (!force_redraw && s_last_wifi_icon_state == current_state) {
+    return;
+  }
+
+  const int x1 = CONFIG_WIDTH - 23;
+  const int y1 = 0;
+  const int x2 = CONFIG_WIDTH - 1;
+  const int y2 = 18;
+  lcdDrawFillRect(&dev, x1, y1, x2, y2, BLACK);
+  s_last_wifi_icon_state = current_state;
+
+  if (!connected) {
+    return;
+  }
+
+  const int cx = CONFIG_WIDTH - 11;
+  const int cy = 15;
+  lcdDrawFillCircle(&dev, static_cast<uint16_t>(cx), static_cast<uint16_t>(cy), 2, WHITE);
+  _draw_wifi_arc(cx, cy, 4, WHITE);
+  _draw_wifi_arc(cx, cy, 7, WHITE);
+  _draw_wifi_arc(cx, cy, 10, WHITE);
+}
+
+static void _draw_mqtt_status_icon(bool connected, bool force_redraw) {
+  int current_state = connected ? 1 : 0;
+  if (!force_redraw && s_last_mqtt_icon_state == current_state) {
+    return;
+  }
+
+  const int x1 = CONFIG_WIDTH - 43;
+  const int y1 = 0;
+  const int x2 = CONFIG_WIDTH - 24;
+  const int y2 = 18;
+  lcdDrawFillRect(&dev, x1, y1, x2, y2, BLACK);
+  s_last_mqtt_icon_state = current_state;
+
+  if (!connected) {
+    return;
+  }
+
+  // Small broker/network glyph: one hub with two upstream nodes.
+  const int hub_x = CONFIG_WIDTH - 34;
+  const int hub_y = 13;
+  const int left_x = CONFIG_WIDTH - 39;
+  const int top_y = 5;
+  const int right_x = CONFIG_WIDTH - 29;
+
+  lcdDrawLine(&dev, static_cast<uint16_t>(hub_x), static_cast<uint16_t>(hub_y), static_cast<uint16_t>(left_x),
+              static_cast<uint16_t>(top_y), WHITE);
+  lcdDrawLine(&dev, static_cast<uint16_t>(hub_x), static_cast<uint16_t>(hub_y), static_cast<uint16_t>(right_x),
+              static_cast<uint16_t>(top_y), WHITE);
+  lcdDrawFillCircle(&dev, static_cast<uint16_t>(hub_x), static_cast<uint16_t>(hub_y), 2, WHITE);
+  lcdDrawFillCircle(&dev, static_cast<uint16_t>(left_x), static_cast<uint16_t>(top_y), 2, WHITE);
+  lcdDrawFillCircle(&dev, static_cast<uint16_t>(right_x), static_cast<uint16_t>(top_y), 2, WHITE);
+}
+
+static void _draw_homekit_status_icon(bool connected, bool force_redraw) {
+  int current_state = connected ? 1 : 0;
+  if (!force_redraw && s_last_homekit_icon_state == current_state) {
+    return;
+  }
+
+  const int x1 = CONFIG_WIDTH - 63;
+  const int y1 = 0;
+  const int x2 = CONFIG_WIDTH - 44;
+  const int y2 = 18;
+  lcdDrawFillRect(&dev, x1, y1, x2, y2, BLACK);
+  s_last_homekit_icon_state = current_state;
+
+  if (!connected) {
+    return;
+  }
+
+  // Simple HomeKit-like house: roof + body + door.
+  lcdDrawLine(&dev, static_cast<uint16_t>(CONFIG_WIDTH - 61), 10, static_cast<uint16_t>(CONFIG_WIDTH - 54), 4, WHITE);
+  lcdDrawLine(&dev, static_cast<uint16_t>(CONFIG_WIDTH - 54), 4, static_cast<uint16_t>(CONFIG_WIDTH - 47), 10, WHITE);
+  lcdDrawRect(&dev, static_cast<uint16_t>(CONFIG_WIDTH - 59), 10, static_cast<uint16_t>(CONFIG_WIDTH - 49), 16, WHITE);
+  lcdDrawLine(&dev, static_cast<uint16_t>(CONFIG_WIDTH - 54), 16, static_cast<uint16_t>(CONFIG_WIDTH - 54), 12, WHITE);
+}
+
 static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
   TickType_t startTick = xTaskGetTickCount();
   static bool show_circle = true;
@@ -190,24 +296,11 @@ static void _draw_active(FontxFile *fx0, FontxFile *fx16M, FontxFile *fx32M) {
 
   _draw_duty(boiler_temp_get_duty(), fx0, 20, 24, WHITE);
 
-  // Draw WiFi symbol
-  if (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) {
-    lcdDrawCircle(&dev, CONFIG_WIDTH, 0, 4, WHITE);
-    lcdDrawCircle(&dev, CONFIG_WIDTH, 0, 9, WHITE);
-    lcdDrawCircle(&dev, CONFIG_WIDTH, 0, 14, WHITE);
-  } else {
-    lcdDrawFillRect(&dev, CONFIG_WIDTH - 11, 0, CONFIG_HEIGHT, 11, BLACK);
-  }
-
-  // Draw mqtt connection
-  int x2 = CONFIG_WIDTH - 32;
-  int y2 = 10;
-  if (xEventGroupGetBits(status_event_group) & WIFI_CONNECTED_BIT) {
-    lcdDrawTriangle(&dev, x2 - 14, y2, 14, 14, 0, WHITE);
-    lcdDrawTriangle(&dev, x2, y2, 14, 14, 180, WHITE);
-  } else {
-    lcdDrawFillRect(&dev, x2 - 14, y2, x2 + 14, 14, BLACK);
-  }
+  EventBits_t status_bits = xEventGroupGetBits(status_event_group);
+  _draw_homekit_status_icon(homekit_has_active_connection(), s_force_status_icon_redraw);
+  _draw_wifi_status_icon((status_bits & WIFI_CONNECTED_BIT) != 0, s_force_status_icon_redraw);
+  _draw_mqtt_status_icon(mqtt_ha_is_connected(), s_force_status_icon_redraw);
+  s_force_status_icon_redraw = false;
 
   // Header separator
   lcdDrawFillRect(&dev, 0, header_width, CONFIG_WIDTH - 1, header_width, GRAY);
@@ -418,6 +511,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
+        s_force_status_icon_redraw = true;
       }
       _draw_ap_mode(fx24M, wifi_setup_remaining_seconds);
     } else if (DESCALE_MODE_BIT & uxBits) {
@@ -425,6 +519,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
+        s_force_status_icon_redraw = true;
       }
       _draw_descale_mode(fx24M);
     } else if (process_image_get()->corrosion_status == CORROSION_FAULT) {
@@ -432,6 +527,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
+        s_force_status_icon_redraw = true;
       }
       _draw_probe_service(fx24M);
     } else if (hw_specs_is_aux_in_activated()) {
@@ -439,6 +535,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
+        s_force_status_icon_redraw = true;
       }
       _draw_refill_water_tank(fx32M);
     } else if (s_brew_start_time >= 0) {
@@ -446,6 +543,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
+        s_force_status_icon_redraw = true;
       }
       _draw_brew_counter(fx24M, fx64M);
     } else if (power_is_active()) {
@@ -453,6 +551,7 @@ static void _tick(void *handler_args, esp_event_base_t base, int32_t id, void *e
       if (state != last_state) {
         lcdFillScreen(&dev, BLACK);
         last_state = state;
+        s_force_status_icon_redraw = true;
       }
       _draw_active(fx24M, fx32M, fx64M);
     }

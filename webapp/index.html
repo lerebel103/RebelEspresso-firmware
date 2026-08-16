@@ -397,7 +397,11 @@ nav .tab .tab-label { display: inline; }
     <div class="card">
       <h3>Firmware Update (OTA)</h3>
       <div class="form-group">
-        <input type="file" id="ota-file" accept=".bin">
+        <input type="file" id="ota-file" style="display:none" onchange="onOTAFileSelected(this)">
+        <div class="btn-group">
+          <button class="btn btn-secondary" type="button" onclick="chooseOTAFile()">Select Firmware (.bin)</button>
+          <span id="ota-file-name" style="align-self:center;color:var(--text-dim);font-size:0.9em">No file selected</span>
+        </div>
       </div>
       <div class="progress" id="ota-progress" style="display:none"><div class="progress-bar" id="ota-bar"></div></div>
       <div id="ota-status"></div>
@@ -797,8 +801,15 @@ async function loadCommsStatus() {
     _setCommsInd('mqtt', !s.mqtt.enabled ? 'off' : (s.mqtt.connected ? 'ok' : 'error'),
       !s.mqtt.enabled ? 'Disabled' : (s.mqtt.connected ? 'Connected' : 'Disconnected'));
     const hk = s.homekit;
-    _setCommsInd('homekit', !hk.enabled ? 'off' : (hk.paired > 0 ? 'ok' : 'warn'),
-      !hk.enabled ? 'Disabled' : (hk.paired > 0 ? ('Paired (' + hk.paired + ')') : 'Not paired'));
+    const hkLabel = !hk.enabled
+      ? 'Disabled'
+      : (hk.active_connection
+          ? ('Connected' + (hk.paired > 0 ? (' (' + hk.paired + ' paired)') : ''))
+          : (!hk.running
+              ? 'Not running'
+              : (hk.paired > 0 ? ('Idle (' + hk.paired + ' paired)') : 'Not paired')));
+    const hkClass = !hk.enabled ? 'off' : (hk.active_connection ? 'ok' : (hk.running ? 'warn' : 'error'));
+    _setCommsInd('homekit', hkClass, hkLabel);
   } catch (e) { /* transient */ }
 }
 
@@ -1184,6 +1195,19 @@ async function loadSystemInfo() {
   try {
     const d = await api('system/info');
     const el = document.getElementById('sys-info');
+    const statusCell = (state, text) => {
+      const cls = state === 'ok' ? 'ok' : (state === 'warn' ? 'warn' : (state === 'error' ? 'error' : ''));
+      return '<span class="indicator' + (cls ? ' ' + cls : '') + '"></span>' + text;
+    };
+
+    const mqttState = !d.mqtt_enabled ? 'off' : (d.mqtt_connected ? 'ok' : 'error');
+    const mqttText = !d.mqtt_enabled ? 'Disabled' : (d.mqtt_connected ? 'Connected' : 'Disconnected');
+
+    const hkState = !d.homekit_enabled ? 'off' : (d.homekit_active_connection ? 'ok' : (d.homekit_running ? 'warn' : 'error'));
+    const hkText = !d.homekit_enabled
+      ? 'Disabled'
+      : (d.homekit_active_connection ? 'Connected' : (d.homekit_running ? 'Idle' : 'Not running'));
+
     el.innerHTML = '';
     const tbl = document.createElement('table');
     tbl.style.cssText = 'width:100%;font-size:0.85em;';
@@ -1195,6 +1219,9 @@ async function loadSystemInfo() {
       ['Manufacturer', d.manufacturer_id != null ? String(d.manufacturer_id).padStart(4, '0') : '—'],
       ['Assembled', d.build_epoch > 0 ? new Date(d.build_epoch * 1000).toISOString().slice(0, 10) : '—'],
       ['Thing ID', d.thing_id],
+      ['MQTT', { html: statusCell(mqttState, mqttText) }],
+      ['HomeKit', { html: statusCell(hkState, hkText) }],
+      ['HomeKit Paired', d.homekit_paired != null ? d.homekit_paired : '--'],
       ['Boots', d.boot_count], ['Crashes', d.crash_count],
       ['Descales', d.descale_count || 0],
       ['Since Descale', d.last_descale_time > 0 ? _timeSince(d.last_descale_time) : 'Never'],
@@ -1208,7 +1235,11 @@ async function loadSystemInfo() {
       td1.style.color = 'var(--text-dim)';
       td1.textContent = label;
       const td2 = document.createElement('td');
-      td2.textContent = val;
+      if (val && typeof val === 'object' && val.html) {
+        td2.innerHTML = val.html;
+      } else {
+        td2.textContent = val;
+      }
       tr.appendChild(td1); tr.appendChild(td2);
       tbl.appendChild(tr);
     });
@@ -1262,10 +1293,41 @@ function startSysPolling() {
 }
 function stopSysPolling() { sysActive = false; if (sysTimer) { clearTimeout(sysTimer); sysTimer = null; } }
 
+function chooseOTAFile() {
+  const input = document.getElementById('ota-file');
+  // Some macOS file pickers intermittently disable .bin files on first open
+  // when extension filters are active. Leave the picker unfiltered and enforce
+  // the extension in JS after selection.
+  input.accept = '';
+  input.multiple = false;
+  input.value = '';
+  input.removeAttribute('webkitdirectory');
+  input.click();
+}
+
+function onOTAFileSelected(input) {
+  const label = document.getElementById('ota-file-name');
+  const file = input && input.files ? input.files[0] : null;
+  if (!label) return;
+  if (!file) {
+    label.textContent = 'No file selected';
+    return;
+  }
+
+  if (!file.name.toLowerCase().endsWith('.bin')) {
+    input.value = '';
+    label.textContent = 'No file selected';
+    toast('Please select a .bin firmware file', 'error');
+    return;
+  }
+
+  label.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+}
+
 async function uploadOTA() {
   const file = document.getElementById('ota-file').files[0];
   if (!file) { toast('Select a firmware file first', 'error'); return; }
-  if (!file.name.endsWith('.bin')) { toast('File must be a .bin firmware', 'error'); return; }
+  if (!file.name.toLowerCase().endsWith('.bin')) { toast('File must be a .bin firmware', 'error'); return; }
   if (!confirm('Upload ' + file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)?\n\nThe device will reboot after flashing.')) return;
 
   const progress = document.getElementById('ota-progress');

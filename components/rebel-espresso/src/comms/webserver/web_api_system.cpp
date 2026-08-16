@@ -60,6 +60,15 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   cJSON_AddNumberToObject(root, "min_free_heap", (double)esp_get_minimum_free_heap_size());
   cJSON_AddNumberToObject(root, "uptime_sec", (double)(esp_timer_get_time() / 1000000));
 
+  // Connectivity summaries used by the System page (WiFi intentionally omitted).
+  cJSON_AddBoolToObject(root, "mqtt_enabled", mqtt_ha_is_enabled());
+  cJSON_AddBoolToObject(root, "mqtt_connected", mqtt_ha_is_connected());
+  const homekit_cfg_t& hkcfg = homekit_config_get();
+  cJSON_AddBoolToObject(root, "homekit_enabled", hkcfg.enabled);
+  cJSON_AddBoolToObject(root, "homekit_running", homekit_is_running());
+  cJSON_AddNumberToObject(root, "homekit_paired", homekit_paired_count());
+  cJSON_AddBoolToObject(root, "homekit_active_connection", homekit_has_active_connection());
+
   // Maintenance stats
   auto brew_status = brew_get_status();
   cJSON_AddNumberToObject(root, "descale_count", brew_status.descale_count);
@@ -479,6 +488,7 @@ static esp_err_t _comms_status_handler(httpd_req_t *req) {
   cJSON_AddBoolToObject(hk, "enabled", hkcfg.enabled);
   cJSON_AddBoolToObject(hk, "running", homekit_is_running());
   cJSON_AddNumberToObject(hk, "paired", homekit_paired_count());
+  cJSON_AddBoolToObject(hk, "active_connection", homekit_has_active_connection());
 
   const char *resp = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");

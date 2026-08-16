@@ -30,6 +30,7 @@ extern "C" {
 #include "events.h"
 #include "wifi/wifi_manager.h"
 #include "wifi/wifi_ap.h"
+#include "web_auth.h"
 #include "brew.h"
 
 #define TAG "tft"
@@ -306,8 +307,16 @@ static void _draw_ap_mode(FontxFile *fx16M, int remaining_seconds) {
   }
   lcdDrawString(&dev, fx16M, x, y + 56, (uint8_t *)ssid_value_buf, GREEN);
 
-  lcdDrawString(&dev, fx16M, x, y + 88, (uint8_t *)"Connect and open", WHITE);
-  lcdDrawString(&dev, fx16M, x, y + 112, (uint8_t *)"192.168.4.1:8080", WHITE);
+  lcdDrawString(&dev, fx16M, x, y + 84, (uint8_t *)"Password:", WHITE);
+  char setup_password[16] = {};
+  if (web_auth_get_ap_setup_password(setup_password, sizeof(setup_password))) {
+    lcdDrawString(&dev, fx16M, x, y + 108, (uint8_t *)setup_password, GREEN);
+  } else {
+    lcdDrawString(&dev, fx16M, x, y + 108, (uint8_t *)"(loading)", GRAY);
+  }
+
+  lcdDrawString(&dev, fx16M, x, y + 136, (uint8_t *)"Connect and open", WHITE);
+  lcdDrawString(&dev, fx16M, x, y + 160, (uint8_t *)"192.168.4.1:8080", WHITE);
 
   // Keep the footer row clean before writing the changing countdown value.
   lcdDrawFillRect(&dev, 0, CONFIG_HEIGHT - 30, CONFIG_WIDTH - 1, CONFIG_HEIGHT - 1, BLACK);

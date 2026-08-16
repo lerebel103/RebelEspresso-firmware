@@ -24,11 +24,14 @@ static char s_password_hash[SHA256_HEX_LEN + 1] = {};
 static char s_session_token[TOKEN_LEN * 2 + 1] = {};
 static bool s_token_valid = false;
 
-static bool _auth_temporarily_bypassed() {
-  // Recovery mode: if Soft-AP is active and STA is not connected yet,
-  // bypass auth so users can regain access even after forgetting password.
-  // Once STA connects again, bypass ends and normal auth resumes.
+static bool _ap_setup_auth_active() {
+  // AP onboarding/recovery mode: enforce authentication while AP is active and
+  // STA has not joined a network yet.
   return wifi_ap_is_active() && !wifi_manager_is_connected();
+}
+
+static bool _auth_is_effectively_enabled() {
+  return s_auth_enabled || _ap_setup_auth_active();
 }
 
 static void _load_auth_state() {
@@ -86,12 +89,7 @@ static void _invalidate_token() {
 }
 
 bool web_auth_check(httpd_req_t *req) {
-  if (!s_auth_enabled) {
-    return true;
-  }
-
-  // Bypass auth only during AP recovery mode.
-  if (_auth_temporarily_bypassed()) {
+  if (!_auth_is_effectively_enabled()) {
     return true;
   }
 
@@ -122,10 +120,10 @@ bool web_auth_check(httpd_req_t *req) {
 static esp_err_t _auth_get_handler(httpd_req_t *req) {
   cJSON *root = cJSON_CreateObject();
 
-  bool effective_enabled = s_auth_enabled && !_auth_temporarily_bypassed();
+  bool effective_enabled = _auth_is_effectively_enabled();
   cJSON_AddBoolToObject(root, "enabled", effective_enabled);
   cJSON_AddBoolToObject(root, "configured", s_auth_enabled);
-  cJSON_AddBoolToObject(root, "temporarily_disabled", s_auth_enabled && !effective_enabled);
+  cJSON_AddBoolToObject(root, "ap_setup_password_active", _ap_setup_auth_active());
 
   const char *json = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");
@@ -140,7 +138,7 @@ static esp_err_t _auth_get_handler(httpd_req_t *req) {
 // --- POST /api/auth/login (authenticate with password, get token) ---
 
 static esp_err_t _auth_login_handler(httpd_req_t *req) {
-  if (!s_auth_enabled) {
+  if (!_auth_is_effectively_enabled()) {
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"success\":true,\"token\":\"\",\"message\":\"Auth not enabled\"}");
     return ESP_OK;
@@ -178,12 +176,20 @@ static esp_err_t _auth_login_handler(httpd_req_t *req) {
     return ESP_FAIL;
   }
 
-  // Verify password
-  char hash[SHA256_HEX_LEN + 1];
-  _sha256_hex(pw->valuestring, hash);
+  bool login_ok = false;
+  if (_ap_setup_auth_active()) {
+    char ap_password[16] = {};
+    if (wifi_ap_get_password(ap_password, sizeof(ap_password)) && strcmp(pw->valuestring, ap_password) == 0) {
+      login_ok = true;
+    }
+  } else {
+    char hash[SHA256_HEX_LEN + 1];
+    _sha256_hex(pw->valuestring, hash);
+    login_ok = (strcmp(hash, s_password_hash) == 0);
+  }
   cJSON_Delete(json);
 
-  if (strcmp(hash, s_password_hash) != 0) {
+  if (!login_ok) {
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_status(req, "401 Unauthorized");
     httpd_resp_sendstr(req, "{\"success\":false,\"message\":\"Invalid password\"}");
@@ -210,8 +216,8 @@ static esp_err_t _auth_login_handler(httpd_req_t *req) {
 // --- POST /api/auth (set password — requires current auth) ---
 
 static esp_err_t _auth_post_handler(httpd_req_t *req) {
-  // If auth is already enabled, require valid token to change password
-  if (s_auth_enabled && !web_auth_check(req)) {
+  // If auth is enabled in any mode, require valid token to change password.
+  if (_auth_is_effectively_enabled() && !web_auth_check(req)) {
     return ESP_FAIL;
   }
 
@@ -337,4 +343,17 @@ void web_auth_register(httpd_handle_t server) {
   httpd_register_uri_handler(server, &delete_uri);
 
   ESP_LOGI(TAG, "Auth API registered (auth %s)", s_auth_enabled ? "enabled" : "disabled");
+}
+
+bool web_auth_get_ap_setup_password(char *out, size_t len) {
+  if (out == nullptr || len == 0) {
+    return false;
+  }
+
+  if (!_ap_setup_auth_active()) {
+    out[0] = '\0';
+    return false;
+  }
+
+  return wifi_ap_get_password(out, len);
 }

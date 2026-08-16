@@ -1,6 +1,7 @@
 #include <src/device/thing_info.h>
 #include <_generated/version.h>
 #include <src/comms/homekit/homekit.h>
+#include <src/comms/homekit/homekit_config.h>
 #include <freertos/task.h>
 #include <src/events.h>
 #include <esp_log.h>
@@ -39,6 +40,7 @@ static bool _rollback_validated = false;
 static bool _mdns_http_registered = false;
 static bool _mdns_hostname_warned = false;
 static bool _mdns_instance_warned = false;
+static bool _mdns_init_warned = false;
 static uint32_t _mdns_attempt_count = 0;
 static uint32_t _mdns_failure_count = 0;
 static int64_t _mdns_last_failure_log_ms = 0;
@@ -51,6 +53,26 @@ static char _mdns_http_instance_name[64] = {0};
 #define SOCKET_CENSUS_THROTTLE_MS 10000
 static int _socket_peak = 0;
 static time_t _last_census_ms = 0;
+
+static bool _ensure_mdns_initialized_for_http() {
+  // HomeKit owns mDNS init while enabled. Avoid pre-initializing here because
+  // the HAP SDK currently treats mdns_init() "already initialized" as failure.
+  if (homekit_config_get().enabled) {
+    return true;
+  }
+
+  esp_err_t err = mdns_init();
+  if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+    _mdns_init_warned = false;
+    return true;
+  }
+
+  if (!_mdns_init_warned) {
+    ESP_LOGW(TAG, "mDNS init for HTTP advertisement failed (%s)", esp_err_to_name(err));
+    _mdns_init_warned = true;
+  }
+  return false;
+}
 
 static void _log_mdns_retry(esp_err_t add_err, esp_err_t port_err, esp_err_t txt_err, esp_err_t inst_err,
                             const char *hostname) {
@@ -75,6 +97,10 @@ static void _log_mdns_retry(esp_err_t add_err, esp_err_t port_err, esp_err_t txt
 }
 
 static void _ensure_mdns_http_advertisement() {
+  if (!_ensure_mdns_initialized_for_http()) {
+    return;
+  }
+
   char hostname[sizeof(_mdns_hostname)] = {0};
   wifi_manager_get_hostname(hostname, sizeof(hostname));
   if (hostname[0] == '\0') {

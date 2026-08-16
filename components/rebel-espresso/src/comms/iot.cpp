@@ -1,19 +1,23 @@
 #include <src/device/thing_info.h>
 #include <_generated/version.h>
 #include <src/comms/homekit/homekit.h>
+#include <src/comms/homekit/homekit_config.h>
 #include <freertos/task.h>
 #include <src/events.h>
 #include <esp_log.h>
 #include <ctime>
+#include <inttypes.h>
 #include <hw_config.h>
 #include <esp_timer.h>
 #include <esp_ota_ops.h>
+#include <mdns.h>
 #include <sys/param.h>
 #include "iot.h"
 #include "controller.h"
 #include "rtds.h"
 #include "boiler_temp.h"
 #include "power.h"
+#include "wifi/wifi_manager.h"
 #include "common/identity.h"
 #include "common/events_common.h"
 #include "app_metrics.h"
@@ -27,17 +31,143 @@
 #define TAG "iot"
 
 #define IOT_LOOP_PERIOD 1000
+#define MDNS_RETRY_LOG_THROTTLE_MS 15000
 
 static bool _go = true;
 static bool _web_server_started = false;
 static bool _web_server_failed = false;
 static bool _rollback_validated = false;
+static bool _mdns_http_registered = false;
+static bool _mdns_hostname_warned = false;
+static bool _mdns_instance_warned = false;
+static bool _mdns_init_warned = false;
+static uint32_t _mdns_attempt_count = 0;
+static uint32_t _mdns_failure_count = 0;
+static int64_t _mdns_last_failure_log_ms = 0;
+static esp_err_t _mdns_last_add_err = ESP_OK;
+static char _mdns_hostname[64] = {0};
+static char _mdns_http_instance_name[64] = {0};
 
 // Socket-pool watchdog: track the high-water mark and dump a full census when
 // the shared LWIP pool runs low, to pinpoint accept() ENFILE exhaustion.
 #define SOCKET_CENSUS_THROTTLE_MS 10000
 static int _socket_peak = 0;
 static time_t _last_census_ms = 0;
+
+static bool _ensure_mdns_initialized_for_http() {
+  // HomeKit owns mDNS init while enabled. Avoid pre-initializing here because
+  // the HAP SDK currently treats mdns_init() "already initialized" as failure.
+  if (homekit_config_get().enabled) {
+    return true;
+  }
+
+  esp_err_t err = mdns_init();
+  if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+    _mdns_init_warned = false;
+    return true;
+  }
+
+  if (!_mdns_init_warned) {
+    ESP_LOGW(TAG, "mDNS init for HTTP advertisement failed (%s)", esp_err_to_name(err));
+    _mdns_init_warned = true;
+  }
+  return false;
+}
+
+static void _log_mdns_retry(esp_err_t add_err, esp_err_t port_err, esp_err_t txt_err, esp_err_t inst_err,
+                            const char *hostname) {
+  _mdns_failure_count++;
+
+  const int64_t now_ms = esp_timer_get_time() / 1000;
+  const bool throttle_elapsed =
+      (_mdns_last_failure_log_ms == 0) || ((now_ms - _mdns_last_failure_log_ms) >= MDNS_RETRY_LOG_THROTTLE_MS);
+  const bool error_changed = add_err != _mdns_last_add_err;
+
+  if (_mdns_failure_count <= 3 || throttle_elapsed || error_changed) {
+    EventBits_t bits = xEventGroupGetBits(status_event_group);
+    ESP_LOGW(TAG,
+             "mDNS HTTP advertise retry: host=%s attempts=%" PRIu32 " failures=%" PRIu32
+             " add=%s port=%s txt=%s inst=%s wifi_connected=%d ap_active=%d",
+             hostname, _mdns_attempt_count, _mdns_failure_count, esp_err_to_name(add_err), esp_err_to_name(port_err),
+             esp_err_to_name(txt_err), esp_err_to_name(inst_err), (bits & WIFI_CONNECTED_BIT) != 0,
+             (bits & WIFI_AP_ACTIVE_BIT) != 0);
+    _mdns_last_failure_log_ms = now_ms;
+    _mdns_last_add_err = add_err;
+  }
+}
+
+static void _ensure_mdns_http_advertisement() {
+  if (!_ensure_mdns_initialized_for_http()) {
+    return;
+  }
+
+  char hostname[sizeof(_mdns_hostname)] = {0};
+  wifi_manager_get_hostname(hostname, sizeof(hostname));
+  if (hostname[0] == '\0') {
+    return;
+  }
+
+  // Keep the Bonjour host label aligned with the configured system hostname.
+  if (strcmp(_mdns_hostname, hostname) != 0) {
+    esp_err_t err = mdns_hostname_set(hostname);
+    if (err == ESP_OK) {
+      strlcpy(_mdns_hostname, hostname, sizeof(_mdns_hostname));
+      _mdns_hostname_warned = false;
+      ESP_LOGI(TAG, "mDNS hostname set to %s", _mdns_hostname);
+    } else if (!_mdns_hostname_warned) {
+      ESP_LOGW(TAG, "mDNS hostname update failed (%s), continuing with existing hostname", esp_err_to_name(err));
+      _mdns_hostname_warned = true;
+    }
+  }
+
+  if (_mdns_http_registered) {
+    if (strcmp(_mdns_http_instance_name, hostname) != 0) {
+      esp_err_t inst_err = mdns_service_instance_name_set("_http", "_tcp", hostname);
+      if (inst_err == ESP_OK) {
+        strlcpy(_mdns_http_instance_name, hostname, sizeof(_mdns_http_instance_name));
+        _mdns_instance_warned = false;
+        ESP_LOGI(TAG, "mDNS HTTP instance updated to %s", hostname);
+      } else if (!_mdns_instance_warned) {
+        ESP_LOGW(TAG, "mDNS HTTP instance rename failed (%s), keeping previous name", esp_err_to_name(inst_err));
+        _mdns_instance_warned = true;
+      }
+    }
+    return;
+  }
+
+  mdns_txt_item_t txt[] = {{"path", "/"}};
+  _mdns_attempt_count++;
+  esp_err_t err = mdns_service_add(hostname, "_http", "_tcp", 8080, txt, 1);
+  if (err == ESP_OK) {
+    _mdns_http_registered = true;
+    strlcpy(_mdns_http_instance_name, hostname, sizeof(_mdns_http_instance_name));
+    _mdns_instance_warned = false;
+    ESP_LOGI(TAG, "mDNS service advertised: %s._http._tcp on port 8080 (attempt=%" PRIu32 ")", hostname,
+             _mdns_attempt_count);
+    return;
+  }
+
+  // If the HTTP service already exists, ensure its port/TXT are what we need.
+  esp_err_t port_err = mdns_service_port_set("_http", "_tcp", 8080);
+  esp_err_t txt_err = mdns_service_txt_set("_http", "_tcp", txt, 1);
+  esp_err_t inst_err = mdns_service_instance_name_set("_http", "_tcp", hostname);
+
+  if (port_err == ESP_OK && txt_err == ESP_OK) {
+    if (inst_err == ESP_OK) {
+      strlcpy(_mdns_http_instance_name, hostname, sizeof(_mdns_http_instance_name));
+      _mdns_instance_warned = false;
+    } else if (!_mdns_instance_warned) {
+      ESP_LOGW(TAG, "mDNS HTTP instance rename failed during service update (%s)", esp_err_to_name(inst_err));
+      _mdns_instance_warned = true;
+    }
+    _mdns_http_registered = true;
+    ESP_LOGI(TAG, "mDNS service updated: _http._tcp on port 8080 (attempt=%" PRIu32 ", add=%s)", _mdns_attempt_count,
+             esp_err_to_name(err));
+    return;
+  }
+
+  _log_mdns_retry(err, port_err, txt_err, inst_err, hostname);
+}
 
 static void _monitor_socket_pool() {
   int used = net_diag_count_open_sockets();
@@ -109,6 +239,10 @@ void iot_process_events() {
           ESP_LOGE(TAG, "Web server failed to start — will not retry");
         }
       }
+    }
+
+    if (_web_server_started) {
+      _ensure_mdns_http_advertisement();
     }
 
     // OTA rollback self-test

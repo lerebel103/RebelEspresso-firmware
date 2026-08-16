@@ -23,6 +23,7 @@
 #include "rtds.h"
 #include "power.h"
 #include "wifi/wifi_manager.h"
+#include "app_metrics.h"
 #include <hw_config.h>
 
 #define TAG "mqtt_ha"
@@ -115,6 +116,9 @@ static void _build_state(mqtt_state_t *s) {
   brew_status_t bs = brew_get_status();
   s->brew_count = (int)bs.brew_count;
   s->descale_count = (int)bs.descale_count;
+  device_metrics_t metrics = app_metrics_get();
+  s->boot_count = (int)metrics.boot_count;
+  s->crash_count = (int)metrics.crash_count;
   if (bs.last_descale_time > 0) {
     struct tm tmv;
     localtime_r(&bs.last_descale_time, &tmv);

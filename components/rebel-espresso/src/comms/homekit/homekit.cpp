@@ -4,6 +4,7 @@
 #include <version.h>
 #include <cstring>
 #include <csignal>
+#include <atomic>
 #include <esp_event.h>
 #include <hap.h>
 #include <src/events.h>
@@ -26,6 +27,7 @@ static bool s_running = false;
 // cannot cleanly re-init its internal event loop once stopped, so re-enabling
 // HomeKit after a disable requires a full reboot rather than a partial restart.
 static bool s_hap_inited = false;
+static std::atomic<int> s_active_controllers{0};
 
 static hap_char_t *hc_brew_temp = nullptr;
 static hap_char_t *hc_boiler_temp = nullptr;
@@ -34,6 +36,25 @@ static hap_char_t *hc_cur_duty = nullptr;
 static hap_char_t *hc_boiler_fault = nullptr;
 static hap_char_t *hc_brew_fault = nullptr;
 static hap_char_t *hc_internal_fault = nullptr;
+
+static void _hap_event_handler(hap_event_t event, void *data) {
+  (void)data;
+
+  switch (event) {
+    case HAP_EVENT_CTRL_CONNECTED:
+      s_active_controllers.fetch_add(1, std::memory_order_relaxed);
+      break;
+    case HAP_EVENT_CTRL_DISCONNECTED: {
+      int prev = s_active_controllers.fetch_sub(1, std::memory_order_relaxed);
+      if (prev <= 0) {
+        s_active_controllers.store(0, std::memory_order_relaxed);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
 
 #define TAG "hk"
 
@@ -272,6 +293,8 @@ static void espresso_thread_entry(void *arg) {
 
   /* Initialize the HAP core */
   hap_init(HAP_TRANSPORT_WIFI);
+  hap_register_event_handler(_hap_event_handler);
+  s_active_controllers.store(0, std::memory_order_relaxed);
 
   /* Initialise the mandatory parameters for Accessory which will be added as
    * the mandatory services internally
@@ -437,6 +460,7 @@ void homekit_terminate() {
 
   hap_stop();
   s_running = false;
+  s_active_controllers.store(0, std::memory_order_relaxed);
 }
 
 bool homekit_is_running() {
@@ -445,6 +469,10 @@ bool homekit_is_running() {
 
 int homekit_paired_count() {
   return s_running ? hap_get_paired_controller_count() : 0;
+}
+
+bool homekit_has_active_connection() {
+  return s_running && (s_active_controllers.load(std::memory_order_relaxed) > 0);
 }
 
 bool homekit_reset_pairings() {

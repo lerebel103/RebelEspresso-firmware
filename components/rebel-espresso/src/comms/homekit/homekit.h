@@ -29,6 +29,9 @@ bool homekit_is_running();
 /// Number of paired HomeKit controllers (0 = advertising, not yet paired).
 int homekit_paired_count();
 
+/// True when at least one paired HomeKit controller currently has an active session.
+bool homekit_has_active_connection();
+
 /**
  * Notify HomeKit that the brew temperature setpoint has changed
  * (e.g., from the web interface). Pushes the update to subscribed clients.

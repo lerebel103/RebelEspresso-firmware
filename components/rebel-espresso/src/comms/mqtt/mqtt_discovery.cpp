@@ -45,6 +45,10 @@ static const mqtt_entity_t s_entities[] = {
      "total_increasing"},
     {"sensor", "descale_count", "Descale Count", "{{ value_json.descale_count }}", nullptr, nullptr, "diagnostic",
      "total_increasing"},
+    {"sensor", "boot_count", "Boot Count", "{{ value_json.boot_count }}", nullptr, nullptr, "diagnostic",
+     "total_increasing"},
+    {"sensor", "crash_count", "Crash Count", "{{ value_json.crash_count }}", nullptr, nullptr, "diagnostic",
+     "total_increasing"},
     {"sensor", "last_descale", "Last Descale", "{{ value_json.last_descale }}", nullptr, nullptr, "diagnostic",
      nullptr},
     {"sensor", "open_sockets", "Open Sockets", "{{ value_json.open_sockets }}", nullptr, nullptr, "diagnostic",
@@ -82,6 +86,8 @@ char *mqtt_build_state_json(const mqtt_state_t *s) {
   cJSON_AddNumberToObject(root, "corrosion_status", s->corrosion_status);
   cJSON_AddNumberToObject(root, "brew_count", s->brew_count);
   cJSON_AddNumberToObject(root, "descale_count", s->descale_count);
+  cJSON_AddNumberToObject(root, "boot_count", s->boot_count);
+  cJSON_AddNumberToObject(root, "crash_count", s->crash_count);
   cJSON_AddStringToObject(root, "last_descale", s->last_descale);
   cJSON_AddNumberToObject(root, "open_sockets", s->open_sockets);
   cJSON_AddBoolToObject(root, "power", s->power);

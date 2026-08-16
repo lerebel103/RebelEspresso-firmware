@@ -28,6 +28,7 @@
 
 #define TAG "api_system"
 #define OTA_BUF_SIZE 4096
+#define COREDUMP_STREAM_CHUNK 1024
 
 // --- GET /api/system/info ---
 
@@ -59,6 +60,15 @@ static esp_err_t _info_handler(httpd_req_t *req) {
   cJSON_AddNumberToObject(root, "free_heap", (double)esp_get_free_heap_size());
   cJSON_AddNumberToObject(root, "min_free_heap", (double)esp_get_minimum_free_heap_size());
   cJSON_AddNumberToObject(root, "uptime_sec", (double)(esp_timer_get_time() / 1000000));
+
+  // Connectivity summaries used by the System page (WiFi intentionally omitted).
+  cJSON_AddBoolToObject(root, "mqtt_enabled", mqtt_ha_is_enabled());
+  cJSON_AddBoolToObject(root, "mqtt_connected", mqtt_ha_is_connected());
+  const homekit_cfg_t& hkcfg = homekit_config_get();
+  cJSON_AddBoolToObject(root, "homekit_enabled", hkcfg.enabled);
+  cJSON_AddBoolToObject(root, "homekit_running", homekit_is_running());
+  cJSON_AddNumberToObject(root, "homekit_paired", homekit_paired_count());
+  cJSON_AddBoolToObject(root, "homekit_active_connection", homekit_has_active_connection());
 
   // Maintenance stats
   auto brew_status = brew_get_status();
@@ -462,6 +472,73 @@ static esp_err_t _probe_calibrate_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+// --- GET /api/system/coredump ---
+
+static esp_err_t _coredump_download_handler(httpd_req_t *req) {
+  if (!web_auth_check(req))
+    return ESP_FAIL;
+
+  const esp_partition_t *part =
+      esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, "coredump");
+  if (!part) {
+    part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, NULL);
+  }
+  if (!part) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Core dump partition not found");
+    return ESP_FAIL;
+  }
+
+  uint32_t first_word = 0xFFFFFFFF;
+  esp_err_t err = esp_partition_read(part, 0, &first_word, sizeof(first_word));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to read coredump header: %s", esp_err_to_name(err));
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read core dump");
+    return ESP_FAIL;
+  }
+  if (first_word == 0xFFFFFFFF) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "No core dump found in partition");
+    return ESP_FAIL;
+  }
+
+  httpd_resp_set_type(req, "application/octet-stream");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"coredump.bin\"");
+
+  uint8_t *buf = (uint8_t *)malloc(COREDUMP_STREAM_CHUNK);
+  if (!buf) {
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
+    return ESP_FAIL;
+  }
+
+  size_t offset = 0;
+  while (offset < part->size) {
+    size_t to_read = part->size - offset;
+    if (to_read > COREDUMP_STREAM_CHUNK) {
+      to_read = COREDUMP_STREAM_CHUNK;
+    }
+
+    err = esp_partition_read(part, offset, buf, to_read);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Core dump partition read failed at offset %u: %s", (unsigned)offset, esp_err_to_name(err));
+      free(buf);
+      httpd_resp_send_chunk(req, NULL, 0);
+      return ESP_FAIL;
+    }
+
+    if (httpd_resp_send_chunk(req, (const char *)buf, to_read) != ESP_OK) {
+      free(buf);
+      httpd_resp_send_chunk(req, NULL, 0);
+      return ESP_FAIL;
+    }
+    offset += to_read;
+  }
+
+  free(buf);
+  httpd_resp_send_chunk(req, NULL, 0);
+  ESP_LOGI(TAG, "Streamed coredump partition (%u bytes)", (unsigned)part->size);
+  return ESP_OK;
+}
+
 // --- GET /api/comms/status (live MQTT + HomeKit connection state) ---
 
 static esp_err_t _comms_status_handler(httpd_req_t *req) {
@@ -479,6 +556,7 @@ static esp_err_t _comms_status_handler(httpd_req_t *req) {
   cJSON_AddBoolToObject(hk, "enabled", hkcfg.enabled);
   cJSON_AddBoolToObject(hk, "running", homekit_is_running());
   cJSON_AddNumberToObject(hk, "paired", homekit_paired_count());
+  cJSON_AddBoolToObject(hk, "active_connection", homekit_has_active_connection());
 
   const char *resp = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");
@@ -564,6 +642,14 @@ void web_api_system_register(httpd_handle_t server) {
       .user_ctx = nullptr,
   };
   httpd_register_uri_handler(server, &probe_cal_uri);
+
+  const httpd_uri_t coredump_download_uri = {
+      .uri = "/api/system/coredump",
+      .method = HTTP_GET,
+      .handler = _coredump_download_handler,
+      .user_ctx = nullptr,
+  };
+  httpd_register_uri_handler(server, &coredump_download_uri);
 
   const httpd_uri_t comms_status_uri = {
       .uri = "/api/comms/status",

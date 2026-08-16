@@ -1196,6 +1196,9 @@ async function loadSystemInfo() {
     const d = await api('system/info');
     const el = document.getElementById('sys-info');
     const statusCell = (state, text) => {
+      if (state === 'off') {
+        return '<span class="indicator" style="background:var(--text-dim)"></span>' + text;
+      }
       const cls = state === 'ok' ? 'ok' : (state === 'warn' ? 'warn' : (state === 'error' ? 'error' : ''));
       return '<span class="indicator' + (cls ? ' ' + cls : '') + '"></span>' + text;
     };

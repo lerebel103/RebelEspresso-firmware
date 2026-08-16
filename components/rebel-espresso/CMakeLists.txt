@@ -32,6 +32,7 @@ set(COMPONENT_REQUIRES
         esp_rom
         spiffs
         esp_http_server
+        mdns
         mbedtls
         esp_wifi
         tft-driver

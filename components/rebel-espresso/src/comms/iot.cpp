@@ -8,12 +8,14 @@
 #include <hw_config.h>
 #include <esp_timer.h>
 #include <esp_ota_ops.h>
+#include <mdns.h>
 #include <sys/param.h>
 #include "iot.h"
 #include "controller.h"
 #include "rtds.h"
 #include "boiler_temp.h"
 #include "power.h"
+#include "wifi/wifi_manager.h"
 #include "common/identity.h"
 #include "common/events_common.h"
 #include "app_metrics.h"
@@ -32,12 +34,69 @@ static bool _go = true;
 static bool _web_server_started = false;
 static bool _web_server_failed = false;
 static bool _rollback_validated = false;
+static bool _mdns_http_registered = false;
+static bool _mdns_hostname_warned = false;
+static bool _mdns_instance_warned = false;
+static char _mdns_hostname[64] = {0};
 
 // Socket-pool watchdog: track the high-water mark and dump a full census when
 // the shared LWIP pool runs low, to pinpoint accept() ENFILE exhaustion.
 #define SOCKET_CENSUS_THROTTLE_MS 10000
 static int _socket_peak = 0;
 static time_t _last_census_ms = 0;
+
+static void _ensure_mdns_http_advertisement() {
+  char hostname[sizeof(_mdns_hostname)] = {0};
+  wifi_manager_get_hostname(hostname, sizeof(hostname));
+  if (hostname[0] == '\0') {
+    return;
+  }
+
+  // Keep the Bonjour host label aligned with the configured system hostname.
+  if (strcmp(_mdns_hostname, hostname) != 0) {
+    esp_err_t err = mdns_hostname_set(hostname);
+    if (err == ESP_OK) {
+      strlcpy(_mdns_hostname, hostname, sizeof(_mdns_hostname));
+      _mdns_hostname_warned = false;
+      ESP_LOGI(TAG, "mDNS hostname set to %s", _mdns_hostname);
+    } else if (!_mdns_hostname_warned) {
+      ESP_LOGW(TAG, "mDNS hostname update failed (%s), continuing with existing hostname", esp_err_to_name(err));
+      _mdns_hostname_warned = true;
+    }
+  }
+
+  if (_mdns_http_registered) {
+    if (mdns_service_instance_name_set("_http", "_tcp", hostname) == ESP_OK) {
+      _mdns_instance_warned = false;
+    } else if (!_mdns_instance_warned) {
+      ESP_LOGW(TAG, "mDNS HTTP instance rename failed, keeping previous name");
+      _mdns_instance_warned = true;
+    }
+    return;
+  }
+
+  mdns_txt_item_t txt[] = {{"path", "/"}};
+  esp_err_t err = mdns_service_add(hostname, "_http", "_tcp", 8080, txt, 1);
+  if (err == ESP_OK) {
+    _mdns_http_registered = true;
+    _mdns_instance_warned = false;
+    ESP_LOGI(TAG, "mDNS service advertised: %s._http._tcp on port 8080", hostname);
+    return;
+  }
+
+  // If the HTTP service already exists, ensure its port/TXT are what we need.
+  if (mdns_service_port_set("_http", "_tcp", 8080) == ESP_OK &&
+      mdns_service_txt_set("_http", "_tcp", txt, 1) == ESP_OK) {
+    if (mdns_service_instance_name_set("_http", "_tcp", hostname) == ESP_OK) {
+      _mdns_instance_warned = false;
+    } else if (!_mdns_instance_warned) {
+      ESP_LOGW(TAG, "mDNS HTTP instance rename failed during service update");
+      _mdns_instance_warned = true;
+    }
+    _mdns_http_registered = true;
+    ESP_LOGI(TAG, "mDNS service updated: _http._tcp on port 8080");
+  }
+}
 
 static void _monitor_socket_pool() {
   int used = net_diag_count_open_sockets();
@@ -109,6 +168,10 @@ void iot_process_events() {
           ESP_LOGE(TAG, "Web server failed to start — will not retry");
         }
       }
+    }
+
+    if (_web_server_started) {
+      _ensure_mdns_http_advertisement();
     }
 
     // OTA rollback self-test

@@ -15,8 +15,8 @@
 bitstring>=4.4.0,<5
 
 # AWS IoT device onboarding
-boto3>=1.43.59,<2
-cryptography>=50.0.0,<51
+boto3>=1.43.83,<2
+cryptography>=50.0.1,<51
 
 # OTA certificate fetch script
 requests>=2.34.2,<3

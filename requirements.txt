@@ -12,11 +12,11 @@
 -c constraints.txt
 
 # Device provisioning / NVS generation
-bitstring>=4.4.0,<5
+bitstring>=5.0.0,<6
 
 # AWS IoT device onboarding
-boto3>=1.43.104,<2
-cryptography>=50.0.1,<51
+boto3>=1.43.122,<2
+cryptography>=50.0.2,<51
 
 # OTA certificate fetch script
 requests>=2.34.2,<3
